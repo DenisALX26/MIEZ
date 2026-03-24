@@ -92,12 +92,12 @@ from rest_framework.permissions import IsAuthenticated
 
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
-
     def get(self, request):
-        return Response(
+        return JsonResponse(
             {
                 "username": request.user.username,
                 "email": request.user.email,
+                "role": request.user.role,
                 "message": "Daca apare asta, inseamna ca sunt smecher rau de tot sa mor eu",
             }
         )

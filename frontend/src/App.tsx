@@ -3,24 +3,34 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
-
-import Sidebar from './components/Sidebar'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/sidebar/Sidebar'
 import LoginPage from './components/LoginPage';
+import DashboardPage from './components/dashboard/DashboardPage'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { AuthProvider } from './context/AuthContext'
 
 
 function App() {
-  useEffect(() => {
-    fetch('/api/health/')
-      .then(r => r.json())
-      .then(data => console.log(data))  // → {status: "ok"}
-  }, [])
   return (
     <>
-      <div>
-        <Sidebar />
-        <LoginPage />
-        <h1 className="text-3xl font-bold text-blue-500">MIEZ andrei + petru = love</h1>
-      </div>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route path='*' element={<Navigate to={'/dashboard'} />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
 
     </>
   )
