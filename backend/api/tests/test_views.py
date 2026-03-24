@@ -2,7 +2,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from rest_framework.test import APITestCase
 from rest_framework import status
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.conf import settings
 
 class IsEvenTests(TestCase):
@@ -62,6 +62,7 @@ class AuthTests(APITestCase):
     def setUp(self):
         self.username = 'testuser'
         self.password = 'testpass123'
+        User = get_user_model()
         self.user = User.objects.create_user(username=self.username, password=self.password)
         self.login_url = reverse('login')
         self.me_url = reverse('user_me')
@@ -78,10 +79,14 @@ class AuthTests(APITestCase):
 
     def test_protected_route_access(self):
         self.client.post(self.login_url, {"username": self.username, "password": self.password})
-
         response = self.client.get(self.me_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.json()['username'], self.username)
+        data = response.json()
+        # Ensure expected fields exist in the JSON response. The user model may not
+        # always expose a `role` attribute, so assert presence of core fields.
+        self.assertEqual(data.get('username'), self.username)
+        self.assertIn('email', data)
+        self.assertIn('message', data)
 
     def test_access_denied_without_cookie(self):
         response = self.client.get(self.me_url)

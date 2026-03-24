@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { redirect, useNavigate } from 'react-router-dom';
 
 const UserIcon = () => (
   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -15,20 +17,29 @@ const LockIcon = () => (
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const { login } = useAuth();
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Login attempt:", { username, password });
+    setUsername('');
+    setPassword('');
+    try {
+      await login(username, password); // ← calls context method
+      window.location.href = "/dashboard";
+    } catch {
+      setError('Login failed');
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#1a1a1a] via-[#1a1a1a] to-[#4a1a1a]">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[var(--sidebar)] via-[var(--sidebar)] to-[var(--sidebar-accent)]">
       {/* Containerul principal este acum max-w-sm (mai îngust) */}
       <div className="max-w-sm w-full flex flex-col items-center">
-        
+
         {/* LOGO SECTION - Micșorat distanțele */}
         <div className="flex flex-col items-center mb-8">
-          <div className="bg-[#cc333a] rounded-xl p-3 mb-3 shadow-lg">
+          <div className="bg-[var(--primary)] rounded-xl p-3 mb-3 shadow-lg">
             <span className="text-white text-3xl font-black leading-none">M</span>
           </div>
           <h1 className="text-white text-2xl font-bold tracking-[0.2em]">M.I.E.Z</h1>
@@ -36,8 +47,8 @@ const LoginPage = () => {
         </div>
 
         {/* MAIN CARD - Padding redus la p-8 și rotunjire ajustată */}
-        <div className="bg-white rounded-[2rem] shadow-2xl p-8 w-full mb-8">
-          <h2 className="text-gray-800 text-2xl font-bold text-center mb-8">Sign In</h2>
+        <div className="bg-[var(--card)] rounded-[2rem] shadow-2xl p-8 w-full mb-8">
+          <h2 className="text-[var(--foreground)] text-2xl font-bold text-center mb-8">Sign In</h2>
 
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
@@ -49,7 +60,7 @@ const LoginPage = () => {
                 <input
                   type="text"
                   placeholder="Enter username"
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-full focus:ring-2 focus:ring-[#cc333a]/20 focus:border-[#cc333a] outline-none transition-all text-sm placeholder:text-gray-300"
+                  className="w-full pl-12 pr-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-full focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] outline-none transition-all text-sm placeholder:text-gray-300"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                 />
@@ -65,7 +76,7 @@ const LoginPage = () => {
                 <input
                   type="password"
                   placeholder="Enter password"
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-gray-100 rounded-full focus:ring-2 focus:ring-[#cc333a]/20 focus:border-[#cc333a] outline-none transition-all text-sm placeholder:text-gray-300"
+                  className="w-full pl-12 pr-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-full focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] outline-none transition-all text-sm placeholder:text-gray-300"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -74,7 +85,8 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#cc333a] hover:bg-[#b02a30] text-white font-bold rounded-full transition-colors shadow-lg shadow-[#cc333a]/20 mt-2 text-sm"
+              className="w-full py-3.5 bg-[var(--primary)] hover:bg-[var(--primary-foreground)] text-[var(--primary-foreground)] font-bold rounded-full transition-colors shadow-lg shadow-[var(--primary)]/20 mt-2 text-sm"
+
             >
               Sign In
             </button>
@@ -83,22 +95,8 @@ const LoginPage = () => {
           <div className="relative my-8">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-50"></span></div>
           </div>
-
-          {/* DEMO CREDENTIALS - Mai compact */}
-          <div className="text-center">
-            <p className="text-gray-400 text-[10px] font-medium mb-3 uppercase tracking-wider">Demo Credentials</p>
-            <div className="bg-[#fcfcfc] border border-gray-50 rounded-xl p-4 space-y-1.5">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Username:</span>
-                <span className="text-gray-700 font-bold">user</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-400">Password:</span>
-                <span className="text-gray-700 font-bold">password</span>
-              </div>
-            </div>
-          </div>
         </div>
+        
 
         {/* FOOTER */}
         <p className="text-white/30 text-[9px] tracking-[0.3em] uppercase">
