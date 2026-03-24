@@ -15,4 +15,7 @@ PyJWT==2.12.1
 pytest==9.0.2
 pytest-django==4.12.0
 sqlparse==0.5.5
-tailwindcss==0.0.1
+djangorestframework-simplejwt
+psycopg2-binary
+pytest
+pytest-django
