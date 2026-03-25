@@ -3,7 +3,7 @@ import reactLogo from './assets/react.svg'
 import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import './App.css'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import Sidebar from './components/sidebar/Sidebar'
 import LoginPage from './components/LoginPage';
 import DashboardPage from './components/dashboard/DashboardPage'
