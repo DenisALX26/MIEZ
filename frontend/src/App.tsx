@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import Sidebar from './components/sidebar/Sidebar'
 import LoginPage from './components/LoginPage'
 import DashboardPage from './components/dashboard/DashboardPage'
+import EmployeesPage from './components/employees/EmployeesPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
@@ -60,12 +61,7 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route
               path="/employees"
-              element={
-                <ModulePage
-                  title="Employees"
-                  description="Manage team members and user onboarding details."
-                />
-              }
+              element={<EmployeesPage />}
             />
             <Route
               path="/reports"

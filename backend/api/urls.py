@@ -11,4 +11,6 @@ urlpatterns = [
   path('auth/me/', views.UserMeView.as_view(), name='user_me'),
   path('departments/', views.DepartmentListCreateView.as_view(), name='department_list_create'),
   path('departments/<int:id>/', views.DepartmentDeleteView.as_view(), name='department_delete'),
+  path('employees/', views.EmployeeListView.as_view(), name='employee_list'),
+  path('employees/stats/', views.EmployeeStatsView.as_view(), name='employee_stats'),
 ]
