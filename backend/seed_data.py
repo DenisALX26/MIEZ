@@ -1,8 +1,28 @@
 from django.contrib.auth import get_user_model
+from api.models import Department
 
 User = get_user_model()
 
 def seed_users():
+    departments = {
+        'HR': Department.objects.get_or_create(
+            slug='hr',
+            defaults={'name': 'Human Resources', 'icon': 'Users'},
+        )[0],
+        'SALES': Department.objects.get_or_create(
+            slug='sales',
+            defaults={'name': 'Sales', 'icon': 'BarChart3'},
+        )[0],
+        'IT': Department.objects.get_or_create(
+            slug='it',
+            defaults={'name': 'IT', 'icon': 'Monitor'},
+        )[0],
+        'INVENTORY': Department.objects.get_or_create(
+            slug='inventory',
+            defaults={'name': 'Inventory', 'icon': 'Package'},
+        )[0],
+    }
+
     users = [
         {
             "username": "admin",
@@ -13,6 +33,7 @@ def seed_users():
             "role": "CEO",
             "is_staff": True,
             "is_superuser": True,
+            "full_time": True,
         },
         {
             "username": "ana.mihai",
@@ -21,6 +42,7 @@ def seed_users():
             "last_name": "Mihai",
             "password": "password",
             "role": "HR",
+            "full_time": True,
         },
         {
             "username": "mihai.popescu",
@@ -29,6 +51,7 @@ def seed_users():
             "last_name": "Popescu",
             "password": "password",
             "role": "SALES",
+            "full_time": True,
         },
         {
             "username": "radu.pop",
@@ -37,6 +60,7 @@ def seed_users():
             "last_name": "Pop",
             "password": "password",
             "role": "SALES",
+            "full_time": False,
         },
         {
             "username": "elena.vasile",
@@ -45,6 +69,7 @@ def seed_users():
             "last_name": "Vasile",
             "password": "password",
             "role": "IT",
+            "full_time": True,
         },
         {
             "username": "ion.dragomir",
@@ -53,6 +78,7 @@ def seed_users():
             "last_name": "Dragomir",
             "password": "password",
             "role": "IT",
+            "full_time": False,
         },
         {
             "username": "andrei.negrescu",
@@ -61,6 +87,7 @@ def seed_users():
             "last_name": "Negrescu",
             "password": "password",
             "role": "SALES",
+            "full_time": True,
         },
         {
             "username": "cristina.ionescu",
@@ -69,6 +96,7 @@ def seed_users():
             "last_name": "Ionescu",
             "password": "password",
             "role": "HR",
+            "full_time": True,
         },
         {
             "username": "maria.stanciu",
@@ -78,6 +106,7 @@ def seed_users():
             "password": "password",
             "role": "SALES",
             "is_active": False,
+            "full_time": False,
         },
     ]
 
@@ -92,6 +121,8 @@ def seed_users():
                 "is_staff": data.get("is_staff", False),
                 "is_superuser": data.get("is_superuser", False),
                 "is_active": data.get("is_active", True),
+                "full_time": data.get("full_time", True),
+                "department": departments.get(data["role"]),
             }
         )
         if created:
@@ -99,4 +130,15 @@ def seed_users():
             user.save()
             print(f"Created user: {user.username} ({user.role})")
         else:
+            user.email = data["email"]
+            user.first_name = data["first_name"]
+            user.last_name = data["last_name"]
+            user.role = data["role"]
+            user.is_staff = data.get("is_staff", False)
+            user.is_superuser = data.get("is_superuser", False)
+            user.is_active = data.get("is_active", True)
+            user.full_time = data.get("full_time", True)
+            user.department = departments.get(data["role"])
+            user.set_password(data["password"])
+            user.save()
             print(f"Already exists: {user.username}")

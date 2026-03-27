@@ -14,6 +14,27 @@ class User(AbstractUser):
         choices=Role.choices,
         default=Role.CEO
     )
+    department = models.ForeignKey(
+        'Department',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='employees',
+    )
+    full_time = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'users'
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=120, unique=True)
+    slug = models.SlugField(max_length=140, unique=True)
+    icon = models.CharField(max_length=40, default='Building2')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self) -> str:
+        return self.name

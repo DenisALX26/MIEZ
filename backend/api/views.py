@@ -1,12 +1,17 @@
-from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.db.models import Count, Q
 
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
+
+from .models import User
+from .serializers import EmployeeListSerializer
 
 
 # Create your views here.
@@ -87,9 +92,6 @@ class LogoutView(APIView):
         return response
 
 
-from rest_framework.permissions import IsAuthenticated
-
-
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
@@ -100,4 +102,73 @@ class UserMeView(APIView):
                 "role": request.user.role,
                 "message": "Daca apare asta, inseamna ca sunt smecher rau de tot sa mor eu",
             }
+        )
+
+
+class EmployeePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class EmployeeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = User.objects.select_related('department').all().order_by('id')
+
+        department_filter = request.query_params.get('department')
+        if department_filter:
+            if department_filter.isdigit():
+                queryset = queryset.filter(department_id=int(department_filter))
+            else:
+                queryset = queryset.filter(department__slug=department_filter)
+
+        is_active_filter = request.query_params.get('is_active')
+        if is_active_filter is not None:
+            normalized = is_active_filter.strip().lower()
+            if normalized in ['true', '1', 'yes']:
+                queryset = queryset.filter(is_active=True)
+            elif normalized in ['false', '0', 'no']:
+                queryset = queryset.filter(is_active=False)
+
+        paginator = EmployeePagination()
+        paginated = paginator.paginate_queryset(queryset, request)
+        serializer = EmployeeListSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class EmployeeStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        base = User.objects.select_related('department').all()
+
+        stats = base.aggregate(
+            total=Count('id'),
+            active=Count('id', filter=Q(is_active=True)),
+            full_time=Count('id', filter=Q(full_time=True)),
+        )
+
+        department_rows = (
+            base.values('department__name')
+            .annotate(count=Count('id'))
+            .order_by('department__name')
+        )
+
+        departments = []
+        for row in department_rows:
+            departments.append({
+                'name': row['department__name'] or 'Unassigned',
+                'count': row['count'],
+            })
+
+        return Response(
+            {
+                'total': stats['total'],
+                'active': stats['active'],
+                'full_time': stats['full_time'],
+                'departments': departments,
+            },
+            status=status.HTTP_200_OK,
         )
