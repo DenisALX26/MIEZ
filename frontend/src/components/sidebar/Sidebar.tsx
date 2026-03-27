@@ -50,6 +50,13 @@ const Sidebar = () => {
   const [departments, setDepartments] = useState<Department[]>([])
   const unreadCount = 4
 
+  const initials = useMemo(() => {
+    if (!user?.username) {
+      return 'AM'
+    }
+    return user.username.slice(0, 2).toUpperCase()
+  }, [user?.username])
+
   useEffect(() => {
     const storedState = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
     if (storedState !== null) {
@@ -109,7 +116,6 @@ const Sidebar = () => {
     <div className="app-shell">
       <aside className={`sidebar ${isCollapsed ? 'is-collapsed' : ''}`}>
         <div className="sidebar-header">
-          {!isCollapsed && <span className="brand-name">MIEZ Portal</span>}
           <button
             className="hamburger-btn"
             type="button"
@@ -118,6 +124,15 @@ const Sidebar = () => {
           >
             <FiMenu aria-hidden="true" />
           </button>
+
+          {!isCollapsed ? (
+            <div className="brand-block">
+              <span className="brand-mark">M</span>
+              <span className="brand-name">M.I.E.Z</span>
+            </div>
+          ) : (
+            <span className="brand-mark">M</span>
+          )}
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
@@ -174,13 +189,23 @@ const Sidebar = () => {
 
       <div className="shell-main">
         <header className="top-bar">
-          <h1>{pageTitle}</h1>
+          <div className="topbar-left-spacer" />
+          <h1 className="topbar-title">{`${pageTitle} — ${user?.role ?? 'USER'}`}</h1>
           <div className="topbar-right">
-            <span className="role-chip">{user?.role ?? 'User'}</span>
+            <button type="button" className="view-switch-btn">
+              {`${user?.role ?? 'CEO'} View`}
+              <FiChevronDown aria-hidden="true" />
+            </button>
+
             <button className="notification-btn" type="button" aria-label="Notifications">
               <FiBell aria-hidden="true" />
               {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
             </button>
+
+            <div className="profile-chip">
+              <span className="profile-avatar">{initials}</span>
+              <span className="profile-label">Admin</span>
+            </div>
           </div>
         </header>
 
