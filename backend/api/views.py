@@ -1,12 +1,16 @@
-from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.shortcuts import get_object_or_404
 
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+
+from .models import Department
+from .serializers import DepartmentSerializer
 
 
 # Create your views here.
@@ -87,9 +91,6 @@ class LogoutView(APIView):
         return response
 
 
-from rest_framework.permissions import IsAuthenticated
-
-
 class UserMeView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
@@ -101,3 +102,33 @@ class UserMeView(APIView):
                 "message": "Daca apare asta, inseamna ca sunt smecher rau de tot sa mor eu",
             }
         )
+
+
+class DepartmentListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        departments = Department.objects.all()
+        serializer = DepartmentSerializer(departments, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if request.user.role != 'CEO':
+            return Response({"detail": "Only CEOs can create departments."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = DepartmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class DepartmentDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, id):
+        if request.user.role != 'CEO':
+            return Response({"detail": "Only CEOs can remove departments."}, status=status.HTTP_403_FORBIDDEN)
+
+        department = get_object_or_404(Department, id=id)
+        department.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

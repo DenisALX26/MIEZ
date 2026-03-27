@@ -1,5 +1,5 @@
 import './App.css'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import Sidebar from './components/sidebar/Sidebar'
 import LoginPage from './components/LoginPage'
 import DashboardPage from './components/dashboard/DashboardPage'
@@ -16,6 +16,17 @@ const ModulePage = ({ title, description }: ModulePageProps) => {
     <section className="module-card">
       <h2>{title}</h2>
       <p>{description}</p>
+    </section>
+  )
+}
+
+const DepartmentModulePage = () => {
+  const { slug } = useParams()
+
+  return (
+    <section className="module-card">
+      <h2>{slug ? `${slug} module` : 'Department module'}</h2>
+      <p>This module was unlocked by creating a department.</p>
     </section>
   )
 }
@@ -83,6 +94,7 @@ function App() {
                 />
               }
             />
+            <Route path="/departments/:slug" element={<DepartmentModulePage />} />
           </Route>
 
           <Route path="*" element={<StartRoute />} />

@@ -10,6 +10,11 @@ import {
   FiUserPlus,
   FiFileText,
   FiZap,
+  FiMonitor,
+  FiUsers,
+  FiBarChart2,
+  FiPackage,
+  FiHome,
 } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 
@@ -22,11 +27,27 @@ const NAV_ITEMS = [
   { label: 'Workflows', to: '/workflows', icon: FiZap },
 ]
 
+type Department = {
+  id: number
+  name: string
+  slug: string
+  icon?: string
+}
+
+const departmentIcons = {
+  Monitor: FiMonitor,
+  Users: FiUsers,
+  BarChart3: FiBarChart2,
+  Package: FiPackage,
+  Building2: FiHome,
+} as const
+
 const Sidebar = () => {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [departments, setDepartments] = useState<Department[]>([])
   const unreadCount = 4
 
   const initials = useMemo(() => {
@@ -46,6 +67,40 @@ const Sidebar = () => {
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(isCollapsed))
   }, [isCollapsed])
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch('/api/departments/', { credentials: 'include' })
+        if (!response.ok) {
+          setDepartments([])
+          return
+        }
+        const data = await response.json()
+        if (Array.isArray(data)) {
+          setDepartments(data)
+        }
+      } catch {
+        setDepartments([])
+      }
+    }
+
+    const onDepartmentsUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<Department[]>
+      if (Array.isArray(customEvent.detail)) {
+        setDepartments(customEvent.detail)
+        return
+      }
+      fetchDepartments()
+    }
+
+    fetchDepartments()
+    window.addEventListener('departments-updated', onDepartmentsUpdated as EventListener)
+
+    return () => {
+      window.removeEventListener('departments-updated', onDepartmentsUpdated as EventListener)
+    }
+  }, [location.pathname])
 
   const pageTitle = useMemo(() => {
     const active = NAV_ITEMS.find(item => location.pathname.startsWith(item.to))
@@ -95,6 +150,25 @@ const Sidebar = () => {
             )
           })}
 
+          {departments.length > 0 && (
+            <div className="sidebar-departments">
+              {!isCollapsed && <p className="sidebar-departments-title">Departments</p>}
+              {departments.map(dep => {
+                const Icon = departmentIcons[(dep.icon as keyof typeof departmentIcons) ?? 'Building2'] ?? FiHome
+
+                return (
+                  <NavLink
+                    key={dep.id}
+                    to={`/departments/${dep.slug}`}
+                    className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  >
+                    <Icon aria-hidden="true" />
+                    {!isCollapsed && <span>{dep.name}</span>}
+                  </NavLink>
+                )
+              })}
+            </div>
+          )}
         </nav>
 
         <div className="sidebar-footer">
