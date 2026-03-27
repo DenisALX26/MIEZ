@@ -1,15 +1,13 @@
-import React from 'react'
 import { useAuth } from '../../context/AuthContext'
 import HrDashboard from '../hr/HrDashboard'
-import ItDashboard from './ItDashboard';
-import SalesDashboard from './SalesDashboard';
-import InventoryDashboard from './InventoryDashboard';
+import ItDashboard from './ItDashboard'
+import SalesDashboard from './SalesDashboard'
+import InventoryDashboard from './InventoryDashboard'
 
 const UserDashboard = () => {
   const { user } = useAuth()
   return (
-    <>
-      <div >
+    <div>
         {user && user.role === 'HR' && (
           <HrDashboard />
         )}
@@ -23,7 +21,6 @@ const UserDashboard = () => {
           <InventoryDashboard />
         )}
       </div>
-    </>
   )
 }
 

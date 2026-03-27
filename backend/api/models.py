@@ -14,6 +14,14 @@ class User(AbstractUser):
         choices=Role.choices,
         default=Role.CEO
     )
+    department = models.ForeignKey(
+        'Department',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='employees',
+    )
+    full_time = models.BooleanField(default=True)
 
     class Meta:
         db_table = 'users'
