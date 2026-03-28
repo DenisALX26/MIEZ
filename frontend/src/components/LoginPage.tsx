@@ -96,7 +96,7 @@ const LoginPage = () => {
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-gray-50"></span></div>
           </div>
         </div>
-        
+
 
         {/* FOOTER */}
         <p className="text-white/30 text-[9px] tracking-[0.3em] uppercase">
