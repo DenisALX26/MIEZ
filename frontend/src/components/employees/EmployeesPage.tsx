@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import axios from 'axios'
 
 type DepartmentCount = {
   name: string
@@ -51,30 +50,44 @@ const EmployeesPage = () => {
   const [isLoading, setIsLoading] = useState(true)
 
   const fetchStats = async () => {
-    const response = await axios.get<EmployeeStats>('/api/employees/stats/', {
-      withCredentials: true,
+    const response = await fetch('/api/employees/stats/', {
+      credentials: 'include',
     })
-    setStats(response.data)
+
+    if (!response.ok) {
+      throw new Error(`Failed to load employee stats: ${response.status}`)
+    }
+
+    const data = (await response.json()) as EmployeeStats
+    setStats(data)
   }
 
   const fetchEmployees = async () => {
     setIsLoading(true)
     try {
-      const params: Record<string, string | number> = { page }
-      if (departmentFilter.trim()) {
-        params.department = departmentFilter.trim()
-      }
-      if (activeFilter !== 'all') {
-        params.is_active = activeFilter
-      }
-
-      const response = await axios.get<PaginatedEmployees>('/api/employees/', {
-        withCredentials: true,
-        params,
+      const params = new URLSearchParams({
+        page: String(page),
       })
 
-      setEmployees(response.data.results)
-      setTotal(response.data.count)
+      if (departmentFilter.trim()) {
+        params.set('department', departmentFilter.trim())
+      }
+      if (activeFilter !== 'all') {
+        params.set('is_active', activeFilter)
+      }
+
+      const response = await fetch(`/api/employees/?${params.toString()}`, {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to load employees: ${response.status}`)
+      }
+
+      const data = (await response.json()) as PaginatedEmployees
+
+      setEmployees(data.results)
+      setTotal(data.count)
       await fetchStats()
     } catch (error) {
       console.error('Failed to load employees', error)
