@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import axios from 'axios'
 import {
   FiMonitor,
   FiUsers,
@@ -37,11 +36,17 @@ const DashboardPage = () => {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const response = await axios.get<Department[]>('/api/departments/', {
-          withCredentials: true,
+        const response = await fetch('/api/departments/', {
+          credentials: 'include',
         })
-        setDepartments(response.data)
-        window.dispatchEvent(new CustomEvent('departments-updated', { detail: response.data }))
+
+        if (!response.ok) {
+          throw new Error(`Failed to load departments: ${response.status}`)
+        }
+
+        const data = (await response.json()) as Department[]
+        setDepartments(data)
+        window.dispatchEvent(new CustomEvent('departments-updated', { detail: data }))
       } catch (error) {
         console.error('Eroare la incarcarea departamentelor', error)
       } finally {
@@ -54,9 +59,15 @@ const DashboardPage = () => {
 
   const handleDelete = async (id: number) => {
     try {
-      await axios.delete(`/api/departments/${id}/`, {
-        withCredentials: true,
+      const response = await fetch(`/api/departments/${id}/`, {
+        method: 'DELETE',
+        credentials: 'include',
       })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete department: ${response.status}`)
+      }
+
       setDepartments(current => {
         const next = current.filter(dep => dep.id !== id)
         window.dispatchEvent(new CustomEvent('departments-updated', { detail: next }))
@@ -89,12 +100,23 @@ const DashboardPage = () => {
     }
 
     try {
-      const response = await axios.post<Department>('/api/departments/', payload, {
-        withCredentials: true,
+      const response = await fetch('/api/departments/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       })
 
+      if (!response.ok) {
+        throw new Error(`Failed to create department: ${response.status}`)
+      }
+
+      const createdDepartment = (await response.json()) as Department
+
       setDepartments(current => {
-        const next = [...current, response.data].sort((a, b) => a.name.localeCompare(b.name))
+        const next = [...current, createdDepartment].sort((a, b) => a.name.localeCompare(b.name))
         window.dispatchEvent(new CustomEvent('departments-updated', { detail: next }))
         return next
       })
