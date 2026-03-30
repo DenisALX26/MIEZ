@@ -21,6 +21,15 @@ const ModulePage = ({ title, description }: ModulePageProps) => {
   )
 }
 
+const UnauthorizedPage = () => {
+  return (
+    <section className="module-card">
+      <h2>Unauthorized</h2>
+      <p>You do not have permission to access this module.</p>
+    </section>
+  )
+}
+
 const DepartmentModulePage = () => {
   const { slug } = useParams()
 
@@ -33,13 +42,25 @@ const DepartmentModulePage = () => {
 }
 
 const StartRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
 
   if (isLoading) {
     return <div>Loading...</div>
   }
 
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (user?.role === 'CEO') {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  if (user?.role === 'HR') {
+    return <Navigate to="/employees" replace />
+  }
+
+  return <Navigate to="/reports" replace />
 }
 
 
@@ -58,10 +79,21 @@ function App() {
               </ProtectedRoute>
             }
           >
-            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute requiredRole="CEO">
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/employees"
-              element={<EmployeesPage />}
+              element={
+                <ProtectedRoute requiredRoles={['CEO', 'HR']}>
+                  <EmployeesPage />
+                </ProtectedRoute>
+              }
             />
             <Route
               path="/reports"
@@ -90,7 +122,15 @@ function App() {
                 />
               }
             />
-            <Route path="/departments/:slug" element={<DepartmentModulePage />} />
+            <Route
+              path="/departments/:slug"
+              element={
+                <ProtectedRoute requiredRole="CEO">
+                  <DepartmentModulePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Route>
 
           <Route path="*" element={<StartRoute />} />

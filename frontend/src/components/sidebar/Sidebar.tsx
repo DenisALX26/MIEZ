@@ -21,8 +21,8 @@ import { useAuth } from '../../context/AuthContext'
 const SIDEBAR_COLLAPSED_KEY = 'miez.sidebar.collapsed'
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', to: '/dashboard', icon: FiGrid },
-  { label: 'Employees', to: '/employees', icon: FiUserPlus },
+  { label: 'Dashboard', to: '/dashboard', icon: FiGrid, roles: ['CEO'] },
+  { label: 'Employees', to: '/employees', icon: FiUserPlus, roles: ['CEO', 'HR'] },
   { label: 'Reports', to: '/reports', icon: FiFileText },
   { label: 'Workflows', to: '/workflows', icon: FiZap },
 ]
@@ -50,6 +50,15 @@ const Sidebar = () => {
   const [departments, setDepartments] = useState<Department[]>([])
   const unreadCount = 4
 
+  const visibleNavItems = useMemo(() => {
+    return NAV_ITEMS.filter(item => {
+      if (!('roles' in item) || !item.roles) {
+        return true
+      }
+      return !!user?.role && item.roles.includes(user.role)
+    })
+  }, [user?.role])
+
   const initials = useMemo(() => {
     if (!user?.username) {
       return 'AM'
@@ -70,6 +79,11 @@ const Sidebar = () => {
 
   useEffect(() => {
     const fetchDepartments = async () => {
+      if (user?.role !== 'CEO') {
+        setDepartments([])
+        return
+      }
+
       try {
         const response = await fetch('/api/departments/', { credentials: 'include' })
         if (!response.ok) {
@@ -100,12 +114,12 @@ const Sidebar = () => {
     return () => {
       window.removeEventListener('departments-updated', onDepartmentsUpdated as EventListener)
     }
-  }, [location.pathname])
+  }, [location.pathname, user?.role])
 
   const pageTitle = useMemo(() => {
-    const active = NAV_ITEMS.find(item => location.pathname.startsWith(item.to))
+    const active = visibleNavItems.find(item => location.pathname.startsWith(item.to))
     return active?.label ?? 'Module'
-  }, [location.pathname])
+  }, [location.pathname, visibleNavItems])
 
   const handleLogout = async () => {
     await logout()
@@ -136,7 +150,7 @@ const Sidebar = () => {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          {NAV_ITEMS.map(item => {
+          {visibleNavItems.map(item => {
             const Icon = item.icon
             return (
               <NavLink
@@ -150,7 +164,7 @@ const Sidebar = () => {
             )
           })}
 
-          {departments.length > 0 && (
+          {user?.role === 'CEO' && departments.length > 0 && (
             <div className="sidebar-departments">
               {!isCollapsed && <p className="sidebar-departments-title">Departments</p>}
               {departments.map(dep => {

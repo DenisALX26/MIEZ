@@ -35,6 +35,12 @@ const DashboardPage = () => {
 
   useEffect(() => {
     const fetchDepartments = async () => {
+      if (user?.role !== 'CEO') {
+        setDepartments([])
+        setIsLoading(false)
+        return
+      }
+
       try {
         const response = await fetch('/api/departments/', {
           credentials: 'include',
@@ -55,7 +61,7 @@ const DashboardPage = () => {
     }
 
     fetchDepartments()
-  }, [])
+  }, [user?.role])
 
   const handleDelete = async (id: number) => {
     try {
@@ -140,6 +146,15 @@ const DashboardPage = () => {
     return <div className="module-card">Loading...</div>
   }
 
+  if (user?.role !== 'CEO') {
+    return (
+      <section className="module-card">
+        <h2>Dashboard</h2>
+        <p>Department management is only available for CEO accounts.</p>
+      </section>
+    )
+  }
+
   return (
     <div className="dashboard-wrap">
       <div className="dashboard-header-row">
@@ -149,33 +164,31 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {user?.role === 'CEO' && (
-        <form className="department-form" onSubmit={handleCreate}>
-          <input
-            value={name}
-            onChange={event => setName(event.target.value)}
-            placeholder="Department name"
-            aria-label="Department name"
-          />
-          <input
-            value={slug}
-            onChange={event => setSlug(event.target.value)}
-            placeholder="Slug (optional)"
-            aria-label="Department slug"
-          />
-          <select value={icon} onChange={event => setIcon(event.target.value)} aria-label="Department icon">
-            <option value="Building2">Building</option>
-            <option value="Monitor">IT</option>
-            <option value="Users">HR</option>
-            <option value="BarChart3">Sales</option>
-            <option value="Package">Inventory</option>
-          </select>
-          <button type="submit">
-            <FiPlus />
-            Add Department
-          </button>
-        </form>
-      )}
+      <form className="department-form" onSubmit={handleCreate}>
+        <input
+          value={name}
+          onChange={event => setName(event.target.value)}
+          placeholder="Department name"
+          aria-label="Department name"
+        />
+        <input
+          value={slug}
+          onChange={event => setSlug(event.target.value)}
+          placeholder="Slug (optional)"
+          aria-label="Department slug"
+        />
+        <select value={icon} onChange={event => setIcon(event.target.value)} aria-label="Department icon">
+          <option value="Building2">Building</option>
+          <option value="Monitor">IT</option>
+          <option value="Users">HR</option>
+          <option value="BarChart3">Sales</option>
+          <option value="Package">Inventory</option>
+        </select>
+        <button type="submit">
+          <FiPlus />
+          Add Department
+        </button>
+      </form>
 
       <div className="stats-grid">
         {stats.map(stat => (
@@ -207,14 +220,14 @@ const DashboardPage = () => {
                   <div className="department-icon-wrap">
                     <Icon />
                   </div>
-                  {user?.role === 'CEO' && <button
+                  <button
                     type="button"
                     className="delete-btn"
                     onClick={() => handleDelete(dep.id)}
                     aria-label={`Delete ${dep.name}`}
                   >
                     <FiTrash2 />
-                  </button>}
+                  </button>
                 </div>
 
                 <h4>{dep.name}</h4>

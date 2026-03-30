@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 
 from .models import Department, User
-from .serializers import DepartmentSerializer, EmployeeListSerializer
+from .serializers import DepartmentSerializer, EmployeeCreateSerializer, EmployeeListSerializer
 
 
 # Create your views here.
@@ -110,12 +110,15 @@ class DepartmentListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view departments."}, status=status.HTTP_403_FORBIDDEN)
+
         departments = Department.objects.all()
         serializer = DepartmentSerializer(departments, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        if request.user.role != 'CEO':
+        if request.user.role != User.Role.CEO:
             return Response({"detail": "Only CEOs can create departments."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = DepartmentSerializer(data=request.data)
@@ -128,7 +131,7 @@ class DepartmentDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, id):
-        if request.user.role != 'CEO':
+        if request.user.role != User.Role.CEO:
             return Response({"detail": "Only CEOs can remove departments."}, status=status.HTTP_403_FORBIDDEN)
 
         department = get_object_or_404(Department, id=id)
@@ -146,6 +149,9 @@ class EmployeeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view employees."}, status=status.HTTP_403_FORBIDDEN)
+
         queryset = User.objects.select_related('department').all().order_by('id')
 
         department_filter = request.query_params.get('department')
@@ -168,11 +174,24 @@ class EmployeeListView(APIView):
         serializer = EmployeeListSerializer(paginated, many=True)
         return paginator.get_paginated_response(serializer.data)
 
+    def post(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can create employees."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = EmployeeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        employee = serializer.save()
+        response_serializer = EmployeeListSerializer(employee)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
 
 class EmployeeStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view employee stats."}, status=status.HTTP_403_FORBIDDEN)
+
         base = User.objects.select_related('department').all()
 
         stats = base.aggregate(

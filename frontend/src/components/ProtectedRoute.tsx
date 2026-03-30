@@ -4,16 +4,18 @@ import { useAuth } from '../context/AuthContext';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: string;
+  requiredRoles?: string[];
 }
 
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requiredRole, requiredRoles }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) return <div>Loading...</div>;
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  if (requiredRole && user?.role !== requiredRole) {
+  const allowedRoles = requiredRoles ?? (requiredRole ? [requiredRole] : []);
+  if (allowedRoles.length > 0 && (!user?.role || !allowedRoles.includes(user.role))) {
     return <Navigate to="/unauthorized" replace />;
   }
 
