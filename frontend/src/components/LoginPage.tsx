@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { redirect, useNavigate } from 'react-router-dom';
 
 const UserIcon = () => (
   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -18,7 +17,6 @@ const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const { login } = useAuth();
-  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,9 +25,7 @@ const LoginPage = () => {
     try {
       await login(username, password); // ← calls context method
       window.location.href = "/dashboard";
-    } catch {
-      setError('Login failed');
-    }
+    } catch {}
   };
 
   return (
