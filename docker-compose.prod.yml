@@ -25,9 +25,11 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
     ports:
-      - "5173:5173"
+      - "5173:4173"
     depends_on:
       - backend
     restart: unless-stopped
