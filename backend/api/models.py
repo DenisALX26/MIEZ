@@ -3,6 +3,7 @@ from datetime import date
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+
 class User(AbstractUser):
     class Role(models.TextChoices):
         CEO = 'CEO', 'CEO'
@@ -21,7 +22,7 @@ class User(AbstractUser):
     role = models.CharField(
         max_length=10,
         choices=Role.choices,
-        default=Role.CEO
+        default=Role.CEO,
     )
     department = models.ForeignKey(
         'Department',

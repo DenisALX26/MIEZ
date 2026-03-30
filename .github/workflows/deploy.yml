@@ -50,6 +50,6 @@ jobs:
           script: |
             cd ~/M.I.E.Z
             git pull origin main
-            docker-compose up -d --build
-            docker-compose exec -T backend python manage.py migrate
+            docker-compose -f docker-compose.prod.yml up -d --build
+            docker-compose -f docker-compose.prod.yml exec -T backend python manage.py migrate
             docker image prune -f
