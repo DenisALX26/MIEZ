@@ -457,10 +457,10 @@ const EmployeesPage = () => {
                 <tr>
                   <th>Name</th>
                   <th>Email</th>
-                  <th>Phone</th>
-                  <th>Position</th>
+                  <th>Role</th>
                   <th>Department</th>
                   <th>Status</th>
+                  <th>Contract</th>
                 </tr>
               </thead>
               <tbody>
@@ -468,10 +468,10 @@ const EmployeesPage = () => {
                   <tr key={employee.id}>
                     <td>{`${employee.first_name} ${employee.last_name}`.trim() || employee.username}</td>
                     <td>{employee.email}</td>
-                    <td>{employee.phone}</td>
-                    <td>{employee.position}</td>
+                    <td>{employee.role}</td>
                     <td>{employee.department?.name ?? 'Unassigned'}</td>
                     <td>{employee.is_active ? 'Active' : 'Inactive'}</td>
+                    <td>{employee.full_time ? 'Full-time' : 'Part-time'}</td>
                   </tr>
                 ))}
               </tbody>
