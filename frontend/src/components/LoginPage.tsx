@@ -16,16 +16,31 @@ const LockIcon = () => (
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setUsername('');
-    setPassword('');
+    setErrorMessage('');
+
+    if (!username.trim() || !password) {
+      setErrorMessage('Please enter your username and password.');
+      return;
+    }
+
+    setIsSubmitting(true);
     try {
       await login(username, password); // ← calls context method
-      window.location.href = "/dashboard";
-    } catch {}
+      setUsername('');
+      setPassword('');
+      window.location.href = "/";
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setErrorMessage(message || 'Invalid username or password.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -47,6 +62,16 @@ const LoginPage = () => {
           <h2 className="text-[var(--foreground)] text-2xl font-bold text-center mb-8">Sign In</h2>
 
           <form onSubmit={handleLogin} className="space-y-5">
+            {errorMessage && (
+              <div
+                className="bg-red-50 text-red-700 border border-red-200 rounded-2xl px-4 py-3 text-sm"
+                role="alert"
+                aria-live="polite"
+              >
+                {errorMessage}
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5 ml-1">Username</label>
               <div className="relative">
@@ -59,6 +84,7 @@ const LoginPage = () => {
                   className="w-full pl-12 pr-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-full focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] outline-none transition-all text-sm placeholder:text-gray-300"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -75,16 +101,18 @@ const LoginPage = () => {
                   className="w-full pl-12 pr-4 py-3 bg-[var(--card)] border border-[var(--border)] rounded-full focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] outline-none transition-all text-sm placeholder:text-gray-300"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[var(--primary)] hover:bg-[var(--primary-foreground)] text-[var(--primary-foreground)] font-bold rounded-full transition-colors shadow-lg shadow-[var(--primary)]/20 mt-2 text-sm"
+              className="w-full py-3.5 bg-[var(--primary)] hover:bg-[var(--primary-foreground)] text-[var(--primary-foreground)] font-bold rounded-full transition-colors shadow-lg shadow-[var(--primary)]/20 mt-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={isSubmitting}
 
             >
-              Sign In
+              {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 

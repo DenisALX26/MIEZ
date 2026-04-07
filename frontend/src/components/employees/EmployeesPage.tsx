@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 
 type DepartmentCount = {
   name: string
@@ -206,7 +206,7 @@ const EmployeesPage = () => {
     setIsFormOpen(false)
   }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsSubmitting(true)
     setFormErrors({})
@@ -256,28 +256,29 @@ const EmployeesPage = () => {
       return null
     }
 
-    return <p className="form-error">{errors[0]}</p>
+    return <p className="text-[0.82rem] text-[var(--danger)]">{errors[0]}</p>
   }
 
   return (
-    <div className="dashboard-wrap">
-      {toastMessage && <div className="success-toast">{toastMessage}</div>}
+    <div className="flex flex-col gap-4">
+      {toastMessage && <div className="fixed top-4 right-4 z-50 bg-[#1f9d60] text-white px-[0.9rem] py-[0.65rem] rounded-[10px] shadow-[0_10px_24px_rgba(0,0,0,0.16)] font-bold">{toastMessage}</div>}
 
-      <div className="dashboard-header-row employee-header-row">
+      <div className="flex justify-between items-center gap-3">
         <div>
           <h2>Employee Directory</h2>
           <p>Track headcount with real-time filters and aggregated stats.</p>
         </div>
-        <button type="button" className="create-employee-btn" onClick={() => setIsFormOpen(true)}>
+        <button type="button" className="min-h-[40px] rounded-[10px] bg-[var(--accent)] text-white px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none disabled:opacity-70 disabled:cursor-not-allowed" onClick={() => setIsFormOpen(true)}>
           Register Employee
         </button>
       </div>
 
       {isFormOpen && (
-        <section className="employee-form-card">
+        <section className="bg-white border border-[var(--border-app)] rounded-xl p-[0.8rem]">
           <h3>New Employee</h3>
-          <form className="employee-create-form" onSubmit={handleSubmit}>
+          <form className="grid grid-cols-2 gap-[0.6rem]" onSubmit={handleSubmit}>
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.first_name}
               onChange={event => handleFormChange('first_name', event.target.value)}
               placeholder="First name"
@@ -285,6 +286,7 @@ const EmployeesPage = () => {
               required
             />
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.last_name}
               onChange={event => handleFormChange('last_name', event.target.value)}
               placeholder="Last name"
@@ -292,6 +294,7 @@ const EmployeesPage = () => {
               required
             />
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               type="email"
               value={formData.email}
               onChange={event => handleFormChange('email', event.target.value)}
@@ -300,6 +303,7 @@ const EmployeesPage = () => {
               required
             />
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.phone}
               onChange={event => handleFormChange('phone', event.target.value)}
               placeholder="Phone"
@@ -307,6 +311,7 @@ const EmployeesPage = () => {
               required
             />
             <select
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.department}
               onChange={event => handleFormChange('department', event.target.value)}
               aria-label="Department"
@@ -318,6 +323,7 @@ const EmployeesPage = () => {
               ))}
             </select>
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.position}
               onChange={event => handleFormChange('position', event.target.value)}
               placeholder="Position"
@@ -325,6 +331,7 @@ const EmployeesPage = () => {
               required
             />
             <select
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.employment_type}
               onChange={event => handleFormChange('employment_type', event.target.value)}
               aria-label="Employment type"
@@ -335,6 +342,7 @@ const EmployeesPage = () => {
               <option value="CONTRACTOR">Contractor</option>
             </select>
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               type="date"
               value={formData.start_date}
               onChange={event => handleFormChange('start_date', event.target.value)}
@@ -342,6 +350,7 @@ const EmployeesPage = () => {
               required
             />
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               type="number"
               step="0.01"
               value={formData.salary_ron}
@@ -351,14 +360,16 @@ const EmployeesPage = () => {
               required
             />
             <input
+              className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
               value={formData.address}
               onChange={event => handleFormChange('address', event.target.value)}
               placeholder="Address"
               aria-label="Address"
               required
             />
-            <label className="checkbox-field">
+            <label className="col-span-full inline-flex items-center gap-[0.45rem] text-[0.92rem] text-[var(--ink-subtle)]">
               <input
+                className="w-4 h-4 min-h-[16px] p-0"
                 type="checkbox"
                 checked={formData.is_active}
                 onChange={event => handleFormChange('is_active', event.target.checked)}
@@ -379,11 +390,11 @@ const EmployeesPage = () => {
             {renderError('is_active')}
             {renderError('non_field_errors')}
 
-            <div className="employee-form-actions">
-              <button type="button" className="ghost-btn" onClick={handleCancel}>
+            <div className="col-span-full flex justify-end gap-[0.55rem] mt-[0.2rem]">
+              <button type="button" className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] bg-white text-[var(--ink)] px-[0.9rem] font-semibold cursor-pointer" onClick={handleCancel}>
                 Cancel
               </button>
-              <button type="submit" className="create-employee-btn" disabled={isSubmitting}>
+              <button type="submit" className="min-h-[40px] rounded-[10px] bg-[var(--accent)] text-white px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none disabled:opacity-70 disabled:cursor-not-allowed" disabled={isSubmitting}>
                 {isSubmitting ? 'Saving...' : 'Create Employee'}
               </button>
             </div>
@@ -391,23 +402,24 @@ const EmployeesPage = () => {
         </section>
       )}
 
-      <div className="stats-grid">
-        <article className="stat-card">
-          <span>Total Employees</span>
+      <div className="grid grid-cols-3 gap-3">
+        <article className="bg-white border border-[var(--border-app)] rounded-xl px-[0.9rem] py-3 flex flex-col gap-[0.3rem]">
+          <span className="text-[var(--ink-subtle)] text-[0.82rem]">Total Employees</span>
           <strong>{stats.total}</strong>
         </article>
-        <article className="stat-card">
-          <span>Active Employees</span>
+        <article className="bg-white border border-[var(--border-app)] rounded-xl px-[0.9rem] py-3 flex flex-col gap-[0.3rem]">
+          <span className="text-[var(--ink-subtle)] text-[0.82rem]">Active Employees</span>
           <strong>{stats.active}</strong>
         </article>
-        <article className="stat-card">
-          <span>Full-time Employees</span>
+        <article className="bg-white border border-[var(--border-app)] rounded-xl px-[0.9rem] py-3 flex flex-col gap-[0.3rem]">
+          <span className="text-[var(--ink-subtle)] text-[0.82rem]">Full-time Employees</span>
           <strong>{stats.full_time}</strong>
         </article>
       </div>
 
-      <div className="employee-filters">
+      <div className="grid grid-cols-[1fr_220px] gap-[0.6rem] bg-white border border-[var(--border-app)] rounded-xl p-[0.65rem]">
         <input
+          className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
           value={departmentFilter}
           onChange={event => {
             setPage(1)
@@ -418,6 +430,7 @@ const EmployeesPage = () => {
         />
 
         <select
+          className="min-h-[40px] border border-[var(--border-app)] rounded-[10px] px-[0.7rem] bg-[var(--surface-soft)] text-[var(--ink)]"
           value={activeFilter}
           onChange={event => {
             setPage(1)
@@ -432,14 +445,14 @@ const EmployeesPage = () => {
       </div>
 
       {isLoading ? (
-        <section className="module-card">Loading employees...</section>
+        <section className="bg-white border border-[var(--border-app)] rounded-2xl p-5">Loading employees...</section>
       ) : employees.length === 0 ? (
-        <section className="empty-state-card">
+        <section className="bg-white border border-[var(--border-app)] rounded-2xl px-[1.2rem] py-[2.2rem] min-h-[340px] flex flex-col items-center justify-center text-center gap-[0.7rem]">
           <h3>No employees found</h3>
           <p>Try clearing filters or add employees so headcount can be tracked.</p>
           <button
             type="button"
-            className="clear-filters-btn"
+            className="border border-[var(--border-app)] bg-white text-[var(--ink)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold"
             onClick={() => {
               setDepartmentFilter('')
               setActiveFilter('all')
@@ -451,43 +464,44 @@ const EmployeesPage = () => {
         </section>
       ) : (
         <>
-          <section className="employee-list-card">
-            <table className="employee-table">
+          <section className="bg-white border border-[var(--border-app)] rounded-2xl overflow-hidden">
+            <table className="w-full border-collapse">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Position</th>
-                  <th>Department</th>
-                  <th>Status</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Name</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Email</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Phone</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Position</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Department</th>
+                  <th className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[var(--ink-subtle)] font-bold text-[0.82rem] uppercase tracking-[0.04em]">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {employees.map(employee => (
                   <tr key={employee.id}>
-                    <td>{`${employee.first_name} ${employee.last_name}`.trim() || employee.username}</td>
-                    <td>{employee.email}</td>
-                    <td>{employee.phone}</td>
-                    <td>{employee.position}</td>
-                    <td>{employee.department?.name ?? 'Unassigned'}</td>
-                    <td>{employee.is_active ? 'Active' : 'Inactive'}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{`${employee.first_name} ${employee.last_name}`.trim() || employee.username}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{employee.email}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{employee.phone}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{employee.position}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{employee.department?.name ?? 'Unassigned'}</td>
+                    <td className="text-left px-[0.85rem] py-[0.72rem] border-b border-[var(--border-app)] text-[0.9rem]">{employee.is_active ? 'Active' : 'Inactive'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </section>
 
-          <div className="employee-footer-row">
-            <div className="department-counts">
+          <div className="flex justify-between items-center gap-3 flex-wrap">
+            <div className="flex flex-wrap gap-[0.4rem]">
               {stats.departments.map(dep => (
-                <span key={dep.name} className="department-pill">{dep.name}: {dep.count}</span>
+                <span key={dep.name} className="bg-white border border-[var(--border-app)] rounded-full px-[0.65rem] py-[0.28rem] text-[0.8rem] text-[var(--ink-subtle)]">{dep.name}: {dep.count}</span>
               ))}
             </div>
 
-            <div className="pagination-controls">
+            <div className="inline-flex items-center gap-2">
               <button
                 type="button"
+                className="border border-[var(--border-app)] bg-white text-[var(--ink)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={page <= 1}
                 onClick={() => setPage(current => Math.max(1, current - 1))}
               >
@@ -496,6 +510,7 @@ const EmployeesPage = () => {
               <span>{`Page ${page} / ${totalPages}`}</span>
               <button
                 type="button"
+                className="border border-[var(--border-app)] bg-white text-[var(--ink)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={page >= totalPages}
                 onClick={() => setPage(current => Math.min(totalPages, current + 1))}
               >
