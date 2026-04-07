@@ -53,8 +53,235 @@ class Department(models.Model):
     icon = models.CharField(max_length=40, default='Building2')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    description = models.TextField(blank=True, default='')
+
     class Meta:
         ordering = ['name']
 
     def __str__(self) -> str:
         return self.name
+
+
+class Customer(models.Model):
+    name = models.CharField(max_length=160)
+    contact_email = models.EmailField(blank=True, default='')
+    contact_phone = models.CharField(max_length=20, blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    location = models.CharField(max_length=160, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Product(models.Model):
+    class Category(models.TextChoices):
+        GENERAL = 'GENERAL', 'General'
+        INVENTORY = 'INVENTORY', 'Inventory'
+        SALES = 'SALES', 'Sales'
+
+    name = models.CharField(max_length=160)
+    sku = models.CharField(max_length=64, unique=True)
+    category = models.CharField(max_length=24, choices=Category.choices, default=Category.GENERAL)
+    unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stock_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return f'{self.name} ({self.sku})'
+
+
+class Order(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        PENDING = 'PENDING', 'Pending'
+        PAID = 'PAID', 'Paid'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    order_number = models.CharField(max_length=32, unique=True)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='orders')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='orders_created')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.order_number
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='order_items')
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = [('order', 'product')]
+
+
+class Invoice(models.Model):
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        ISSUED = 'ISSUED', 'Issued'
+        PAID = 'PAID', 'Paid'
+        CANCELLED = 'CANCELLED', 'Cancelled'
+
+    invoice_number = models.CharField(max_length=32, unique=True)
+    order = models.ForeignKey(Order, on_delete=models.PROTECT, related_name='invoices')
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='invoices_issued')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ISSUED)
+    amount_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    issued_date = models.DateField(default=date.today)
+    due_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class Attendance(models.Model):
+    class Status(models.TextChoices):
+        PRESENT = 'PRESENT', 'Present'
+        ABSENT = 'ABSENT', 'Absent'
+        REMOTE = 'REMOTE', 'Remote'
+        LEAVE = 'LEAVE', 'Leave'
+
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='attendance')
+    date = models.DateField(default=date.today)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PRESENT)
+    notes = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('employee', 'date')]
+        ordering = ['-date']
+
+
+class LeaveRequest(models.Model):
+    class Type(models.TextChoices):
+        VACATION = 'VACATION', 'Vacation'
+        SICK = 'SICK', 'Sick'
+        UNPAID = 'UNPAID', 'Unpaid'
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='leave_requests')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='leave_requests')
+    type = models.CharField(max_length=16, choices=Type.choices, default=Type.VACATION)
+    from_date = models.DateField()
+    to_date = models.DateField()
+    reason = models.TextField(blank=True, default='')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='leave_requests_approved')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class Contract(models.Model):
+    class Type(models.TextChoices):
+        EMPLOYMENT = 'EMPLOYMENT', 'Employment'
+        CONTRACTOR = 'CONTRACTOR', 'Contractor'
+
+    contract_number = models.CharField(max_length=40, unique=True)
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='contracts')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='contracts')
+    type = models.CharField(max_length=16, choices=Type.choices, default=Type.EMPLOYMENT)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    salary_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class PayrollEntry(models.Model):
+    employee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='payroll_entries')
+    month = models.DateField(help_text='Any date within the payroll month')
+    gross_salary_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    net_salary_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    paid = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('employee', 'month')]
+
+
+class Notification(models.Model):
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    title = models.CharField(max_length=160)
+    body = models.TextField(blank=True, default='')
+    is_read = models.BooleanField(default=False)
+    link = models.CharField(max_length=255, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Ticket(models.Model):
+    class Priority(models.TextChoices):
+        LOW = 'LOW', 'Low'
+        MEDIUM = 'MEDIUM', 'Medium'
+        HIGH = 'HIGH', 'High'
+        URGENT = 'URGENT', 'Urgent'
+
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', 'Open'
+        IN_PROGRESS = 'IN_PROGRESS', 'In progress'
+        RESOLVED = 'RESOLVED', 'Resolved'
+        CLOSED = 'CLOSED', 'Closed'
+
+    ticket_number = models.CharField(max_length=32, unique=True)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets')
+    priority = models.CharField(max_length=12, choices=Priority.choices, default=Priority.MEDIUM)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OPEN)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='tickets_requested')
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tickets_assigned')
+    location = models.CharField(max_length=160, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+
+class TicketComment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='ticket_comments')
+    body = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Workflow(models.Model):
+    name = models.CharField(max_length=160)
+    trigger_type = models.CharField(max_length=64, blank=True, default='')
+    trigger_config = models.JSONField(default=dict, blank=True)
+    actions = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class WorkflowLog(models.Model):
+    workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name='logs')
+    triggered_at = models.DateTimeField(auto_now_add=True)
+    trigger_input = models.JSONField(default=dict, blank=True)
+    trigger_result = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, default='')
+
+
+class SystemStatistic(models.Model):
+    name = models.CharField(max_length=160, unique=True)
+    value = models.JSONField(default=dict, blank=True)
+    computed_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class Report(models.Model):
+    name = models.CharField(max_length=160)
+    category = models.CharField(max_length=80, blank=True, default='')
+    period = models.CharField(max_length=80, blank=True, default='')
+    file_path = models.CharField(max_length=255, blank=True, default='')
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='reports_generated')
+    generated_at = models.DateTimeField(auto_now_add=True)

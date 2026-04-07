@@ -1,5 +1,15 @@
+import os
+
+import django
+
+
+# Allow running this as a standalone script: `python seed_data.py`
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+django.setup()
+
 from django.contrib.auth import get_user_model
 from api.models import Department
+
 
 User = get_user_model()
 
@@ -108,6 +118,16 @@ def seed_users():
             "is_active": False,
             "full_time": False,
         },
+        {
+            "username": "darius.sava",
+            "email": "darius.sava@miez.ro",
+            "first_name": "Darius",
+            "last_name": "Sava",
+            "password": "password",
+            "role": "INVENTORY",
+            "is_active": False,
+            "full_time": False,
+        },
     ]
 
     for data in users:
@@ -142,3 +162,7 @@ def seed_users():
             user.set_password(data["password"])
             user.save()
             print(f"Already exists: {user.username}")
+
+
+if __name__ == "__main__":
+    seed_users()
