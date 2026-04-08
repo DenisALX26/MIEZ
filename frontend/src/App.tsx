@@ -4,6 +4,8 @@ import AppShell from './components/layout/AppShell'
 import LoginPage from './components/LoginPage'
 import DashboardPage from './components/dashboard/DashboardPage'
 import EmployeesPage from './components/employees/EmployeesPage'
+import LowStockPage from './components/inventory/LowStockPage'
+import ReceiveStockPage from './components/inventory/ReceiveStockPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
@@ -240,6 +242,22 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
                   <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/low-stock"
+              element={
+                <ProtectedRoute requiredRole="INVENTORY">
+                  <LowStockPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/inventory/receive"
+              element={
+                <ProtectedRoute requiredRole="INVENTORY">
+                  <ReceiveStockPage />
                 </ProtectedRoute>
               }
             />

@@ -1,5 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
 
@@ -8,11 +10,16 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Department, User
-from .serializers import DepartmentSerializer, EmployeeCreateSerializer, EmployeeListSerializer
+from .models import Department, User, Product
+from .serializers import (
+    DepartmentSerializer,
+    EmployeeCreateSerializer,
+    EmployeeListSerializer,
+    ProductSerializer,
+)
 
 
 # Create your views here.
@@ -78,6 +85,7 @@ class RefreshTokenView(TokenRefreshView):
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
+
 class LogoutView(APIView):
     def post(self, request):
         try:
@@ -94,7 +102,10 @@ class LogoutView(APIView):
 
 
 class UserMeView(APIView):
-    permission_classes = [IsAuthenticated]
+    # For development/testing we allow public access so the frontend can show the low-stock demo
+    # In production revert this to IsAuthenticated or add proper auth checks.
+    permission_classes = [AllowAny]
+
     def get(self, request):
         return JsonResponse(
             {
@@ -222,3 +233,49 @@ class EmployeeStatsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class InventoryProductsView(APIView):
+    """Return products with optional status filters (LOW/OUT).
+
+    Example: /api/inventory/products/?status=LOW&status=OUT
+    """
+    # allow public for demo; change to IsAuthenticated in production
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        statuses = request.query_params.getlist('status')
+
+        qs = Product.objects.all()
+
+        # build list
+        products = []
+        for p in qs:
+            stock = int(getattr(p, 'stock_count', 0) or 0)
+            # some deployments may have a Product model without min_stock yet
+            minimum = int(getattr(p, 'min_stock', 0) or 0)
+            if stock <= 0:
+                status_val = 'OUT'
+            elif stock < minimum:
+                status_val = 'LOW'
+            else:
+                status_val = 'OK'
+
+            shortfall = minimum - stock
+
+            products.append({
+                'id': p.id,
+                'name': p.name,
+                'sku': p.sku,
+                'category': p.category,
+                'stock_count': stock,
+                'min_stock': minimum,
+                'status': status_val,
+                'shortfall': shortfall,
+            })
+
+        if statuses:
+            statuses_up = [s.upper() for s in statuses]
+            products = [pr for pr in products if pr['status'] in statuses_up]
+
+        return Response(products, status=status.HTTP_200_OK)
