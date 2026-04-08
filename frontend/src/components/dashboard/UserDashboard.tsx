@@ -1,8 +1,8 @@
 import { useAuth } from '../../context/AuthContext'
 import HrDashboard from '../hr/HrDashboard'
-import ItDashboard from './ItDashboard'
-import SalesDashboard from './SalesDashboard'
-import InventoryDashboard from './InventoryDashboard'
+import ItDashboard from '../it/ItDashboard'
+import SalesDashboard from '../sales/SalesDashboard'
+import InventoryDashboard from '../inventory/InventoryDashboard'
 
 const UserDashboard = () => {
   const { user } = useAuth()
