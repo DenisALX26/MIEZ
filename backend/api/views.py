@@ -1,7 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q
+from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper
 
 from django.conf import settings
 from rest_framework.views import APIView
@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Department, User
+from .models import Department, Ticket, User
 from .serializers import DepartmentSerializer, EmployeeCreateSerializer, EmployeeListSerializer
 
 
@@ -222,3 +222,69 @@ class EmployeeStatsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+from django.utils import timezone
+from datetime import timedelta
+
+class DashboardItView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({
+                "detail": "Access denied. Only IT and CEO can view this dashboard."}, status=status.HTTP_403_FORBIDDEN
+            )
+        
+        now = timezone.now()
+        start_of_week = now - timedelta(days=now.weekday())
+        start_of_week = start_of_week.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        base_stats = Ticket.objects.aggregate(
+            open_ticket=Count('id', filter=Q(status=Ticket.Status.OPEN)),
+            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
+            resolved_this_week=Count('id', filter=Q(
+                status=Ticket.Status.RESOLVED,
+                resolved_at__gte=start_of_week
+            )),
+            critical_open=Count('id', filter=Q(
+                status=Ticket.Status.OPEN,
+                priority=Ticket.Priority.URGENT
+            ))
+        )
+
+        resolved_qs = Ticket.objects.filter(
+            status=Ticket.Status.RESOLVED,
+            resolved_at__gte=start_of_week
+        ).annotate(
+            duration=ExpressionWrapper(
+                F('resolved_at') - F('created_at'),
+                output_field=DurationField()
+            )
+        )
+
+        perf_metrics = resolved_qs.aggregate(
+            avg_res_time=Avg('duration'),
+            sla_met_count=Count('id', filter=Q(duration__lte=timedelta(hours=4))),
+        )
+
+        avg_hrs = 0
+        if perf_metrics['avg_res_time']:
+            avg_hrs = round(perf_metrics['avg_res_time'].total_seconds() / 3600, 2)
+
+        sla_pct = 0
+        total_resolved = base_stats['resolved_this_week']
+        if total_resolved > 0:
+            sla_pct = round((perf_metrics['sla_met_count'] / total_resolved) * 100, 2)
+
+        return Response({
+            "open_ticket": base_stats['open_ticket'],
+            "in_progress": base_stats['in_progress'],
+            "resolved_this_week": total_resolved,
+            "ceo_it_summary": {
+                "avg_resolution_time_hrs": avg_hrs,
+                "sla_met_percentage": sla_pct,
+                "critical_open": base_stats['critical_open'],
+            }
+        }, status=status.HTTP_200_OK)
+
+
