@@ -125,7 +125,7 @@ def seed_users():
             "last_name": "Sava",
             "password": "password",
             "role": "INVENTORY",
-            "is_active": False,
+            "is_active": True,
             "full_time": False,
         },
     ]
@@ -162,6 +162,41 @@ def seed_users():
             user.set_password(data["password"])
             user.save()
             print(f"Already exists: {user.username}")
+
+
+def seed_products():
+    from api.models import Product
+
+    products = [
+        {"name": "Widget A", "sku": "WIDGET-A", "category": "Widgets", "stock_count": 2, "min_stock": 5},
+        {"name": "Widget B", "sku": "WIDGET-B", "category": "Widgets", "stock_count": 0, "min_stock": 10},
+        {"name": "Gadget X", "sku": "GADGET-X", "category": "Gadgets", "stock_count": 20, "min_stock": 5},
+    ]
+
+    # Build defaults/update dicts only with fields that exist on the current Product model
+    field_names = {f.name for f in Product._meta.fields}
+
+    for p in products:
+        defaults = {}
+        # only include keys that actually exist on the model
+        for key in ('name', 'category', 'stock_count', 'min_stock', 'unit_price_ron'):
+            if key in field_names and key in p:
+                defaults[key] = p[key]
+
+        prod, created = Product.objects.get_or_create(sku=p['sku'], defaults=defaults)
+        if created:
+            print(f"Created product: {prod.sku}")
+        else:
+            updated = False
+            for key, val in defaults.items():
+                if getattr(prod, key, None) != val:
+                    setattr(prod, key, val)
+                    updated = True
+            if updated:
+                prod.save()
+                print(f"Updated product: {prod.sku}")
+            else:
+                print(f"Already up-to-date: {prod.sku}")
 
 
 if __name__ == "__main__":

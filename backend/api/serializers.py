@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import Department, User
+from .models import Product
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -111,3 +112,10 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         user.set_unusable_password()
         user.save(update_fields=['password'])
         return user
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'sku', 'category', 'stock_count', 'min_stock', 'created_at']
+        read_only_fields = ['id', 'created_at']
