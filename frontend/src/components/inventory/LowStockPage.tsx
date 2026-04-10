@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Package, Truck, AlertTriangle } from 'react-icons/fi'
+import { FiPackage as Package, FiTruck as Truck, FiAlertTriangle as AlertTriangle } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 
 type ApiProduct = {
