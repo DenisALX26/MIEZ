@@ -8,26 +8,59 @@ const ReceiveStockPage = () => {
   const [name] = useState(searchParams.get('name') || '')
   const [quantity, setQuantity] = useState<number>(0)
   const [message, setMessage] = useState('')
+  const [suppliers, setSuppliers] = useState<Array<{ id: number; name: string }>>([])
+  const [supplierId, setSupplierId] = useState<string>('')
 
   useEffect(() => {
     // prefill done via initial states
+    const fetchSuppliers = async () => {
+      try {
+        const res = await fetch('/api/inventory/suppliers/', { credentials: 'include' })
+        if (!res.ok) return
+        const data = await res.json()
+        setSuppliers(data)
+        if (data && data.length > 0) {
+          setSupplierId(String(data[0].id))
+        }
+      } catch (err) {
+        // ignore
+      }
+    }
+    fetchSuppliers()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Try POSTing to backend if endpoint exists; otherwise just show a success message
+    // POST to backend stock-movements endpoint (movement_type = IN)
+    if (!productId) {
+      setMessage('Product not selected — please open Receive from a product or low-stock row.')
+      return
+    }
+
+    const payload: any = {
+      product: Number(productId),
+      movement_type: 'INBOUND',
+      quantity,
+      supplier: supplierId ? Number(supplierId) : null,
+    }
+
     try {
-      const resp = await fetch('/api/inventory/receive-stock/', {
+      const resp = await fetch('/api/inventory/stock-movements/', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productId, quantity }),
+        body: JSON.stringify(payload),
       })
+
       if (resp.ok) {
         setMessage('Stock received successfully')
+        // navigate back to movements list to see the new movement
+        setTimeout(() => {
+          window.location.href = '/inventory/stock-movements'
+        }, 800)
       } else {
-        // fallback: not implemented on backend
-        setMessage('Received locally (backend endpoint not available)')
+        const text = await resp.text()
+        setMessage(`Server error: ${resp.status} ${text}`)
       }
     } catch (err) {
       setMessage('Error: could not contact server — simulated receive')
@@ -49,6 +82,15 @@ const ReceiveStockPage = () => {
         <div>
           <label className="block text-sm font-medium">Quantity to receive</label>
           <input type="number" value={quantity} onChange={e => setQuantity(Number(e.target.value))} className="w-full p-2 border rounded" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Supplier</label>
+          <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="w-full p-2 border rounded">
+            <option value="">Select supplier</option>
+            {suppliers.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
         <div>
           <button className="btn" type="submit">Submit</button>

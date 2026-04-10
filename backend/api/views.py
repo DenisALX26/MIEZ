@@ -19,7 +19,10 @@ from .serializers import (
     EmployeeCreateSerializer,
     EmployeeListSerializer,
     ProductSerializer,
+    SupplierSerializer,
+    StockMovementSerializer,
 )
+from .models import StockMovement
 
 
 # Create your views here.
@@ -84,6 +87,8 @@ class RefreshTokenView(TokenRefreshView):
 
 
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from rest_framework.permissions import IsAuthenticated
 
 
 class LogoutView(APIView):
@@ -235,6 +240,20 @@ class EmployeeStatsView(APIView):
         )
 
 
+class SupplierListView(APIView):
+    """Return list of suppliers (for frontend receive form)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # allow inventory and CEO to list suppliers
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO, User.Role.HR]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = Supplier.objects.all().order_by('name')
+        serializer = SupplierSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
 class InventoryProductsView(APIView):
     """Return products with optional status filters (LOW/OUT).
 
@@ -279,3 +298,32 @@ class InventoryProductsView(APIView):
             products = [pr for pr in products if pr['status'] in statuses_up]
 
         return Response(products, status=status.HTTP_200_OK)
+
+
+class StockMovementCreateView(APIView):
+    """Create inbound/outbound stock movement. POST only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # List recent stock movements (inventory + CEO allowed)
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = StockMovement.objects.select_related('product', 'supplier').all().order_by('-created_at')[:100]
+        serializer = StockMovementSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        # Only inventory role allowed
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = StockMovementSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        movement = serializer.save()
+
+        # Return created movement and updated product data
+        product = movement.product
+        product_data = ProductSerializer(product).data
+
+        return Response({'movement': StockMovementSerializer(movement).data, 'product': product_data}, status=status.HTTP_201_CREATED)
