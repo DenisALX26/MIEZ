@@ -49,7 +49,7 @@ const getModuleLabelFromPath = (pathname: string) => {
   if (pathname === '/inventory/products-stock') return 'Products & Stock'
   if (pathname === '/inventory/receive-stock') return 'Receive Stock'
   if (pathname === '/inventory/stock-movements') return 'Stock Movements'
-  if (pathname === '/inventory/low-stock-alerts') return 'Low Stock Alerts'
+  if (pathname === '/inventory/low-stock-alert') return 'Low Stock Alerts'
 
   return 'Module'
 }

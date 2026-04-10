@@ -6,6 +6,7 @@ import DashboardPage from './components/dashboard/DashboardPage'
 import EmployeesPage from './components/employees/EmployeesPage'
 import LowStockPage from './components/inventory/LowStockPage'
 import ReceiveStockPage from './components/inventory/ReceiveStockPage'
+import StockMovementsPage from './components/inventory/StockMovementsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
@@ -246,7 +247,7 @@ function App() {
               }
             />
             <Route
-              path="/inventory/low-stock"
+              path="/inventory/low-stock-alert"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
                   <LowStockPage />
@@ -281,15 +282,15 @@ function App() {
               path="/inventory/stock-movements"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <StockMovementsPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/inventory/low-stock-alerts"
+              path="/inventory/low-stock-alert"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <LowStockPage />
                 </ProtectedRoute>
               }
             />

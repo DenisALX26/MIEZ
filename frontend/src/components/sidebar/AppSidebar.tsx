@@ -69,7 +69,7 @@ const INVENTORY_NAV: NavItem[] = [
   { label: 'Products & Stock', to: '/inventory/products-stock', icon: FiPackage, roles: ['INVENTORY'] },
   { label: 'Receive Stock', to: '/inventory/receive-stock', icon: FiZap, roles: ['INVENTORY'] },
   { label: 'Stock Movements', to: '/inventory/stock-movements', icon: FiBarChart2, roles: ['INVENTORY'] },
-  { label: 'Low Stock Alerts', to: '/inventory/low-stock-alerts', icon: FiMonitor, roles: ['INVENTORY'] },
+  { label: 'Low Stock Alerts', to: '/inventory/low-stock-alert', icon: FiMonitor, roles: ['INVENTORY'] },
 ]
 
 const DEFAULT_NAV: NavItem[] = [{ label: 'Reports', to: '/reports', icon: FiFileText }]
