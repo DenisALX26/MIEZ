@@ -2,6 +2,7 @@
 .env.*
 .env.local
 .env.*.local
+!.env.example
 # Python
 __pycache__/
 *.pyc
@@ -77,3 +78,6 @@ credentials.yml.enc
 *.lock
 *.cache
 .cache-loader
+
+# devcontainer
+.devcontainer/

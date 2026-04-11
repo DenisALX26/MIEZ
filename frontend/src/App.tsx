@@ -9,6 +9,8 @@ import ReceiveStockPage from './components/inventory/ReceiveStockPage'
 import StockMovementsPage from './components/inventory/StockMovementsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import UserDashboard from './components/dashboard/UserDashboard'
+import ItDashboard from './components/it/ItDashboard'
 
 type ModulePageProps = {
   title: string
@@ -35,6 +37,10 @@ const UnauthorizedPage = () => {
 
 const DepartmentModulePage = () => {
   const { slug } = useParams()
+
+  if (slug?.toLowerCase() === 'it') {
+    return <ItDashboard />
+  }
 
   return (
     <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
@@ -108,7 +114,7 @@ function App() {
               path="/it/dashboard"
               element={
                 <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
+                  <UserDashboard />
                 </ProtectedRoute>
               }
             />

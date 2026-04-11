@@ -1,9 +1,13 @@
+from datetime import timedelta
+
 from django.test import TestCase, Client
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from ..models import User, Ticket
 
 class IsEvenTests(TestCase):
     def setUp(self):
@@ -98,3 +102,67 @@ class AuthTests(APITestCase):
         response = self.client.post(self.logout_url)
         access_cookie = response.cookies.get(settings.SIMPLE_JWT['AUTH_COOKIE'])
         self.assertEqual(access_cookie.value, '')
+
+
+class ITDashboardTests(APITestCase):
+    def setUp(self):
+        self.ceo = User.objects.create_user(username='ceo', role=User.Role.CEO, email='ceo@example.com')
+        self.hr_user = User.objects.create_user(username='hr', role=User.Role.HR, email='hr@example.com')
+        self.it_user = User.objects.create_user(username='it', role=User.Role.IT, email='it@example.com')
+
+        self.now = timezone.now()
+
+    def test_access_control(self):
+        """Only CEO and IT should access the IT dashboard"""
+        self.client.force_authenticate(user=self.hr_user)
+        response = self.client.get('/api/it/dashboard/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.ceo)
+        response = self.client.get('/api/it/dashboard/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.it_user)
+        response = self.client.get('/api/it/dashboard/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_dashboard_metrics(self):
+        """Test that counts and SLA math are correct"""
+        self.client.force_authenticate(user=self.ceo)
+
+        # Create workload
+        Ticket.objects.create(ticket_number="T1", status=Ticket.Status.OPEN)
+        Ticket.objects.create(ticket_number="T2", status=Ticket.Status.OPEN, priority=Ticket.Priority.URGENT)
+        Ticket.objects.create(ticket_number="T3", status=Ticket.Status.IN_PROGRESS)
+
+        # Create resolved (SLA met: 2 hours)
+        t4 = Ticket.objects.create(ticket_number="T4", status=Ticket.Status.RESOLVED)
+        t4.created_at = self.now - timedelta(hours=2)
+        t4.resolved_at = self.now
+        t4.save()
+
+        # Create resolved (SLA missed: 6 hours)
+        t5 = Ticket.objects.create(ticket_number="T5", status=Ticket.Status.RESOLVED)
+        t5.created_at = self.now - timedelta(hours=6)
+        t5.resolved_at = self.now
+        t5.save()
+
+        response = self.client.get('/api/it/dashboard/')
+        data = response.data
+
+        self.assertEqual(data['open_ticket'], 2)
+        self.assertEqual(data['ceo_it_summary']['critical_open'], 1)
+        self.assertEqual(data['ceo_it_summary']['avg_resolution_time_hrs'], 4.0)
+        self.assertEqual(data['ceo_it_summary']['sla_met_percentage'], 50.0)
+
+    def test_model_auto_resolve_timestamp(self):
+        """Test that out save() method handles resolved_at correctly"""
+        ticket = Ticket.objects.create(ticket_number="T99", status=Ticket.Status.OPEN)
+        self.assertIsNone(ticket.resolved_at)
+
+        ticket.status = Ticket.Status.RESOLVED
+        ticket.resolved_at = timezone.now()
+        ticket.save()
+
+        self.assertIsNotNone(ticket.resolved_at)
+        
