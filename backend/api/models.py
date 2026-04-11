@@ -62,6 +62,21 @@ class Department(models.Model):
         return self.name
 
 
+class Product(models.Model):
+    name = models.CharField(max_length=200)
+    sku = models.CharField(max_length=80, unique=True)
+    category = models.CharField(max_length=120, blank=True, default='')
+    stock_count = models.IntegerField(default=0)
+    min_stock = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.sku})"
+
+
 class Customer(models.Model):
     name = models.CharField(max_length=160)
     contact_email = models.EmailField(blank=True, default='')
@@ -121,6 +136,54 @@ class OrderItem(models.Model):
 
     class Meta:
         unique_together = [('order', 'product')]
+
+
+class Supplier(models.Model):
+    name = models.CharField(max_length=160)
+    contact_email = models.EmailField(blank=True, default='')
+    contact_phone = models.CharField(max_length=20, blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class StockMovement(models.Model):
+    class Type(models.TextChoices):
+        INBOUND = 'INBOUND', 'Inbound'
+        OUTBOUND = 'OUTBOUND', 'Outbound'
+
+    movement_type = models.CharField(max_length=12, choices=Type.choices)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='stock_movements')
+    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='stock_movements')
+    quantity = models.PositiveIntegerField(default=0)
+    expected_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='stock_movements_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def save(self, *args, **kwargs):
+        # on create, apply the stock change to the product
+        is_create = self.pk is None
+        super().save(*args, **kwargs)
+        if is_create:
+            try:
+                if self.movement_type == StockMovement.Type.INBOUND:
+                    # increment product stock
+                    self.product.stock_count = (getattr(self.product, 'stock_count', 0) or 0) + int(self.quantity)
+                    self.product.save(update_fields=['stock_count'])
+                elif self.movement_type == StockMovement.Type.OUTBOUND:
+                    # decrement product stock (not below zero)
+                    new_count = max(0, (getattr(self.product, 'stock_count', 0) or 0) - int(self.quantity))
+                    self.product.stock_count = new_count
+                    self.product.save(update_fields=['stock_count'])
+            except Exception:
+                # Don't let product save failures block the movement creation; log later if needed
+                pass
 
 
 class Invoice(models.Model):

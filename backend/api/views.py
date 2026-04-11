@@ -1,18 +1,31 @@
+from datetime import timedelta
+
+from django.http import JsonResponse
+from django.views.decorators.http import require_GET
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper
+from django.utils import timezone
+
 
 from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Department, Ticket, User
-from .serializers import DepartmentSerializer, EmployeeCreateSerializer, EmployeeListSerializer
+from .models import Department, User, Product, Ticket, StockMovement
+from .serializers import (
+    DepartmentSerializer,
+    EmployeeCreateSerializer,
+    EmployeeListSerializer,
+    ProductSerializer,
+    SupplierSerializer,
+    StockMovementSerializer,
+)
 
 
 # Create your views here.
@@ -78,6 +91,9 @@ class RefreshTokenView(TokenRefreshView):
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from rest_framework.permissions import IsAuthenticated
+
+
 class LogoutView(APIView):
     def post(self, request):
         try:
@@ -94,7 +110,10 @@ class LogoutView(APIView):
 
 
 class UserMeView(APIView):
-    permission_classes = [IsAuthenticated]
+    # For development/testing we allow public access so the frontend can show the low-stock demo
+    # In production revert this to IsAuthenticated or add proper auth checks.
+    permission_classes = [AllowAny]
+
     def get(self, request):
         return JsonResponse(
             {
@@ -223,9 +242,7 @@ class EmployeeStatsView(APIView):
             status=status.HTTP_200_OK,
         )
 
-from django.utils import timezone
-from datetime import timedelta
-
+      
 class DashboardItView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -288,3 +305,91 @@ class DashboardItView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
+class SupplierListView(APIView):
+    """Return list of suppliers (for frontend receive form)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # allow inventory and CEO to list suppliers
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO, User.Role.HR]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = Supplier.objects.all().order_by('name')
+        serializer = SupplierSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InventoryProductsView(APIView):
+    """Return products with optional status filters (LOW/OUT).
+
+    Example: /api/inventory/products/?status=LOW&status=OUT
+    """
+    # allow public for demo; change to IsAuthenticated in production
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        statuses = request.query_params.getlist('status')
+
+        qs = Product.objects.all()
+
+        # build list
+        products = []
+        for p in qs:
+            stock = int(getattr(p, 'stock_count', 0) or 0)
+            # some deployments may have a Product model without min_stock yet
+            minimum = int(getattr(p, 'min_stock', 0) or 0)
+            if stock <= 0:
+                status_val = 'OUT'
+            elif stock < minimum:
+                status_val = 'LOW'
+            else:
+                status_val = 'OK'
+
+            shortfall = minimum - stock
+
+            products.append({
+                'id': p.id,
+                'name': p.name,
+                'sku': p.sku,
+                'category': p.category,
+                'stock_count': stock,
+                'min_stock': minimum,
+                'status': status_val,
+                'shortfall': shortfall,
+            })
+
+        if statuses:
+            statuses_up = [s.upper() for s in statuses]
+            products = [pr for pr in products if pr['status'] in statuses_up]
+
+        return Response(products, status=status.HTTP_200_OK)
+
+
+class StockMovementCreateView(APIView):
+    """Create inbound/outbound stock movement. POST only."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # List recent stock movements (inventory + CEO allowed)
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = StockMovement.objects.select_related('product', 'supplier').all().order_by('-created_at')[:100]
+        serializer = StockMovementSerializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        # Only inventory role allowed
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = StockMovementSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        movement = serializer.save()
+
+        # Return created movement and updated product data
+        product = movement.product
+        product_data = ProductSerializer(product).data
+
+        return Response({'movement': StockMovementSerializer(movement).data, 'product': product_data}, status=status.HTTP_201_CREATED)

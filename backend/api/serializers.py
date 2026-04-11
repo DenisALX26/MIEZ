@@ -2,6 +2,8 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import Department, User
+from .models import Product
+from .models import Supplier, StockMovement
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -111,3 +113,41 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         user.set_unusable_password()
         user.save(update_fields=['password'])
         return user
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'sku', 'category', 'stock_count', 'min_stock', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class SupplierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Supplier
+        fields = ['id', 'name', 'contact_email', 'contact_phone', 'address', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    # Accept product and supplier as PKs on write, but include nested objects on read
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    supplier = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all())
+    product_obj = ProductSerializer(source='product', read_only=True)
+    supplier_obj = SupplierSerializer(source='supplier', read_only=True)
+
+    class Meta:
+        model = StockMovement
+        fields = ['id', 'movement_type', 'product', 'product_obj', 'supplier', 'supplier_obj', 'quantity', 'expected_date', 'notes', 'created_by', 'created_at']
+        read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj']
+
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Quantity must be greater than zero.')
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.user and not validated_data.get('created_by'):
+            validated_data['created_by'] = request.user
+        return super().create(validated_data)
