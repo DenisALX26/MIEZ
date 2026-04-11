@@ -62,21 +62,6 @@ class Department(models.Model):
         return self.name
 
 
-class Product(models.Model):
-    name = models.CharField(max_length=200)
-    sku = models.CharField(max_length=80, unique=True)
-    category = models.CharField(max_length=120, blank=True, default='')
-    stock_count = models.IntegerField(default=0)
-    min_stock = models.IntegerField(default=0)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['name']
-
-    def __str__(self) -> str:
-        return f"{self.name} ({self.sku})"
-
-
 class Customer(models.Model):
     name = models.CharField(max_length=160)
     contact_email = models.EmailField(blank=True, default='')
