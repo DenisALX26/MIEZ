@@ -4,6 +4,7 @@ from rest_framework.validators import UniqueValidator
 from .models import Department, User
 from .models import Product
 from .models import Supplier, StockMovement
+from .models import Ticket
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -151,3 +152,31 @@ class StockMovementSerializer(serializers.ModelSerializer):
         if request and request.user and not validated_data.get('created_by'):
             validated_data['created_by'] = request.user
         return super().create(validated_data)
+
+
+class TicketSerializer(serializers.ModelSerializer):
+    requested_by_username = serializers.CharField(source='requested_by.username', read_only=True)
+    assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True, allow_null=True)
+    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = Ticket
+        fields = [
+            'id',
+            'ticket_number',
+            'title',
+            'description',
+            'priority',
+            'status',
+            'department',
+            'department_name',
+            'requested_by',
+            'requested_by_username',
+            'assigned_to',
+            'assigned_to_username',
+            'location',
+            'created_at',
+            'updated_at',
+            'resolved_at',
+        ]
+        read_only_fields = ['id', 'ticket_number', 'created_at', 'updated_at', 'resolved_at']
