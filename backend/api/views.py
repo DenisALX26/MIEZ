@@ -16,7 +16,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
 
-from .models import Department, User, Product, StockMovement, Ticket
+from .models import Department, Supplier, User, Product, StockMovement, Ticket
 from .serializers import (
     DepartmentSerializer,
     EmployeeCreateSerializer,
