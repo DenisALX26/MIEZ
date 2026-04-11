@@ -199,5 +199,93 @@ def seed_products():
                 print(f"Already up-to-date: {prod.sku}")
 
 
+def seed_tickets():
+    from api.models import Ticket
+
+    it_department = Department.objects.filter(slug='it').first()
+
+    requested_by_it = User.objects.filter(username='elena.vasile').first()
+    assigned_to_it = User.objects.filter(username='ion.dragomir').first()
+    requested_by_sales = User.objects.filter(username='mihai.popescu').first()
+
+    tickets = [
+        {
+            'ticket_number': 'IT-1001',
+            'title': 'Cannot connect to office VPN',
+            'description': 'VPN client times out for remote employee.',
+            'department': it_department,
+            'priority': Ticket.Priority.HIGH,
+            'status': Ticket.Status.OPEN,
+            'requested_by': requested_by_sales,
+            'assigned_to': assigned_to_it,
+            'location': 'Bucharest HQ',
+        },
+        {
+            'ticket_number': 'IT-1002',
+            'title': 'Email attachments blocked',
+            'description': 'Outgoing attachments are rejected by mail gateway.',
+            'department': it_department,
+            'priority': Ticket.Priority.MEDIUM,
+            'status': Ticket.Status.IN_PROGRESS,
+            'requested_by': requested_by_it,
+            'assigned_to': assigned_to_it,
+            'location': 'Cluj Office',
+        },
+        {
+            'ticket_number': 'IT-1003',
+            'title': 'Laptop blue screen after update',
+            'description': 'Recurring BSOD after security patch installation.',
+            'department': it_department,
+            'priority': Ticket.Priority.URGENT,
+            'status': Ticket.Status.OPEN,
+            'requested_by': requested_by_it,
+            'assigned_to': None,
+            'location': 'Remote',
+        },
+        {
+            'ticket_number': 'IT-1004',
+            'title': 'Printer queue stalled on floor 2',
+            'description': 'Jobs remain queued and never reach the printer.',
+            'department': it_department,
+            'priority': Ticket.Priority.LOW,
+            'status': Ticket.Status.RESOLVED,
+            'requested_by': requested_by_sales,
+            'assigned_to': assigned_to_it,
+            'location': 'Bucharest HQ',
+        },
+    ]
+
+    for data in tickets:
+        ticket, created = Ticket.objects.get_or_create(
+            ticket_number=data['ticket_number'],
+            defaults={
+                'title': data['title'],
+                'description': data['description'],
+                'department': data['department'],
+                'priority': data['priority'],
+                'status': data['status'],
+                'requested_by': data['requested_by'],
+                'assigned_to': data['assigned_to'],
+                'location': data['location'],
+            },
+        )
+
+        if created:
+            print(f"Created ticket: {ticket.ticket_number}")
+        else:
+            ticket.title = data['title']
+            ticket.description = data['description']
+            ticket.department = data['department']
+            ticket.priority = data['priority']
+            ticket.status = data['status']
+            ticket.requested_by = data['requested_by']
+            ticket.assigned_to = data['assigned_to']
+            ticket.location = data['location']
+            ticket.save()
+            print(f"Updated ticket: {ticket.ticket_number}")
+
+
 if __name__ == "__main__":
     seed_users()
+    seed_products()
+    seed_tickets()

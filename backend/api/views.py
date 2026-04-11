@@ -1,4 +1,5 @@
 from datetime import timedelta
+from collections import OrderedDict
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -10,11 +11,15 @@ from django.utils import timezone
 
 from django.conf import settings
 from rest_framework.views import APIView
+from rest_framework.generics import ListAPIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import PermissionDenied
+from django_filters import rest_framework as filters
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Department, Supplier, User, Product, StockMovement, Ticket
 from .serializers import (
@@ -24,6 +29,7 @@ from .serializers import (
     ProductSerializer,
     SupplierSerializer,
     StockMovementSerializer,
+    TicketSerializer,
 )
 
 
@@ -353,7 +359,7 @@ class DashboardItView(APIView):
             )),
             critical_open=Count('id', filter=Q(
                 status=Ticket.Status.OPEN,
-                priority=Ticket.Priority.URGENT
+                priority__in=[Ticket.Priority.HIGH, Ticket.Priority.URGENT]
             ))
         )
 
@@ -393,3 +399,56 @@ class DashboardItView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+
+class TicketPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response(
+            OrderedDict(
+                [
+                    ('total_count', self.page.paginator.count),
+                    ('count', self.page.paginator.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', data),
+                ]
+            )
+        )
+
+
+class TicketFilterSet(filters.FilterSet):
+    search = filters.CharFilter(method='filter_search')
+    category = filters.NumberFilter(field_name='department_id')
+    status = filters.CharFilter(field_name='status')
+    assigned_to = filters.NumberFilter(field_name='assigned_to_id')
+
+    class Meta:
+        model = Ticket
+        fields = ['search', 'category', 'status', 'assigned_to']
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(title__icontains=value)
+            | Q(description__icontains=value)
+            | Q(ticket_number__icontains=value)
+        )
+
+
+class TicketListView(ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TicketSerializer
+    pagination_class = TicketPagination
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TicketFilterSet
+
+    def get_queryset(self):
+        request = self.request
+        if request.user.role not in [User.Role.IT, User.Role.CEO]:
+            raise PermissionDenied("Only IT technicians and CEO can view tickets.")
+
+        return Ticket.objects.select_related(
+            'department', 'requested_by', 'assigned_to'
+        ).all().order_by('-created_at')
