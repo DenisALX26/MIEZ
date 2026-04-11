@@ -40,6 +40,11 @@
   --sidebar-accent-foreground: #ffffff;
   --sidebar-border: #3a383c;
   --sidebar-ring: #D1353B;
+
+  /* IT Dashboard */
+  --open-tickets-icon: #DCA48D;
+  --open-tickets-icon-bg: #F6F5F4;
+  --critical-tickets-icon: #FB2C36;
 }
 
 .dark {
