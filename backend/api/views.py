@@ -359,7 +359,7 @@ class DashboardItView(APIView):
             )),
             critical_open=Count('id', filter=Q(
                 status=Ticket.Status.OPEN,
-                priority=Ticket.Priority.URGENT
+                priority__in=[Ticket.Priority.HIGH, Ticket.Priority.URGENT]
             ))
         )
 
