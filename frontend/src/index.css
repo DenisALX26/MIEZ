@@ -45,6 +45,14 @@
   --open-tickets-icon: #DCA48D;
   --open-tickets-icon-bg: #F6F5F4;
   --critical-tickets-icon: #FB2C36;
+  --low-priority-tickets-icon: #D1D5DC;
+  --normal-priority-tickets-icon: #50A2FF;
+  --high-priority-tickets-icon: #FF8904;
+  --urgent-priority-tickets-icon: #FB2C36;
+  --in-progress-tickets-bg: #FEFCE8;
+  --in-progress-tickets-text: #A65F00;
+  --new-tickets-bg: #F3F4F6;
+  --new-tickets-text: #4A5565;
 }
 
 .dark {
