@@ -165,4 +165,75 @@ class ITDashboardTests(APITestCase):
         ticket.save()
 
         self.assertIsNotNone(ticket.resolved_at)
+
+
+class TicketListViewTests(APITestCase):
+    def setUp(self):
+        self.ceo = User.objects.create_user(username='ceo_tickets', role=User.Role.CEO, email='ceo_tickets@example.com')
+        self.it_user = User.objects.create_user(username='it_tickets', role=User.Role.IT, email='it_tickets@example.com')
+        self.sales_user = User.objects.create_user(username='sales_tickets', role=User.Role.SALES, email='sales_tickets@example.com')
+
+        from ..models import Department
+
+        self.it_department = Department.objects.create(name='IT Support', slug='it-support')
+        self.hr_department = Department.objects.create(name='HR', slug='hr')
+
+        Ticket.objects.create(
+            ticket_number='IT-001',
+            title='Laptop not booting',
+            description='Device stuck on BIOS screen',
+            department=self.it_department,
+            status=Ticket.Status.OPEN,
+            assigned_to=self.it_user,
+        )
+        Ticket.objects.create(
+            ticket_number='IT-002',
+            title='Email migration issue',
+            description='Mailbox sync fails after update',
+            department=self.it_department,
+            status=Ticket.Status.IN_PROGRESS,
+            assigned_to=self.it_user,
+        )
+        Ticket.objects.create(
+            ticket_number='HR-001',
+            title='Payroll access reset',
+            description='Cannot log in to payroll portal',
+            department=self.hr_department,
+            status=Ticket.Status.OPEN,
+            assigned_to=self.ceo,
+        )
+
+    def test_ticket_list_requires_it_or_ceo_role(self):
+        self.client.force_authenticate(user=self.sales_user)
+        response = self.client.get('/api/tickets/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_ticket_list_includes_total_count(self):
+        self.client.force_authenticate(user=self.it_user)
+        response = self.client.get('/api/tickets/?page_size=2')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 3)
+        self.assertEqual(response.data['count'], 3)
+        self.assertEqual(len(response.data['results']), 2)
+
+    def test_ticket_list_filters_with_django_filter_params(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        response = self.client.get(
+            f'/api/tickets/?category={self.it_department.id}&status=OPEN&assigned_to={self.it_user.id}'
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 1)
+        self.assertEqual(response.data['results'][0]['ticket_number'], 'IT-001')
+
+    def test_ticket_list_search_filters_results(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        response = self.client.get('/api/tickets/?search=mailbox')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 1)
+        self.assertEqual(response.data['results'][0]['ticket_number'], 'IT-002')
         
