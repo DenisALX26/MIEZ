@@ -30,7 +30,7 @@ jobs:
         env:
           DJANGO_SECRET_KEY: ci-secret-not-real
           DEBUG: "True"
-          DATABASE_URL: sqlite:///test.db
+          DATABASE_URL: "sqlite:///:memory:"
         run: |
           python manage.py test
 

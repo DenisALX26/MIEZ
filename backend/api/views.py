@@ -109,7 +109,7 @@ class LogoutView(APIView):
 class UserMeView(APIView):
     # For development/testing we allow public access so the frontend can show the low-stock demo
     # In production revert this to IsAuthenticated or add proper auth checks.
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return JsonResponse(
