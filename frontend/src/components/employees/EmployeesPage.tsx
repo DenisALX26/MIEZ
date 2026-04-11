@@ -267,7 +267,7 @@ const EmployeesPage = () => {
         <div>
           <h2>Employee Directory</h2>
           <p>Track headcount with real-time filters and aggregated stats.</p>
-        </div>
+        </div>s
         <button type="button" className="min-h-[40px] rounded-[10px] bg-[var(--accent)] text-white px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none disabled:opacity-70 disabled:cursor-not-allowed" onClick={() => setIsFormOpen(true)}>
           Register Employee
         </button>
