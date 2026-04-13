@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.conf import settings
-from ..models import User, Ticket, Customer, Product, Order, OrderItem
+from ..models import User, Department, Ticket, Customer, Product, Order, OrderItem
 
 class IsEvenTests(TestCase):
     def setUp(self):
@@ -511,6 +511,171 @@ class TicketApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['ceo_it_summary']['sla_met_percentage'], 50.0)
+
+
+class EmployeeDepartmentCrudTests(APITestCase):
+    def setUp(self):
+        self.ceo_user = User.objects.create_user(
+            username='ceo_employee_crud',
+            email='ceo_employee_crud@example.com',
+            role=User.Role.CEO,
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_employee_crud',
+            email='hr_employee_crud@example.com',
+            role=User.Role.HR,
+        )
+        self.hr_department = Department.objects.create(name='HR', slug='hr')
+        self.it_department = Department.objects.create(name='IT', slug='it')
+
+        self.valid_payload = {
+            'first_name': 'Ana',
+            'last_name': 'Popescu',
+            'email': 'ana.popescu@example.com',
+            'phone': '+40123456789',
+            'department': self.hr_department.id,
+            'position': 'Sales Representative',
+            'employment_type': User.EmploymentType.FULL_TIME,
+            'start_date': '2025-03-10',
+            'salary_ron': '5500.00',
+            'address': 'Str. Test 1, Bucuresti',
+            'is_active': True,
+        }
+
+    def test_post_employees_valid_payload_returns_201_with_employee_object(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.post('/api/employees/', self.valid_payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['email'], self.valid_payload['email'])
+        self.assertEqual(response.data['first_name'], self.valid_payload['first_name'])
+        self.assertEqual(response.data['department']['id'], self.valid_payload['department'])
+
+    def test_post_employees_missing_required_field_returns_400_with_field_name_in_error(self):
+        self.client.force_authenticate(user=self.ceo_user)
+        payload = dict(self.valid_payload)
+        payload.pop('first_name')
+
+        response = self.client.post('/api/employees/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('first_name', response.data)
+
+    def test_post_employees_duplicate_email_returns_400(self):
+        User.objects.create_user(
+            username='existing_employee_email',
+            email=self.valid_payload['email'],
+            role=User.Role.SALES,
+        )
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.post('/api/employees/', self.valid_payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('email', response.data)
+
+    def test_get_employees_returns_paginated_list_with_correct_count(self):
+        baker.make(User, _quantity=3, department=self.hr_department, role=User.Role.SALES)
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.get('/api/employees/?page_size=2')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], User.objects.count())
+        self.assertEqual(len(response.data['results']), 2)
+
+    def test_get_employees_department_hr_filters_correctly(self):
+        baker.make(User, department=self.hr_department, role=User.Role.HR)
+        baker.make(User, department=self.it_department, role=User.Role.IT)
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.get('/api/employees/?department=hr')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['department']['slug'], 'hr')
+
+    def test_get_employees_stats_totals_computed_correctly_via_orm(self):
+        self.ceo_user.is_active = False
+        self.ceo_user.full_time = False
+        self.ceo_user.save(update_fields=['is_active', 'full_time'])
+
+        self.hr_user.is_active = False
+        self.hr_user.full_time = False
+        self.hr_user.save(update_fields=['is_active', 'full_time'])
+
+        baker.make(
+            User,
+            department=self.hr_department,
+            role=User.Role.HR,
+            is_active=True,
+            full_time=True,
+        )
+        baker.make(
+            User,
+            department=self.it_department,
+            role=User.Role.IT,
+            is_active=True,
+            full_time=False,
+        )
+        baker.make(
+            User,
+            department=None,
+            role=User.Role.SALES,
+            is_active=False,
+            full_time=False,
+        )
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.get('/api/employees/stats/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total'], User.objects.count())
+        self.assertEqual(response.data['active'], 2)
+        self.assertEqual(response.data['full_time'], 1)
+
+        departments = {row['name']: row['count'] for row in response.data['departments']}
+        self.assertEqual(departments['HR'], 1)
+        self.assertEqual(departments['IT'], 1)
+        self.assertEqual(departments['Unassigned'], 3)
+
+    def test_post_departments_ceo_creates_department_returns_201(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        payload = {
+            'name': 'Finance',
+            'slug': 'finance',
+            'icon': 'Calculator',
+        }
+        response = self.client.post('/api/departments/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['name'], payload['name'])
+        self.assertTrue(Department.objects.filter(slug='finance').exists())
+
+    def test_post_departments_non_ceo_role_returns_403(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        payload = {
+            'name': 'Legal',
+            'slug': 'legal',
+            'icon': 'Scale',
+        }
+        response = self.client.post('/api/departments/', payload, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_departments_id_removes_department_returns_204(self):
+        department = Department.objects.create(name='Operations', slug='operations')
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.delete(f'/api/departments/{department.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(Department.objects.filter(id=department.id).exists())
+
+
 class OrderListViewTests(APITestCase):
     def setUp(self):
         self.sales_user = User.objects.create_user(
