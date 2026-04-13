@@ -293,6 +293,30 @@ class Ticket(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
 
+    @classmethod
+    def _generate_ticket_number(cls):
+        max_number = 0
+        for ticket_number in cls.objects.values_list('ticket_number', flat=True):
+            if not ticket_number or not ticket_number.startswith('TKT-'):
+                continue
+
+            numeric_part = ticket_number.split('TKT-', 1)[1]
+            if numeric_part.isdigit():
+                max_number = max(max_number, int(numeric_part))
+
+        return f'TKT-{(max_number + 1):05d}'
+
+    def save(self, *args, **kwargs):
+        if not self.ticket_number:
+            self.ticket_number = self._generate_ticket_number()
+
+        if self.status == self.Status.RESOLVED and self.resolved_at is None:
+            from django.utils import timezone
+
+            self.resolved_at = timezone.now()
+
+        super().save(*args, **kwargs)
+
 
 class TicketComment(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='comments')

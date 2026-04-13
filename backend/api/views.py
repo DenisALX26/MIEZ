@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from django.conf import settings
 from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
@@ -29,7 +29,9 @@ from .serializers import (
     ProductSerializer,
     SupplierSerializer,
     StockMovementSerializer,
+    TicketCreateSerializer,
     TicketSerializer,
+    TicketUpdateSerializer,
 )
 
 
@@ -421,9 +423,9 @@ class TicketPagination(PageNumberPagination):
 
 class TicketFilterSet(filters.FilterSet):
     search = filters.CharFilter(method='filter_search')
-    category = filters.NumberFilter(field_name='department_id')
+    category = filters.CharFilter(method='filter_category')
     status = filters.CharFilter(field_name='status')
-    assigned_to = filters.NumberFilter(field_name='assigned_to_id')
+    assigned_to = filters.CharFilter(method='filter_assigned_to')
 
     class Meta:
         model = Ticket
@@ -436,13 +438,37 @@ class TicketFilterSet(filters.FilterSet):
             | Q(ticket_number__icontains=value)
         )
 
+    def filter_category(self, queryset, name, value):
+        if value.isdigit():
+            return queryset.filter(department_id=int(value))
 
-class TicketListView(ListAPIView):
+        return queryset.filter(
+            Q(department__name__iexact=value)
+            | Q(department__slug__iexact=value)
+        )
+
+    def filter_assigned_to(self, queryset, name, value):
+        request = getattr(self, 'request', None)
+        if value == 'me' and request and request.user and request.user.is_authenticated:
+            return queryset.filter(assigned_to=request.user)
+
+        if value.isdigit():
+            return queryset.filter(assigned_to_id=int(value))
+
+        return queryset.none()
+
+
+class TicketListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TicketSerializer
     pagination_class = TicketPagination
     filter_backends = [DjangoFilterBackend]
     filterset_class = TicketFilterSet
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return TicketCreateSerializer
+        return TicketSerializer
 
     def get_queryset(self):
         request = self.request
@@ -452,3 +478,18 @@ class TicketListView(ListAPIView):
         return Ticket.objects.select_related(
             'department', 'requested_by', 'assigned_to'
         ).all().order_by('-created_at')
+
+
+class TicketDetailView(RetrieveUpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TicketUpdateSerializer
+    http_method_names = ['patch']
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        return Ticket.objects.select_related('department', 'requested_by', 'assigned_to').all()
+
+    def patch(self, request, *args, **kwargs):
+        if request.user.role not in [User.Role.IT, User.Role.CEO]:
+            raise PermissionDenied('Only IT technicians and CEO can update tickets.')
+        return self.partial_update(request, *args, **kwargs)

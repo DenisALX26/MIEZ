@@ -17,5 +17,6 @@ urlpatterns = [
   path('employees/', views.EmployeeListView.as_view(), name='employee_list'),
   path('employees/stats/', views.EmployeeStatsView.as_view(), name='employee_stats'),
   path('it/dashboard/', views.DashboardItView.as_view(), name='dashboard_data'),
-  path('tickets/', views.TicketListView.as_view(), name='ticket_list'),
+  path('tickets/', views.TicketListCreateView.as_view(), name='ticket_list'),
+  path('tickets/<int:id>/', views.TicketDetailView.as_view(), name='ticket_detail'),
 ]
