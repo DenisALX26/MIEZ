@@ -56,6 +56,28 @@ type SalesKpiResponse = {
   }
 }
 
+type DailyOrdersPoint = {
+  date: string
+  orders_count: number
+}
+
+type DailyOrdersResponse = {
+  days: DailyOrdersPoint[]
+}
+
+type TopProduct = {
+  product_id: number
+  product_name: string
+  product_sku: string
+  units_sold: number
+}
+
+type TopProductsResponse = {
+  week_start: string
+  week_end: string
+  products: TopProduct[]
+}
+
 const statusOptions: Array<{ label: string; value: string }> = [
   { label: 'All statuses', value: '' },
   { label: 'Processing', value: 'PROCESSING' },
@@ -104,10 +126,24 @@ const formatDate = (value: string) => {
   return date.toLocaleDateString('ro-RO')
 }
 
+const formatShortDay = (value: string) => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return date.toLocaleDateString('ro-RO', { weekday: 'short' })
+}
+
 const SalesDashboard = () => {
   const [kpis, setKpis] = useState<SalesKpiResponse | null>(null)
   const [loadingKpis, setLoadingKpis] = useState(true)
   const [kpisError, setKpisError] = useState('')
+
+  const [dailyOrders, setDailyOrders] = useState<DailyOrdersPoint[]>([])
+  const [topProducts, setTopProducts] = useState<TopProduct[]>([])
+  const [analyticsWeek, setAnalyticsWeek] = useState<{ week_start: string; week_end: string } | null>(null)
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true)
+  const [analyticsError, setAnalyticsError] = useState('')
 
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
@@ -156,6 +192,52 @@ const SalesDashboard = () => {
     }
 
     loadKpis()
+  }, [])
+
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        setLoadingAnalytics(true)
+        setAnalyticsError('')
+
+        const [dailyResult, topProductsResult] = await Promise.allSettled([
+          fetch('/api/sales/daily-orders/', { credentials: 'include' }),
+          fetch('/api/sales/top-products/', { credentials: 'include' }),
+        ])
+
+        let dailyLoaded = false
+
+        if (dailyResult.status === 'fulfilled' && dailyResult.value.ok) {
+          const dailyData = (await dailyResult.value.json()) as DailyOrdersResponse
+          const normalizedDays = Array.isArray(dailyData.days) ? [...dailyData.days] : []
+          normalizedDays.sort((a, b) => a.date.localeCompare(b.date))
+          setDailyOrders(normalizedDays)
+          dailyLoaded = true
+        } else {
+          setDailyOrders([])
+        }
+
+        if (topProductsResult.status === 'fulfilled' && topProductsResult.value.ok) {
+          const topData = (await topProductsResult.value.json()) as TopProductsResponse
+          setTopProducts(Array.isArray(topData.products) ? topData.products : [])
+          setAnalyticsWeek({ week_start: topData.week_start, week_end: topData.week_end })
+        } else {
+          setTopProducts([])
+          setAnalyticsWeek(null)
+        }
+
+        if (!dailyLoaded) {
+          throw new Error('Daily trend data could not be loaded.')
+        }
+      } catch (error) {
+        console.error('Failed to load sales analytics:', error)
+        setAnalyticsError('Could not load weekly sales analytics right now.')
+      } finally {
+        setLoadingAnalytics(false)
+      }
+    }
+
+    loadAnalytics()
   }, [])
 
   useEffect(() => {
@@ -232,6 +314,13 @@ const SalesDashboard = () => {
     setDetailError('')
   }
 
+  const maxDailyOrders = useMemo(() => {
+    if (!dailyOrders.length) {
+      return 1
+    }
+    return Math.max(...dailyOrders.map((entry) => entry.orders_count), 1)
+  }, [dailyOrders])
+
   const averageOrderValue = useMemo(() => {
     if (!totalCount) {
       return 0
@@ -276,7 +365,74 @@ const SalesDashboard = () => {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+      </section>
+
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold">Weekly Orders Trend</h3>
+            <p className="text-sm text-black/60 mt-1">Last 7 days and top products for current ISO week.</p>
+          </div>
+          {analyticsWeek && (
+            <p className="text-xs text-black/60">
+              Week: {formatDate(analyticsWeek.week_start)} - {formatDate(analyticsWeek.week_end)}
+            </p>
+          )}
+        </div>
+
+        {loadingAnalytics ? (
+          <p className="text-sm text-black/60 mt-3">Loading chart data...</p>
+        ) : analyticsError ? (
+          <p className="text-sm text-red-600 mt-3">{analyticsError}</p>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-4">
+            <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Orders per day</p>
+              <div className="h-52 grid grid-cols-7 gap-2 items-end">
+                {dailyOrders.map((point) => {
+                  const height = (point.orders_count / maxDailyOrders) * 100
+                  return (
+                    <div key={point.date} className="h-full flex flex-col justify-end items-center">
+                      <span className="text-[11px] text-black/60 mb-1">{point.orders_count}</span>
+                      <div className="h-36 w-full flex items-end justify-center">
+                        <div
+                          className="w-full max-w-12 rounded-t-md bg-cyan-500/80 border border-cyan-600/20"
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] text-black/60 mt-1">{formatShortDay(point.date)}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Top products this week</p>
+              {topProducts.length === 0 ? (
+                <p className="text-sm text-black/60">No product sales this week yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {topProducts.map((item, index) => (
+                    <li key={item.product_id} className="rounded-lg border border-[var(--border)] px-3 py-2 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          {index + 1}. {item.product_name}
+                        </p>
+                        <p className="text-xs text-black/60">{item.product_sku}</p>
+                      </div>
+                      <span className="text-sm font-semibold">{item.units_sold} units</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="rounded-xl border border-[var(--border)] bg-white p-4">
             <p className="text-xs uppercase tracking-wide text-black/50">Filtered Orders</p>
             <p className="text-2xl font-semibold mt-1">{totalCount}</p>
@@ -290,9 +446,7 @@ const SalesDashboard = () => {
             <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(averageOrderValue)}</p>
           </div>
         </div>
-      </section>
 
-      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
             <label className="text-xs font-semibold uppercase tracking-wide text-black/50">Search</label>

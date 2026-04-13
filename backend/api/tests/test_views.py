@@ -859,4 +859,101 @@ class SalesDashboardKpiTests(APITestCase):
         self.client.force_authenticate(user=self.hr_user)
         response = self.client.get('/api/sales/dashboard/')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class SalesAnalyticsTask3Tests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(
+            username='sales_task3',
+            role=User.Role.SALES,
+            email='sales_task3@example.com',
+        )
+        self.ceo_user = User.objects.create_user(
+            username='ceo_task3',
+            role=User.Role.CEO,
+            email='ceo_task3@example.com',
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_task3',
+            role=User.Role.HR,
+            email='hr_task3@example.com',
+        )
+
+        self.customer = Customer.objects.create(name='Task3 Customer')
+        self.product_a = Product.objects.create(name='Widget A', sku='TASK3-A')
+        self.product_b = Product.objects.create(name='Widget B', sku='TASK3-B')
+        self.product_c = Product.objects.create(name='Widget C', sku='TASK3-C')
+
+    def _create_order_with_item(self, *, order_date, product, quantity):
+        order = Order.objects.create(
+            customer=self.customer,
+            created_by=self.sales_user,
+            value_ron=Decimal('10.00'),
+            date=order_date,
+            status=Order.Status.DELIVERED,
+            channel=Order.Channel.WEBSITE,
+        )
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=quantity,
+            unit_price_ron=Decimal('10.00'),
+        )
+        return order
+
+    def test_daily_orders_returns_last_seven_days_with_zero_filled_gaps(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        today = timezone.localdate()
+        five_days_ago = today - timedelta(days=5)
+        two_days_ago = today - timedelta(days=2)
+
+        self._create_order_with_item(order_date=five_days_ago, product=self.product_a, quantity=1)
+        self._create_order_with_item(order_date=five_days_ago, product=self.product_b, quantity=1)
+        self._create_order_with_item(order_date=two_days_ago, product=self.product_a, quantity=1)
+
+        response = self.client.get('/api/sales/daily-orders/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('days', response.data)
+        self.assertEqual(len(response.data['days']), 7)
+
+        counts_by_date = {row['date']: row['orders_count'] for row in response.data['days']}
+        self.assertEqual(counts_by_date[five_days_ago.isoformat()], 2)
+        self.assertEqual(counts_by_date[two_days_ago.isoformat()], 1)
+        self.assertEqual(counts_by_date[today.isoformat()], 0)
+
+    def test_top_products_uses_current_iso_week_and_sorts_by_units_sold(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        today = timezone.localdate()
+        week_start = today - timedelta(days=today.weekday())
+        previous_week_day = week_start - timedelta(days=1)
+
+        self._create_order_with_item(order_date=today, product=self.product_a, quantity=5)
+        self._create_order_with_item(order_date=today, product=self.product_b, quantity=2)
+        self._create_order_with_item(order_date=week_start, product=self.product_b, quantity=3)
+        self._create_order_with_item(order_date=previous_week_day, product=self.product_c, quantity=100)
+
+        response = self.client.get('/api/sales/top-products/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['week_start'], week_start.isoformat())
+        self.assertEqual(response.data['week_end'], today.isoformat())
+
+        products = response.data['products']
+        self.assertEqual(len(products), 2)
+        self.assertEqual(products[0]['product_name'], 'Widget A')
+        self.assertEqual(products[0]['units_sold'], 5)
+        self.assertEqual(products[1]['product_name'], 'Widget B')
+        self.assertEqual(products[1]['units_sold'], 5)
+
+    def test_task3_endpoints_forbid_non_sales_roles(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        daily_response = self.client.get('/api/sales/daily-orders/')
+        top_response = self.client.get('/api/sales/top-products/')
+
+        self.assertEqual(daily_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(top_response.status_code, status.HTTP_403_FORBIDDEN)
         
