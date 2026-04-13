@@ -1,10 +1,11 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
+from django.utils import timezone
 
 from .models import Department, User
 from .models import Product
 from .models import Supplier, StockMovement
-from .models import Ticket, Order, OrderItem
+from .models import Ticket, Order, OrderItem, Customer, Invoice
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -171,6 +172,28 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
 
 
+class OrderCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'order_number',
+            'customer',
+            'value_ron',
+            'date',
+            'status',
+            'channel',
+            'notes',
+        ]
+        read_only_fields = ['id', 'order_number']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['created_by'] = request.user
+        return super().create(validated_data)
+
+
 class OrderItemDetailSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_sku = serializers.CharField(source='product.sku', read_only=True)
@@ -215,6 +238,45 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'updated_at',
             'items',
         ]
+
+
+class CustomerSalesSummarySerializer(serializers.ModelSerializer):
+    total_value_ron = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = Customer
+        fields = [
+            'id',
+            'name',
+            'total_value_ron',
+        ]
+
+
+class InvoiceListSerializer(serializers.ModelSerializer):
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    customer_name = serializers.CharField(source='order.customer.name', read_only=True)
+    effective_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Invoice
+        fields = [
+            'id',
+            'invoice_number',
+            'order',
+            'order_number',
+            'customer_name',
+            'amount_ron',
+            'status',
+            'effective_status',
+            'issued_date',
+            'due_date',
+        ]
+
+    def get_effective_status(self, obj):
+        today = timezone.localdate()
+        if obj.due_date and obj.due_date < today and obj.status != Invoice.Status.PAID:
+            return 'OVERDUE'
+        return obj.status
 
 
 class TicketSerializer(serializers.ModelSerializer):
