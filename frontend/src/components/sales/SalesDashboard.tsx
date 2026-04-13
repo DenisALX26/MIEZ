@@ -45,6 +45,17 @@ type OrderListResponse = {
   results: OrderRow[]
 }
 
+type SalesKpiResponse = {
+  orders_today: number
+  revenue_today_ron: string
+  pending_orders: number
+  returns_this_week: number
+  pct_changes: {
+    orders: number
+    revenue: number
+  }
+}
+
 const statusOptions: Array<{ label: string; value: string }> = [
   { label: 'All statuses', value: '' },
   { label: 'Processing', value: 'PROCESSING' },
@@ -94,6 +105,10 @@ const formatDate = (value: string) => {
 }
 
 const SalesDashboard = () => {
+  const [kpis, setKpis] = useState<SalesKpiResponse | null>(null)
+  const [loadingKpis, setLoadingKpis] = useState(true)
+  const [kpisError, setKpisError] = useState('')
+
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [ordersError, setOrdersError] = useState('')
@@ -115,6 +130,33 @@ const SalesDashboard = () => {
   useEffect(() => {
     setPage(1)
   }, [search, statusFilter, channelFilter])
+
+  useEffect(() => {
+    const loadKpis = async () => {
+      try {
+        setLoadingKpis(true)
+        setKpisError('')
+
+        const response = await fetch('/api/sales/dashboard/', {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error(`Sales KPI request failed with status ${response.status}`)
+        }
+
+        const data = (await response.json()) as SalesKpiResponse
+        setKpis(data)
+      } catch (error) {
+        console.error('Failed to load sales KPIs:', error)
+        setKpisError('Could not load KPI cards right now.')
+      } finally {
+        setLoadingKpis(false)
+      }
+    }
+
+    loadKpis()
+  }, [])
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -200,16 +242,47 @@ const SalesDashboard = () => {
   return (
     <div className="space-y-6">
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-        <h2 className="text-lg font-semibold">Orders</h2>
-        <p className="text-sm text-black/60 mt-1">Search and filter customer transactions by status and channel.</p>
+        <h2 className="text-lg font-semibold">Sales Dashboard</h2>
+        <p className="text-sm text-black/60 mt-1">Today KPI snapshot with order operations.</p>
+
+        {loadingKpis ? (
+          <p className="text-sm text-black/60 mt-3">Loading KPI cards...</p>
+        ) : kpisError ? (
+          <p className="text-sm text-red-600 mt-3">{kpisError}</p>
+        ) : kpis ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50">Orders Today</p>
+              <p className="text-2xl font-semibold mt-1">{kpis.orders_today}</p>
+              <p className="text-xs mt-1 text-black/60">{kpis.pct_changes.orders}% vs yesterday</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50">Revenue Today</p>
+              <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(kpis.revenue_today_ron)}</p>
+              <p className="text-xs mt-1 text-black/60">{kpis.pct_changes.revenue}% vs yesterday</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50">Pending Orders</p>
+              <p className="text-2xl font-semibold mt-1">{kpis.pending_orders}</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50">Returns This Week</p>
+              <p className="text-2xl font-semibold mt-1">{kpis.returns_this_week}</p>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+              <p className="text-xs uppercase tracking-wide text-black/50">Orders In View</p>
+              <p className="text-2xl font-semibold mt-1">{totalCount}</p>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
           <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-black/50">Total Orders</p>
+            <p className="text-xs uppercase tracking-wide text-black/50">Filtered Orders</p>
             <p className="text-2xl font-semibold mt-1">{totalCount}</p>
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-black/50">Total Value</p>
+            <p className="text-xs uppercase tracking-wide text-black/50">Filtered Total Value</p>
             <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(totalRonSum)}</p>
           </div>
           <div className="rounded-xl border border-[var(--border)] bg-white p-4">

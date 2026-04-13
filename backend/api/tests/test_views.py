@@ -5,6 +5,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from model_bakery import baker
+from django.db.models import Sum
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
@@ -609,4 +610,88 @@ class OrderListViewTests(APITestCase):
 
         self.assertEqual(list_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(detail_response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class SalesDashboardKpiTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(
+            username='sales_kpi',
+            role=User.Role.SALES,
+            email='sales_kpi@example.com',
+        )
+        self.ceo_user = User.objects.create_user(
+            username='ceo_kpi',
+            role=User.Role.CEO,
+            email='ceo_kpi@example.com',
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_kpi',
+            role=User.Role.HR,
+            email='hr_kpi@example.com',
+        )
+        self.customer = Customer.objects.create(name='KPI Customer')
+
+    def _create_order(self, *, amount, order_date, status_value):
+        return Order.objects.create(
+            customer=self.customer,
+            created_by=self.sales_user,
+            value_ron=Decimal(amount),
+            date=order_date,
+            status=status_value,
+            channel=Order.Channel.WEBSITE,
+        )
+
+    def test_sales_dashboard_kpis_uses_today_yesterday_and_weekly_returns(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+        start_of_week = today - timedelta(days=today.weekday())
+        week_return_date = today - timedelta(days=1) if today.weekday() >= 1 else today
+
+        self._create_order(amount='120.00', order_date=today, status_value=Order.Status.PROCESSING)
+        self._create_order(amount='80.00', order_date=today, status_value=Order.Status.PENDING)
+        self._create_order(amount='30.00', order_date=today, status_value=Order.Status.RETURNED)
+
+        self._create_order(amount='100.00', order_date=yesterday, status_value=Order.Status.DELIVERED)
+
+        self._create_order(amount='15.00', order_date=week_return_date, status_value=Order.Status.RETURNED)
+        self._create_order(amount='22.00', order_date=start_of_week - timedelta(days=1), status_value=Order.Status.RETURNED)
+
+        response = self.client.get('/api/sales/dashboard/')
+
+        today_orders = Order.objects.filter(date=today).count()
+        today_revenue = Order.objects.filter(date=today).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
+        yesterday_orders = Order.objects.filter(date=yesterday).count()
+        yesterday_revenue = Order.objects.filter(date=yesterday).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
+        returns_week = Order.objects.filter(
+            status=Order.Status.RETURNED,
+            date__gte=start_of_week,
+            date__lte=today,
+        ).count()
+
+        def pct_change(today_value, yesterday_value):
+            today_numeric = float(today_value or 0)
+            yesterday_numeric = float(yesterday_value or 0)
+            if yesterday_numeric == 0:
+                return 100.0 if today_numeric > 0 else 0.0
+            return round(((today_numeric - yesterday_numeric) / yesterday_numeric) * 100, 2)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['orders_today'], today_orders)
+        self.assertEqual(Decimal(response.data['revenue_today_ron']), today_revenue)
+        self.assertEqual(response.data['pending_orders'], 1)
+        self.assertEqual(response.data['returns_this_week'], returns_week)
+        self.assertEqual(response.data['pct_changes']['orders'], pct_change(today_orders, yesterday_orders))
+        self.assertEqual(response.data['pct_changes']['revenue'], pct_change(today_revenue, yesterday_revenue))
+
+    def test_sales_dashboard_kpis_allows_ceo(self):
+        self.client.force_authenticate(user=self.ceo_user)
+        response = self.client.get('/api/sales/dashboard/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_sales_dashboard_kpis_forbids_other_roles(self):
+        self.client.force_authenticate(user=self.hr_user)
+        response = self.client.get('/api/sales/dashboard/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         
