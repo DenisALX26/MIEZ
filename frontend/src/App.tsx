@@ -12,6 +12,8 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
 import SalesDashboard from './components/sales/SalesDashboard'
+import RouteErrorBoundary from './components/common/RouteErrorBoundary'
+import NetworkBanner from './components/common/NetworkBanner'
 
 type ModulePageProps = {
   title: string
@@ -94,15 +96,18 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <NetworkBanner />
         <Routes>
           <Route path="/" element={<StartRoute />} />
           <Route path="/login" element={<LoginPage />} />
 
           <Route
             element={
-              <ProtectedRoute>
-                <AppShell />
-              </ProtectedRoute>
+              <RouteErrorBoundary>
+                <ProtectedRoute>
+                  <AppShell />
+                </ProtectedRoute>
+              </RouteErrorBoundary>
             }
           >
             <Route
