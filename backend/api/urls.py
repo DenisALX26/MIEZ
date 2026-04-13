@@ -16,6 +16,8 @@ urlpatterns = [
   path('departments/<int:id>/', views.DepartmentDeleteView.as_view(), name='department_delete'),
   path('employees/', views.EmployeeListView.as_view(), name='employee_list'),
   path('employees/stats/', views.EmployeeStatsView.as_view(), name='employee_stats'),
+  path('orders/', views.OrderListView.as_view(), name='order_list'),
+  path('orders/<int:id>/', views.OrderDetailView.as_view(), name='order_detail'),
   path('it/dashboard/', views.DashboardItView.as_view(), name='dashboard_data'),
   path('tickets/', views.TicketListView.as_view(), name='ticket_list'),
 ]
