@@ -169,6 +169,70 @@ class ITDashboardTests(APITestCase):
 
         self.assertIsNotNone(ticket.resolved_at)
 
+    def test_ticket_trend_returns_last_six_weeks_with_opened_and_closed_counts(self):
+        self.client.force_authenticate(user=self.ceo)
+
+        now = timezone.now()
+        current_week_start = now - timedelta(days=now.weekday())
+        current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        five_weeks_ago_start = current_week_start - timedelta(weeks=5)
+        one_week_ago_start = current_week_start - timedelta(weeks=1)
+        six_weeks_ago_start = current_week_start - timedelta(weeks=6)
+
+        current_open = baker.make(Ticket, ticket_number='TREND-001', status=Ticket.Status.OPEN)
+        week_minus_one = baker.make(Ticket, ticket_number='TREND-002', status=Ticket.Status.RESOLVED)
+        created_old_resolved_now = baker.make(Ticket, ticket_number='TREND-003', status=Ticket.Status.RESOLVED)
+        out_of_window = baker.make(Ticket, ticket_number='TREND-004', status=Ticket.Status.RESOLVED)
+
+        Ticket.objects.filter(id=current_open.id).update(
+            created_at=current_week_start + timedelta(days=1),
+            resolved_at=None,
+        )
+        Ticket.objects.filter(id=week_minus_one.id).update(
+            created_at=one_week_ago_start + timedelta(days=2),
+            resolved_at=one_week_ago_start + timedelta(days=3),
+        )
+        Ticket.objects.filter(id=created_old_resolved_now.id).update(
+            created_at=five_weeks_ago_start + timedelta(days=1),
+            resolved_at=current_week_start + timedelta(days=2),
+        )
+        Ticket.objects.filter(id=out_of_window.id).update(
+            created_at=six_weeks_ago_start + timedelta(days=1),
+            resolved_at=six_weeks_ago_start + timedelta(days=2),
+        )
+
+        response = self.client.get('/api/it/ticket-trend/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('weeks', response.data)
+        self.assertEqual(len(response.data['weeks']), 6)
+
+        week_map = {row['week_start']: row for row in response.data['weeks']}
+        self.assertEqual(
+            response.data['weeks'][0]['week_start'],
+            five_weeks_ago_start.date().isoformat(),
+        )
+        self.assertEqual(
+            response.data['weeks'][-1]['week_start'],
+            current_week_start.date().isoformat(),
+        )
+
+        self.assertEqual(week_map[five_weeks_ago_start.date().isoformat()]['opened_count'], 1)
+        self.assertEqual(week_map[five_weeks_ago_start.date().isoformat()]['closed_count'], 0)
+
+        self.assertEqual(week_map[one_week_ago_start.date().isoformat()]['opened_count'], 1)
+        self.assertEqual(week_map[one_week_ago_start.date().isoformat()]['closed_count'], 1)
+
+        self.assertEqual(week_map[current_week_start.date().isoformat()]['opened_count'], 1)
+        self.assertEqual(week_map[current_week_start.date().isoformat()]['closed_count'], 1)
+
+    def test_ticket_trend_forbidden_for_non_it_and_non_ceo(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.get('/api/it/ticket-trend/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class TicketListViewTests(APITestCase):
     def setUp(self):
