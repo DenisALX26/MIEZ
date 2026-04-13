@@ -1,4 +1,6 @@
 import os
+from datetime import timedelta
+from decimal import Decimal
 
 import django
 
@@ -8,6 +10,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 django.setup()
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from api.models import Department
 
 
@@ -285,7 +288,192 @@ def seed_tickets():
             print(f"Updated ticket: {ticket.ticket_number}")
 
 
+def seed_sales_orders():
+    from api.models import Customer, Order, OrderItem, Product
+
+    # Sales rep owner for created_by fields in seeded orders
+    sales_owner = User.objects.filter(username='mihai.popescu').first()
+
+    customers = [
+        {
+            'name': 'Acme SRL',
+            'contact_email': 'orders@acme.ro',
+            'contact_phone': '+40700111222',
+            'location': 'Bucharest',
+        },
+        {
+            'name': 'Beta Retail',
+            'contact_email': 'supply@beta.ro',
+            'contact_phone': '+40700333444',
+            'location': 'Cluj-Napoca',
+        },
+        {
+            'name': 'Carpathia Direct',
+            'contact_email': 'sales@carpathia.ro',
+            'contact_phone': '+40700555666',
+            'location': 'Timisoara',
+        },
+    ]
+
+    customer_map = {}
+    for customer_data in customers:
+        customer, _ = Customer.objects.get_or_create(
+            name=customer_data['name'],
+            defaults={
+                'contact_email': customer_data['contact_email'],
+                'contact_phone': customer_data['contact_phone'],
+                'location': customer_data['location'],
+            },
+        )
+        customer_map[customer.name] = customer
+
+    # Ensure product fixtures used for order line items exist.
+    product_defaults = {
+        'WIDGET-A': {'name': 'Widget A', 'category': Product.Category.SALES},
+        'WIDGET-B': {'name': 'Widget B', 'category': Product.Category.SALES},
+        'GADGET-X': {'name': 'Gadget X', 'category': Product.Category.SALES},
+    }
+
+    products = {}
+    for sku, defaults in product_defaults.items():
+        product, _ = Product.objects.get_or_create(
+            sku=sku,
+            defaults={
+                'name': defaults['name'],
+                'category': defaults['category'],
+                'unit_price_ron': Decimal('10.00'),
+            },
+        )
+        products[sku] = product
+
+    today = timezone.localdate()
+    yesterday = today - timedelta(days=1)
+    two_days_ago = today - timedelta(days=2)
+    start_of_week = today - timedelta(days=today.weekday())
+    previous_week = start_of_week - timedelta(days=1)
+
+    orders = [
+        {
+            'order_number': '#2001',
+            'customer': 'Acme SRL',
+            'value_ron': Decimal('120.50'),
+            'date': today,
+            'status': Order.Status.PROCESSING,
+            'channel': Order.Channel.WEBSITE,
+            'items': [
+                {'sku': 'WIDGET-A', 'quantity': 2, 'unit_price_ron': Decimal('30.00')},
+                {'sku': 'WIDGET-B', 'quantity': 1, 'unit_price_ron': Decimal('60.50')},
+            ],
+        },
+        {
+            'order_number': '#2002',
+            'customer': 'Beta Retail',
+            'value_ron': Decimal('80.00'),
+            'date': today,
+            'status': Order.Status.PENDING,
+            'channel': Order.Channel.EMAG,
+            'items': [
+                {'sku': 'WIDGET-A', 'quantity': 1, 'unit_price_ron': Decimal('80.00')},
+            ],
+        },
+        {
+            'order_number': '#2003',
+            'customer': 'Acme SRL',
+            'value_ron': Decimal('45.00'),
+            'date': yesterday,
+            'status': Order.Status.DELIVERED,
+            'channel': Order.Channel.DIRECT,
+            'items': [
+                {'sku': 'GADGET-X', 'quantity': 3, 'unit_price_ron': Decimal('15.00')},
+            ],
+        },
+        {
+            'order_number': '#2004',
+            'customer': 'Carpathia Direct',
+            'value_ron': Decimal('30.00'),
+            'date': yesterday,
+            'status': Order.Status.RETURNED,
+            'channel': Order.Channel.WEBSITE,
+            'items': [
+                {'sku': 'WIDGET-B', 'quantity': 1, 'unit_price_ron': Decimal('30.00')},
+            ],
+        },
+        {
+            'order_number': '#2005',
+            'customer': 'Beta Retail',
+            'value_ron': Decimal('60.00'),
+            'date': two_days_ago,
+            'status': Order.Status.SHIPPED,
+            'channel': Order.Channel.EMAG,
+            'items': [
+                {'sku': 'GADGET-X', 'quantity': 2, 'unit_price_ron': Decimal('30.00')},
+            ],
+        },
+        {
+            'order_number': '#2006',
+            'customer': 'Acme SRL',
+            'value_ron': Decimal('20.00'),
+            'date': start_of_week,
+            'status': Order.Status.RETURNED,
+            'channel': Order.Channel.DIRECT,
+            'items': [
+                {'sku': 'WIDGET-A', 'quantity': 1, 'unit_price_ron': Decimal('20.00')},
+            ],
+        },
+        {
+            'order_number': '#2007',
+            'customer': 'Beta Retail',
+            'value_ron': Decimal('15.00'),
+            'date': previous_week,
+            'status': Order.Status.RETURNED,
+            'channel': Order.Channel.WEBSITE,
+            'items': [
+                {'sku': 'WIDGET-B', 'quantity': 1, 'unit_price_ron': Decimal('15.00')},
+            ],
+        },
+    ]
+
+    for payload in orders:
+        order, created = Order.objects.get_or_create(
+            order_number=payload['order_number'],
+            defaults={
+                'customer': customer_map[payload['customer']],
+                'created_by': sales_owner,
+                'value_ron': payload['value_ron'],
+                'date': payload['date'],
+                'status': payload['status'],
+                'channel': payload['channel'],
+            },
+        )
+
+        if not created:
+            order.customer = customer_map[payload['customer']]
+            order.created_by = sales_owner
+            order.value_ron = payload['value_ron']
+            order.date = payload['date']
+            order.status = payload['status']
+            order.channel = payload['channel']
+            order.save()
+
+        keep_ids = []
+        for item in payload['items']:
+            line, _ = OrderItem.objects.update_or_create(
+                order=order,
+                product=products[item['sku']],
+                defaults={
+                    'quantity': item['quantity'],
+                    'unit_price_ron': item['unit_price_ron'],
+                },
+            )
+            keep_ids.append(line.id)
+
+        OrderItem.objects.filter(order=order).exclude(id__in=keep_ids).delete()
+
+        print(f"{'Created' if created else 'Updated'} order: {order.order_number}")
+
+
 if __name__ == "__main__":
     seed_users()
     seed_products()
+    seed_sales_orders()
     seed_tickets()

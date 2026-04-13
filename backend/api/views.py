@@ -563,3 +563,62 @@ class OrderDetailView(APIView):
         )
         serializer = OrderDetailSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class SalesDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _pct_change(today_value, yesterday_value):
+        today_numeric = float(today_value or 0)
+        yesterday_numeric = float(yesterday_value or 0)
+
+        if yesterday_numeric == 0:
+            return 100.0 if today_numeric > 0 else 0.0
+
+        return round(((today_numeric - yesterday_numeric) / yesterday_numeric) * 100, 2)
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view sales KPI dashboard."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+        start_of_week = today - timedelta(days=today.weekday())
+
+        base_queryset = Order.objects.all()
+
+        today_stats = base_queryset.filter(date=today).aggregate(
+            orders_today=Count('id'),
+            revenue_today_ron=Sum('value_ron'),
+        )
+
+        yesterday_stats = base_queryset.filter(date=yesterday).aggregate(
+            orders_yesterday=Count('id'),
+            revenue_yesterday_ron=Sum('value_ron'),
+        )
+
+        pending_orders = base_queryset.filter(status=Order.Status.PENDING).aggregate(count=Count('id'))['count'] or 0
+
+        returns_this_week = base_queryset.filter(
+            status=Order.Status.RETURNED,
+            date__gte=start_of_week,
+            date__lte=today,
+        ).aggregate(count=Count('id'))['count'] or 0
+
+        orders_today = today_stats['orders_today'] or 0
+        revenue_today_ron = today_stats['revenue_today_ron'] or 0
+        orders_yesterday = yesterday_stats['orders_yesterday'] or 0
+        revenue_yesterday_ron = yesterday_stats['revenue_yesterday_ron'] or 0
+
+        data = {
+            'orders_today': orders_today,
+            'revenue_today_ron': str(revenue_today_ron),
+            'pending_orders': pending_orders,
+            'returns_this_week': returns_this_week,
+            'pct_changes': {
+                'orders': self._pct_change(orders_today, orders_yesterday),
+                'revenue': self._pct_change(revenue_today_ron, revenue_yesterday_ron),
+            },
+        }
+        return Response(data, status=status.HTTP_200_OK)
