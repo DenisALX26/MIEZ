@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -7,7 +8,7 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
 from django.conf import settings
-from ..models import User, Ticket
+from ..models import User, Ticket, Customer, Product, Order, OrderItem
 
 class IsEvenTests(TestCase):
     def setUp(self):
@@ -236,4 +237,105 @@ class TicketListViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['total_count'], 1)
         self.assertEqual(response.data['results'][0]['ticket_number'], 'IT-002')
+
+
+class OrderListViewTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(
+            username='sales_orders',
+            role=User.Role.SALES,
+            email='sales_orders@example.com',
+        )
+        self.ceo_user = User.objects.create_user(
+            username='ceo_orders',
+            role=User.Role.CEO,
+            email='ceo_orders@example.com',
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_orders',
+            role=User.Role.HR,
+            email='hr_orders@example.com',
+        )
+
+        self.customer_acme = Customer.objects.create(name='Acme SRL')
+        self.customer_beta = Customer.objects.create(name='Beta SRL')
+
+        self.product_a = Product.objects.create(name='Widget A', sku='WIDGET-A')
+        self.product_b = Product.objects.create(name='Widget B', sku='WIDGET-B')
+
+        self.order_1 = Order.objects.create(
+            customer=self.customer_acme,
+            created_by=self.sales_user,
+            value_ron=Decimal('120.50'),
+            status=Order.Status.PROCESSING,
+            channel=Order.Channel.WEBSITE,
+            notes='Priority handling',
+        )
+        self.order_2 = Order.objects.create(
+            customer=self.customer_beta,
+            created_by=self.sales_user,
+            value_ron=Decimal('80.00'),
+            status=Order.Status.SHIPPED,
+            channel=Order.Channel.EMAG,
+        )
+        self.order_3 = Order.objects.create(
+            customer=self.customer_acme,
+            created_by=self.sales_user,
+            value_ron=Decimal('40.00'),
+            status=Order.Status.PENDING,
+            channel=Order.Channel.DIRECT,
+        )
+
+        OrderItem.objects.create(order=self.order_1, product=self.product_a, quantity=2, unit_price_ron=Decimal('30.00'))
+        OrderItem.objects.create(order=self.order_1, product=self.product_b, quantity=1, unit_price_ron=Decimal('60.50'))
+
+    def test_order_number_is_auto_generated_with_hash_format(self):
+        self.assertRegex(self.order_1.order_number, r'^#\d{4}$')
+
+    def test_orders_list_supports_search_status_channel_and_includes_totals(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/orders/?search=Acme&status=PROCESSING&channel=WEBSITE')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 1)
+        self.assertEqual(Decimal(response.data['total_ron_sum']), Decimal('120.50'))
+        self.assertEqual(len(response.data['results']), 1)
+
+        row = response.data['results'][0]
+        self.assertIn('order_number', row)
+        self.assertEqual(row['customer_name'], 'Acme SRL')
+        self.assertEqual(Decimal(row['value_ron']), Decimal('120.50'))
+        self.assertEqual(row['status'], Order.Status.PROCESSING)
+        self.assertEqual(row['channel'], Order.Channel.WEBSITE)
+
+    def test_orders_list_is_paginated_and_includes_total_sum_for_filtered_queryset(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        response = self.client.get('/api/orders/?search=SRL&page_size=2')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 3)
+        self.assertEqual(Decimal(response.data['total_ron_sum']), Decimal('240.50'))
+        self.assertEqual(len(response.data['results']), 2)
+
+    def test_order_detail_includes_line_items_for_modal(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get(f'/api/orders/{self.order_1.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['order_number'], self.order_1.order_number)
+        self.assertEqual(response.data['customer_name'], 'Acme SRL')
+        self.assertEqual(len(response.data['items']), 2)
+        self.assertIn('line_total_ron', response.data['items'][0])
+
+    def test_orders_endpoints_forbid_non_sales_roles(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        list_response = self.client.get('/api/orders/')
+        detail_response = self.client.get(f'/api/orders/{self.order_1.id}/')
+
+        self.assertEqual(list_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(detail_response.status_code, status.HTTP_403_FORBIDDEN)
         

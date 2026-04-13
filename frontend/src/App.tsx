@@ -11,6 +11,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
+import SalesDashboard from './components/sales/SalesDashboard'
 
 type ModulePageProps = {
   title: string
@@ -40,6 +41,10 @@ const DepartmentModulePage = () => {
 
   if (slug?.toLowerCase() === 'it') {
     return <ItDashboard />
+  }
+
+  if (slug?.toLowerCase() === 'sales') {
+    return <SalesDashboard />
   }
 
   return (

@@ -4,7 +4,7 @@ from rest_framework.validators import UniqueValidator
 from .models import Department, User
 from .models import Product
 from .models import Supplier, StockMovement
-from .models import Ticket
+from .models import Ticket, Order, OrderItem
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -152,6 +152,69 @@ class StockMovementSerializer(serializers.ModelSerializer):
         if request and request.user and not validated_data.get('created_by'):
             validated_data['created_by'] = request.user
         return super().create(validated_data)
+
+
+class OrderListSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'order_number',
+            'customer',
+            'customer_name',
+            'value_ron',
+            'date',
+            'status',
+            'channel',
+        ]
+
+
+class OrderItemDetailSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True)
+    line_total_ron = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'product_sku',
+            'quantity',
+            'unit_price_ron',
+            'line_total_ron',
+        ]
+
+    def get_line_total_ron(self, obj):
+        return obj.quantity * obj.unit_price_ron
+
+
+class OrderDetailSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
+    items = OrderItemDetailSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'order_number',
+            'customer',
+            'customer_name',
+            'created_by',
+            'created_by_username',
+            'value_ron',
+            'date',
+            'status',
+            'channel',
+            'notes',
+            'created_at',
+            'updated_at',
+            'items',
+        ]
 
 
 class TicketSerializer(serializers.ModelSerializer):
