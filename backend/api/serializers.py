@@ -133,14 +133,18 @@ class SupplierSerializer(serializers.ModelSerializer):
 class StockMovementSerializer(serializers.ModelSerializer):
     # Accept product and supplier as PKs on write, but include nested objects on read
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
-    supplier = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all())
+    supplier = serializers.PrimaryKeyRelatedField(queryset=Supplier.objects.all(), allow_null=True, required=False)
     product_obj = ProductSerializer(source='product', read_only=True)
     supplier_obj = SupplierSerializer(source='supplier', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True, allow_null=True)
+    created_by_username = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
 
     class Meta:
         model = StockMovement
-        fields = ['id', 'movement_type', 'product', 'product_obj', 'supplier', 'supplier_obj', 'quantity', 'expected_date', 'notes', 'created_by', 'created_at']
-        read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj']
+    fields = ['id', 'movement_type', 'product', 'product_obj', 'product_name', 'product_sku', 'supplier', 'supplier_obj', 'supplier_name', 'quantity', 'expected_date', 'notes', 'created_by', 'created_by_username', 'created_at']
+    read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj', 'product_name', 'product_sku', 'supplier_name', 'created_by_username']
 
     def validate_quantity(self, value):
         if value <= 0:

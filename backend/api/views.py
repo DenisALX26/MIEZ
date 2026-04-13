@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, date
 from collections import OrderedDict
 
 from django.http import JsonResponse
@@ -318,13 +318,43 @@ class StockMovementCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # List recent stock movements (inventory + CEO allowed)
+        # List stock movements with pagination and filters
         if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
-        qs = StockMovement.objects.select_related('product', 'supplier').all().order_by('-created_at')[:100]
-        serializer = StockMovementSerializer(qs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        qs = StockMovement.objects.select_related('product', 'supplier', 'created_by').all().order_by('-created_at')
+
+        # Filters: ?type=, ?product= (id or sku), ?date_from=YYYY-MM-DD, ?date_to=YYYY-MM-DD
+        types = request.query_params.getlist('type')
+        if types:
+            types_up = [t.upper() for t in types if t]
+            qs = qs.filter(movement_type__in=types_up)
+
+        product = request.query_params.get('product')
+        if product:
+            if product.isdigit():
+                qs = qs.filter(product_id=int(product))
+            else:
+                qs = qs.filter(product__sku=product)
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        try:
+            if date_from:
+                df = date.fromisoformat(date_from)
+                qs = qs.filter(created_at__date__gte=df)
+            if date_to:
+                dt = date.fromisoformat(date_to)
+                qs = qs.filter(created_at__date__lte=dt)
+        except Exception:
+            # ignore parse errors and return unfiltered by date
+            pass
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        paginated = paginator.paginate_queryset(qs, request)
+        serializer = StockMovementSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         # Only inventory role allowed
