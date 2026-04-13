@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, date
 from collections import OrderedDict
 
 from django.http import JsonResponse
@@ -305,6 +305,7 @@ class InventoryProductsView(APIView):
                 'category': p.category,
                 'stock_count': stock,
                 'min_stock': minimum,
+                'unit_price_ron': p.unit_price_ron,
                 'status': status_val,
                 'shortfall': shortfall,
             })
@@ -321,13 +322,43 @@ class StockMovementCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # List recent stock movements (inventory + CEO allowed)
+        # List stock movements with pagination and filters
         if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
-        qs = StockMovement.objects.select_related('product', 'supplier').all().order_by('-created_at')[:100]
-        serializer = StockMovementSerializer(qs, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        qs = StockMovement.objects.select_related('product', 'supplier', 'created_by').all().order_by('-created_at')
+
+        # Filters: ?type=, ?product= (id or sku), ?date_from=YYYY-MM-DD, ?date_to=YYYY-MM-DD
+        types = request.query_params.getlist('type')
+        if types:
+            types_up = [t.upper() for t in types if t]
+            qs = qs.filter(movement_type__in=types_up)
+
+        product = request.query_params.get('product')
+        if product:
+            if product.isdigit():
+                qs = qs.filter(product_id=int(product))
+            else:
+                qs = qs.filter(product__sku=product)
+
+        date_from = request.query_params.get('date_from')
+        date_to = request.query_params.get('date_to')
+        try:
+            if date_from:
+                df = date.fromisoformat(date_from)
+                qs = qs.filter(created_at__date__gte=df)
+            if date_to:
+                dt = date.fromisoformat(date_to)
+                qs = qs.filter(created_at__date__lte=dt)
+        except Exception:
+            # ignore parse errors and return unfiltered by date
+            pass
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 20
+        paginated = paginator.paginate_queryset(qs, request)
+        serializer = StockMovementSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     def post(self, request):
         # Only inventory role allowed
@@ -793,6 +824,27 @@ class SalesTopProductsView(APIView):
         )
 
 
+class InventoryDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({"detail": "Only Inventory Managers and CEO can view this dashboard."}, status=status.HTTP_403_FORBIDDEN)
+
+        total_products = Product.objects.count()
+        low_stock_count = Product.objects.filter(stock_count__lt=F('min_stock'), stock_count__gt=0).count()
+        out_of_stock_count = Product.objects.filter(stock_count=0).count()
+        deliveries_today = StockMovement.objects.filter(
+            movement_type=StockMovement.Type.INBOUND,
+            expected_date=date.today()
+        ).count()
+
+        return Response({
+            "total_products": total_products,
+            "low_stock_count": low_stock_count,
+            "out_of_stock_count": out_of_stock_count,
+            "deliveries_today": deliveries_today
+        }, status=status.HTTP_200_OK)
 class CustomerListView(APIView):
     permission_classes = [IsAuthenticated]
 

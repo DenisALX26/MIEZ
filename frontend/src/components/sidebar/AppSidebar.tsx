@@ -89,6 +89,7 @@ const AppSidebar = () => {
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [departments, setDepartments] = useState<Department[]>([])
+  const [lowStockCount, setLowStockCount] = useState<number>(0)
 
   const navItems = useMemo(() => {
     if (user?.role === 'CEO') return CEO_NAV
@@ -145,6 +146,21 @@ const AppSidebar = () => {
     }
   }, [location.pathname, user?.role])
 
+  useEffect(() => {
+    if (user?.role === 'INVENTORY' || user?.role === 'CEO') {
+      const fetchAlerts = async () => {
+        try {
+          const res = await fetch('/api/inventory/products/?status=LOW&status=OUT', { credentials: 'include' })
+          if (res.ok) {
+            const data = await res.json()
+            setLowStockCount(data.length)
+          }
+        } catch (err) {}
+      }
+      fetchAlerts()
+    }
+  }, [user?.role, location.pathname])
+
   const handleLogout = async () => {
     await logout()
     navigate('/login', { replace: true })
@@ -178,7 +194,7 @@ const AppSidebar = () => {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] transition-colors w-full text-left no-underline ${isActive
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-[14px] transition-colors w-full text-left no-underline relative ${isActive
                   ? 'bg-[var(--sidebar-primary)] text-[var(--sidebar-primary-foreground)]'
                   : 'text-white/70 hover:bg-white/10 hover:text-[var(--sidebar-foreground)]'
                 }`
@@ -186,7 +202,12 @@ const AppSidebar = () => {
               title={isCollapsed ? item.label : undefined}
             >
               <Icon className="w-5 h-5 shrink-0" aria-hidden={true} />
-              {!isCollapsed && <span>{item.label}</span>}
+              {!isCollapsed && <span className="flex-1">{item.label}</span>}
+              {item.label === 'Low Stock Alerts' && lowStockCount > 0 && (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isCollapsed ? 'absolute top-1.5 right-1.5' : ''} bg-rose-500 text-white leading-none shadow-sm`}>
+                  {lowStockCount}
+                </span>
+              )}
             </NavLink>
           )
         })}

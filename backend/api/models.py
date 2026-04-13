@@ -87,6 +87,7 @@ class Product(models.Model):
     category = models.CharField(max_length=24, choices=Category.choices, default=Category.GENERAL)
     unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     stock_count = models.PositiveIntegerField(default=0)
+    min_stock = models.PositiveIntegerField(default=10)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -176,10 +177,13 @@ class StockMovement(models.Model):
     class Type(models.TextChoices):
         INBOUND = 'INBOUND', 'Inbound'
         OUTBOUND = 'OUTBOUND', 'Outbound'
+        ADJUSTMENT = 'ADJUSTMENT', 'Adjustment'
+        WRITE_OFF = 'WRITE_OFF', 'Write-off'
 
     movement_type = models.CharField(max_length=12, choices=Type.choices)
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='stock_movements')
-    supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='stock_movements')
+    # supplier is optional for adjustments or write-offs where supplier may not apply
+    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_movements')
     quantity = models.PositiveIntegerField(default=0)
     expected_date = models.DateField(null=True, blank=True)
     notes = models.TextField(blank=True, default='')
@@ -199,11 +203,16 @@ class StockMovement(models.Model):
                     # increment product stock
                     self.product.stock_count = (getattr(self.product, 'stock_count', 0) or 0) + int(self.quantity)
                     self.product.save(update_fields=['stock_count'])
-                elif self.movement_type == StockMovement.Type.OUTBOUND:
+                elif self.movement_type in (StockMovement.Type.OUTBOUND, StockMovement.Type.WRITE_OFF):
                     # decrement product stock (not below zero)
                     new_count = max(0, (getattr(self.product, 'stock_count', 0) or 0) - int(self.quantity))
                     self.product.stock_count = new_count
                     self.product.save(update_fields=['stock_count'])
+                elif self.movement_type == StockMovement.Type.ADJUSTMENT:
+                    # Adjustment movements are stored for audit. They may represent manual corrections
+                    # and won't automatically change stock here. If you want adjustments to change stock,
+                    # implement the intended +/- semantics (e.g. include a signed quantity).
+                    pass
             except Exception:
                 # Don't let product save failures block the movement creation; log later if needed
                 pass
