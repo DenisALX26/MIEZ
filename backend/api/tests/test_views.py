@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
+from model_bakery import baker
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.contrib.auth import get_user_model
@@ -239,6 +240,276 @@ class TicketListViewTests(APITestCase):
         self.assertEqual(response.data['results'][0]['ticket_number'], 'IT-002')
 
 
+class TicketApiTests(APITestCase):
+    def setUp(self):
+        from ..models import Department
+
+        user_model = get_user_model()
+        self.it_user = baker.make(
+            user_model,
+            role=user_model.Role.IT,
+            username='it_test_user',
+            email='it_test_user@example.com',
+        )
+        self.ceo_user = baker.make(
+            user_model,
+            role=user_model.Role.CEO,
+            username='ceo_test_user',
+            email='ceo_test_user@example.com',
+        )
+        self.hardware_department = baker.make(Department, name='Hardware', slug='hardware')
+
+    def test_post_tickets_valid_payload_returns_201_with_new_status_and_auto_incremented_number(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        first_response = self.client.post(
+            '/api/tickets/',
+            {
+                'title': 'Laptop battery issue',
+                'description': 'Battery drains in 30 minutes.',
+                'priority': Ticket.Priority.HIGH,
+            },
+            format='json',
+        )
+
+        second_response = self.client.post(
+            '/api/tickets/',
+            {
+                'title': 'VPN access failure',
+                'description': 'Cannot connect from home network.',
+                'priority': Ticket.Priority.MEDIUM,
+            },
+            format='json',
+        )
+
+        self.assertEqual(first_response.status_code, 201)
+        self.assertEqual(second_response.status_code, 201)
+        self.assertEqual(first_response.data['status'], Ticket.Status.OPEN)
+        self.assertEqual(second_response.data['status'], Ticket.Status.OPEN)
+        self.assertTrue(first_response.data['ticket_number'].startswith('TKT-'))
+        self.assertTrue(second_response.data['ticket_number'].startswith('TKT-'))
+
+        first_number = int(first_response.data['ticket_number'].split('-')[1])
+        second_number = int(second_response.data['ticket_number'].split('-')[1])
+        self.assertEqual(second_number, first_number + 1)
+
+    def test_post_tickets_missing_title_returns_400_with_title_key(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        response = self.client.post(
+            '/api/tickets/',
+            {
+                'description': 'Keyboard keys are not working.',
+                'priority': Ticket.Priority.LOW,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('title', response.data)
+
+    def test_post_tickets_missing_description_returns_400(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        response = self.client.post(
+            '/api/tickets/',
+            {
+                'title': 'Monitor flickers intermittently',
+                'priority': Ticket.Priority.MEDIUM,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('description', response.data)
+
+    def test_get_tickets_returns_full_list_sorted_by_created_at_desc(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        older = baker.make(
+            Ticket,
+            ticket_number='TKT-00001',
+            title='Older ticket',
+            description='Older issue',
+            status=Ticket.Status.OPEN,
+        )
+        newer = baker.make(
+            Ticket,
+            ticket_number='TKT-00002',
+            title='Newer ticket',
+            description='Newer issue',
+            status=Ticket.Status.OPEN,
+        )
+
+        now = timezone.now()
+        Ticket.objects.filter(id=older.id).update(created_at=now - timedelta(days=1))
+        Ticket.objects.filter(id=newer.id).update(created_at=now)
+
+        response = self.client.get('/api/tickets/?page_size=100')
+
+        self.assertEqual(response.status_code, 200)
+        numbers = [item['ticket_number'] for item in response.data['results']]
+        self.assertEqual(numbers[:2], ['TKT-00002', 'TKT-00001'])
+
+    def test_get_tickets_with_category_filters_correctly(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        from ..models import Department
+
+        other_department = baker.make(Department, name='Software', slug='software')
+
+        baker.make(
+            Ticket,
+            ticket_number='TKT-00010',
+            title='Hardware issue',
+            description='Disk failure',
+            department=self.hardware_department,
+            status=Ticket.Status.OPEN,
+        )
+        baker.make(
+            Ticket,
+            ticket_number='TKT-00011',
+            title='Software issue',
+            description='App crash',
+            department=other_department,
+            status=Ticket.Status.OPEN,
+        )
+
+        response = self.client.get('/api/tickets/?category=Hardware&page_size=100')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['ticket_number'], 'TKT-00010')
+
+    def test_get_tickets_with_assigned_to_me_returns_only_requesting_user_tickets(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        user_model = get_user_model()
+        other_user = baker.make(
+            user_model,
+            role=user_model.Role.IT,
+            username='other_it_user',
+            email='other_it_user@example.com',
+        )
+
+        baker.make(
+            Ticket,
+            ticket_number='TKT-00020',
+            title='Mine',
+            description='Assigned to me',
+            assigned_to=self.it_user,
+            status=Ticket.Status.OPEN,
+        )
+        baker.make(
+            Ticket,
+            ticket_number='TKT-00021',
+            title='Not mine',
+            description='Assigned to someone else',
+            assigned_to=other_user,
+            status=Ticket.Status.OPEN,
+        )
+
+        response = self.client.get('/api/tickets/?assigned_to=me&page_size=100')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['ticket_number'], 'TKT-00020')
+
+    def test_patch_ticket_status_transitions_open_to_in_progress_to_resolved_with_auto_assignment(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        ticket = baker.make(
+            Ticket,
+            ticket_number='TKT-00030',
+            title='Transition ticket',
+            description='State machine test',
+            status=Ticket.Status.OPEN,
+        )
+
+        to_in_progress = self.client.patch(f'/api/tickets/{ticket.id}/', {'status': Ticket.Status.IN_PROGRESS}, format='json')
+        self.assertEqual(to_in_progress.status_code, 200)
+        self.assertEqual(to_in_progress.data['status'], Ticket.Status.IN_PROGRESS)
+        self.assertEqual(to_in_progress.data['assigned_to'], self.it_user.id)
+
+        to_resolved = self.client.patch(f'/api/tickets/{ticket.id}/', {'status': Ticket.Status.RESOLVED}, format='json')
+        self.assertEqual(to_resolved.status_code, 200)
+        self.assertEqual(to_resolved.data['status'], Ticket.Status.RESOLVED)
+
+    def test_patch_ticket_sets_resolved_at_automatically_when_resolved(self):
+        self.client.force_authenticate(user=self.it_user)
+
+        ticket = baker.make(
+            Ticket,
+            ticket_number='TKT-00031',
+            title='Resolved timestamp ticket',
+            description='Resolved timestamp test',
+            status=Ticket.Status.IN_PROGRESS,
+            resolved_at=None,
+        )
+
+        response = self.client.patch(f'/api/tickets/{ticket.id}/', {'status': Ticket.Status.RESOLVED}, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(response.data['resolved_at'])
+
+        ticket.refresh_from_db()
+        self.assertIsNotNone(ticket.resolved_at)
+
+    def test_get_it_dashboard_avg_resolution_time_hours_computed_correctly(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        now = timezone.now()
+
+        t1 = baker.make(
+            Ticket,
+            ticket_number='TKT-00040',
+            title='Resolved in 2h',
+            description='Resolution timing test 1',
+            status=Ticket.Status.RESOLVED,
+        )
+        t2 = baker.make(
+            Ticket,
+            ticket_number='TKT-00041',
+            title='Resolved in 6h',
+            description='Resolution timing test 2',
+            status=Ticket.Status.RESOLVED,
+        )
+
+        Ticket.objects.filter(id=t1.id).update(created_at=now - timedelta(hours=2), resolved_at=now)
+        Ticket.objects.filter(id=t2.id).update(created_at=now - timedelta(hours=6), resolved_at=now)
+
+        response = self.client.get('/api/it/dashboard/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['ceo_it_summary']['avg_resolution_time_hrs'], 4.0)
+
+    def test_get_it_dashboard_sla_compliance_counts_tickets_resolved_within_4_hours(self):
+        self.client.force_authenticate(user=self.ceo_user)
+
+        now = timezone.now()
+
+        sla_met = baker.make(
+            Ticket,
+            ticket_number='TKT-00050',
+            title='Resolved in 3h',
+            description='SLA compliant',
+            status=Ticket.Status.RESOLVED,
+        )
+        sla_missed = baker.make(
+            Ticket,
+            ticket_number='TKT-00051',
+            title='Resolved in 7h',
+            description='SLA missed',
+            status=Ticket.Status.RESOLVED,
+        )
+
+        Ticket.objects.filter(id=sla_met.id).update(created_at=now - timedelta(hours=3), resolved_at=now)
+        Ticket.objects.filter(id=sla_missed.id).update(created_at=now - timedelta(hours=7), resolved_at=now)
+
+        response = self.client.get('/api/it/dashboard/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['ceo_it_summary']['sla_met_percentage'], 50.0)
 class OrderListViewTests(APITestCase):
     def setUp(self):
         self.sales_user = User.objects.create_user(

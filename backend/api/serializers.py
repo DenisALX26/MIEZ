@@ -243,3 +243,71 @@ class TicketSerializer(serializers.ModelSerializer):
             'resolved_at',
         ]
         read_only_fields = ['id', 'ticket_number', 'created_at', 'updated_at', 'resolved_at']
+
+
+class TicketCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = [
+            'id',
+            'ticket_number',
+            'title',
+            'description',
+            'priority',
+            'status',
+            'department',
+            'assigned_to',
+            'location',
+            'requested_by',
+            'created_at',
+            'updated_at',
+            'resolved_at',
+        ]
+        read_only_fields = ['id', 'ticket_number', 'status', 'requested_by', 'created_at', 'updated_at', 'resolved_at']
+        extra_kwargs = {
+            'title': {'required': True, 'allow_blank': False},
+            'description': {'required': True, 'allow_blank': False},
+        }
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['requested_by'] = request.user
+        validated_data['status'] = Ticket.Status.OPEN
+        return super().create(validated_data)
+
+
+class TicketUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ticket
+        fields = ['id', 'status', 'assigned_to', 'resolved_at']
+        read_only_fields = ['id', 'resolved_at']
+
+    def validate_status(self, value):
+        if self.instance is None:
+            return value
+
+        current = self.instance.status
+        allowed_transitions = {
+            Ticket.Status.OPEN: [Ticket.Status.IN_PROGRESS],
+            Ticket.Status.IN_PROGRESS: [Ticket.Status.RESOLVED],
+            Ticket.Status.RESOLVED: [],
+            Ticket.Status.CLOSED: [],
+        }
+
+        if value == current:
+            return value
+
+        if value not in allowed_transitions.get(current, []):
+            raise serializers.ValidationError(f'Invalid transition from {current} to {value}.')
+
+        return value
+
+    def update(self, instance, validated_data):
+        new_status = validated_data.get('status')
+        if new_status == Ticket.Status.IN_PROGRESS and not validated_data.get('assigned_to'):
+            request = self.context.get('request')
+            if request and request.user and request.user.is_authenticated:
+                validated_data['assigned_to'] = request.user
+
+        return super().update(instance, validated_data)
