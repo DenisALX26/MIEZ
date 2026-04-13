@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FiArrowDownLeft, FiArrowUpRight, FiRefreshCw, FiTrash2, FiBox, FiFilter, FiCalendar } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 
 type Movement = {
@@ -24,6 +25,23 @@ type PaginatedResponse = {
   next: string | null
   previous: string | null
   results: Movement[]
+}
+
+const TypeIcon = ({ type }: { type: string }) => {
+  const t = (type || '').toUpperCase();
+  if (t === 'INBOUND') return <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><FiArrowDownLeft size={16} /></div>;
+  if (t === 'OUTBOUND') return <div className="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0"><FiArrowUpRight size={16} /></div>;
+  if (t === 'ADJUSTMENT') return <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><FiRefreshCw size={16} /></div>;
+  if (t === 'WRITE_OFF') return <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0"><FiTrash2 size={16} /></div>;
+  return <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0"><FiBox size={16} /></div>;
+}
+
+const renderQty = (m: Movement) => {
+  const t = (m.movement_type || '').toUpperCase()
+  if (t === 'INBOUND') return <span className="text-emerald-600 font-black text-lg">+{m.quantity}</span>
+  if (t === 'OUTBOUND' || t === 'WRITE_OFF') return <span className="text-rose-600 font-black text-lg">-{m.quantity}</span>
+  if (t === 'ADJUSTMENT') return <span className="text-blue-600 font-black text-lg">{m.quantity}</span>
+  return <span className="font-black text-lg">{m.quantity}</span>
 }
 
 export default function StockMovementsPage() {
@@ -72,108 +90,168 @@ export default function StockMovementsPage() {
     navigate(`/inventory/receive?${params.toString()}`)
   }
 
-  const badgeForType = (t?: string) => {
-    const tv = (t || '').toUpperCase()
-    if (tv === 'INBOUND') return <span className="px-2 py-0.5 rounded text-xs bg-green-50 text-green-700">Inbound</span>
-    if (tv === 'OUTBOUND') return <span className="px-2 py-0.5 rounded text-xs bg-orange-50 text-orange-700">Outbound</span>
-    if (tv === 'ADJUSTMENT') return <span className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">Adjustment</span>
-    if (tv === 'WRITE_OFF') return <span className="px-2 py-0.5 rounded text-xs bg-red-50 text-red-700">Write-off</span>
-    return <span className="px-2 py-0.5 rounded text-xs bg-gray-50 text-muted-foreground">{t}</span>
-  }
-
-  const renderQty = (m: Movement) => {
-    const t = (m.movement_type || '').toUpperCase()
-    if (t === 'INBOUND') return <span className="text-green-600 font-semibold">+{m.quantity}</span>
-    if (t === 'OUTBOUND' || t === 'WRITE_OFF') return <span className="text-red-600 font-semibold">-{m.quantity}</span>
-    if (t === 'ADJUSTMENT') return <span className="text-blue-600 font-semibold">{m.quantity}</span>
-    return <span className="font-semibold">{m.quantity}</span>
-  }
-
   return (
-    <div className="space-y-4 max-w-[1200px]">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Stock Movements</h2>
-          <p className="text-sm text-muted-foreground">Full history of inbound/outbound/adjustments for auditing</p>
+    <div className="max-w-[1400px] mx-auto space-y-8 animate-[fadeIn_0.5s_ease-out] pb-10">
+      
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 bg-white p-8 rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40">
+        <div className="flex items-center gap-5">
+          <div className="p-4 bg-indigo-50 text-indigo-600 rounded-2xl">
+            <FiRefreshCw size={32} strokeWidth={2} />
+          </div>
+          <div>
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Stock Movements Registry</h1>
+            <p className="text-gray-500 mt-2 font-medium">Complete, transparent ledger of all inbound, outbound, and inventory adjustments.</p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); fetchData(1); }} className="px-3 py-2 border border-border rounded-lg bg-white text-sm">
-            <option value="ALL">All types</option>
-            <option value="INBOUND">Inbound</option>
-            <option value="OUTBOUND">Outbound</option>
-            <option value="ADJUSTMENT">Adjustment</option>
-            <option value="WRITE_OFF">Write-off</option>
-          </select>
-          <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="px-2 py-2 border border-border rounded-lg text-sm" />
-          <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="px-2 py-2 border border-border rounded-lg text-sm" />
-          <button className="px-3 py-2 bg-[#D1353B] text-white rounded-lg text-sm" onClick={() => fetchData(1)}>Apply</button>
-          <button className="px-3 py-2 border border-border rounded-lg text-sm" onClick={() => { setTypeFilter('ALL'); setDateFrom(''); setDateTo(''); fetchData(1); }}>Reset</button>
+
+        <div className="grid grid-cols-2 md:flex gap-3">
+           <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-200/70 items-center">
+             <FiFilter className="text-gray-400 ml-3 mr-2" />
+             <select 
+               value={typeFilter} 
+               onChange={(e) => { setTypeFilter(e.target.value); setPage(1); fetchData(1); }} 
+               className="bg-transparent border-none outline-none text-sm font-bold text-gray-700 py-2 pr-4 pl-1 cursor-pointer focus:ring-0"
+             >
+                <option value="ALL">All Event Types</option>
+                <option value="INBOUND">Inbound Flows</option>
+                <option value="OUTBOUND">Outbound Drafts</option>
+                <option value="ADJUSTMENT">Adjustments</option>
+                <option value="WRITE_OFF">Write-offs</option>
+             </select>
+           </div>
+           
+           <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-200/70 items-center overflow-hidden">
+             <FiCalendar className="text-gray-400 ml-3 mr-2 shrink-0" />
+             <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
+             <span className="text-gray-300 font-light px-1">-</span>
+             <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
+           </div>
+
+           <button 
+             onClick={() => fetchData(1)}
+             className="px-6 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
+           >
+             Filter
+           </button>
+           
+           {(typeFilter !== 'ALL' || dateFrom || dateTo) && (
+              <button 
+                onClick={() => { setTypeFilter('ALL'); setDateFrom(''); setDateTo(''); fetchData(1); }}
+                className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-100 transition-colors"
+               >
+                Reset
+               </button>
+           )}
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-5 py-3 border-b border-border">
-          <h4 className="text-[14px] font-semibold">Movement History</h4>
-        </div>
-        <div className="p-4">
-          {loading ? (
-            <div>Loading...</div>
-          ) : movements.length === 0 ? (
-            <div className="text-center py-6">No stock movements found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left">
-                <thead>
-                  <tr className="text-[12px] text-muted-foreground">
-                    <th className="px-4 py-2">Date</th>
-                    <th className="px-4 py-2">Product</th>
-                    <th className="px-4 py-2">SKU</th>
-                    <th className="px-4 py-2">Type</th>
-                    <th className="px-4 py-2 text-right">Qty</th>
-                    <th className="px-4 py-2">Supplier</th>
-                    <th className="px-4 py-2">Created By</th>
-                    <th className="px-4 py-2">Notes</th>
-                    <th className="px-4 py-2">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {movements.map((m) => {
-                    const prodName = m.product_name || (m.product_obj && m.product_obj.name) || '-'
-                    const sku = m.product_sku || (m.product_obj && m.product_obj.sku) || '-'
-                    const supplier = m.supplier_name || (m.supplier_obj && m.supplier_obj.name) || '-'
-                    return (
-                      <tr key={m.id} className="border-t hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-[13px] text-muted-foreground">{new Date(m.created_at).toLocaleString()}</td>
-                        <td className="px-4 py-3 text-[13px] font-medium">{prodName}</td>
-                        <td className="px-4 py-3 text-[13px] text-muted-foreground">{sku}</td>
-                        <td className="px-4 py-3">{badgeForType(m.movement_type)}</td>
-                        <td className="px-4 py-3 text-[13px] text-right">{renderQty(m)}</td>
-                        <td className="px-4 py-3 text-[13px] text-muted-foreground">{supplier}</td>
-                        <td className="px-4 py-3 text-[13px] text-muted-foreground">{m.created_by_username ?? '-'}</td>
-                        <td className="px-4 py-3 text-[13px] text-muted-foreground">{m.notes ?? '-'}</td>
-                        <td className="px-4 py-3">
-                          {(m.product_obj || (typeof m.product === 'object' && m.product)) && (m.movement_type || '').toUpperCase() === 'INBOUND' && (
-                            <button className="px-3 py-1.5 bg-[#D1353B] text-white rounded-lg text-[12px] hover:bg-[#b82e33] transition-colors" onClick={() => handleReceive((m.product_obj as any) || (m.product as any))}>
-                              Receive
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/40 relative overflow-hidden">
+        
+        {loading && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+            <p className="font-bold text-gray-400 tracking-widest text-sm uppercase">Synchronizing Ledger...</p>
+          </div>
+        )}
 
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">Total: {count}</div>
-        <div className="flex items-center gap-2">
-          <button disabled={page <= 1} onClick={() => { setPage((s) => Math.max(1, s-1)); fetchData(page-1); }} className="px-3 py-1 border rounded">Prev</button>
-          <span className="px-2">Page {page}</span>
-          <button disabled={movements.length === 0} onClick={() => { setPage((s) => s+1); fetchData(page+1); }} className="px-3 py-1 border rounded">Next</button>
+        <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+          <h4 className="text-lg font-black text-gray-900 tracking-tight">Movement History</h4>
+          <span className="inline-flex px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg">{count} Records Found</span>
+        </div>
+
+        {movements.length === 0 && !loading ? (
+             <div className="text-center py-24">
+                <FiRefreshCw size={48} className="mx-auto text-gray-200 mb-4" />
+                <h3 className="text-xl font-black text-gray-400">No log entries</h3>
+                <p className="text-gray-400 mt-2">Adjust your filters or add some stock to see activity.</p>
+             </div>
+        ) : (
+          <div className="overflow-x-auto min-h-[400px]">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-white border-b border-gray-100">
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">EventType</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Subject Product</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap text-right">Modifier Qty</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Partner Identity</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Timestamp & Operator</th>
+                  <th className="px-8 py-5 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Controls</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {movements.map((m) => {
+                  const prodName = m.product_name || (m.product_obj && m.product_obj.name) || 'Unknown Item'
+                  const sku = m.product_sku || (m.product_obj && m.product_obj.sku) || 'NO-SKU'
+                  const supplier = m.supplier_name || (m.supplier_obj && m.supplier_obj.name) || '-'
+                  const dateObj = new Date(m.created_at)
+
+                  return (
+                    <tr key={m.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-8 py-5">
+                         <div className="flex items-center gap-3">
+                           <TypeIcon type={m.movement_type} />
+                           <span className="text-xs font-bold text-gray-700 tracking-wider uppercase">{m.movement_type.replace('_', '-')}</span>
+                         </div>
+                      </td>
+                      <td className="px-8 py-5">
+                         <div>
+                            <p className="font-bold text-gray-900 text-sm">{prodName}</p>
+                            <span className="text-[11px] bg-gray-100 px-2 py-0.5 rounded text-gray-500 font-mono tracking-wider">{sku}</span>
+                         </div>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                         {renderQty(m)}
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className={`text-[13px] ${supplier === '-' ? 'text-gray-400 italic' : 'font-medium text-gray-700'}`}>{supplier}</span>
+                      </td>
+                      <td className="px-8 py-5">
+                         <div>
+                           <p className="text-sm font-semibold text-gray-900">{dateObj.toLocaleDateString()} <span className="text-gray-400 font-normal">{dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
+                           <p className="text-[11px] text-gray-500 font-medium tracking-wide">By {m.created_by_username || 'System'}</p>
+                         </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        {(m.product_obj || (typeof m.product === 'object' && m.product)) && (m.movement_type || '').toUpperCase() === 'INBOUND' ? (
+                          <button 
+                            className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-[12px] font-bold hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                            onClick={() => handleReceive((m.product_obj as any) || (m.product as any))}
+                          >
+                            Execute Receipt
+                          </button>
+                        ) : (
+                          <span className="text-gray-300 text-xl font-light">…</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {/* Pagination Controls */}
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+           <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+             Showing Page {page}
+           </p>
+           <div className="flex items-center gap-2">
+             <button 
+               disabled={page <= 1} 
+               onClick={() => { setPage((s) => Math.max(1, s-1)); fetchData(page-1); }} 
+               className="p-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600"
+              >
+               <FiArrowDownLeft className="rotate-45" />
+             </button>
+             <button 
+               disabled={movements.length < 20} // Assuming 20 is the default page size configured in backend
+               onClick={() => { setPage((s) => s+1); fetchData(page+1); }} 
+               className="p-2 border border-gray-200 bg-white rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-gray-600"
+              >
+               <FiArrowUpRight className="rotate-45" />
+             </button>
+           </div>
         </div>
       </div>
     </div>

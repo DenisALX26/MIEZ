@@ -119,7 +119,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'sku', 'category', 'stock_count', 'min_stock', 'created_at']
+        fields = ['id', 'name', 'sku', 'category', 'stock_count', 'min_stock', 'unit_price_ron', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
@@ -143,8 +143,8 @@ class StockMovementSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StockMovement
-    fields = ['id', 'movement_type', 'product', 'product_obj', 'product_name', 'product_sku', 'supplier', 'supplier_obj', 'supplier_name', 'quantity', 'expected_date', 'notes', 'created_by', 'created_by_username', 'created_at']
-    read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj', 'product_name', 'product_sku', 'supplier_name', 'created_by_username']
+        fields = ['id', 'movement_type', 'product', 'product_obj', 'product_name', 'product_sku', 'supplier', 'supplier_obj', 'supplier_name', 'quantity', 'expected_date', 'notes', 'created_by', 'created_by_username', 'created_at']
+        read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj', 'product_name', 'product_sku', 'supplier_name', 'created_by_username']
 
     def validate_quantity(self, value):
         if value <= 0:

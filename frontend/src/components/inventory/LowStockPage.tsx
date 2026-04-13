@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FiPackage as Package, FiTruck as Truck, FiAlertTriangle as AlertTriangle } from 'react-icons/fi'
+import { FiTruck, FiAlertCircle, FiBox } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 
 type ApiProduct = {
@@ -14,17 +14,9 @@ type ApiProduct = {
   supplier?: string
 }
 
-const reorderSuggestions: Record<string, number> = {
-  'USB-C Hub Pro': 30,
-  'Office Chair B': 10,
-  'Monitor Arm': 15,
-  'Standing Desk Pro': 8,
-}
-
 export default function LowStockPage() {
   const [products, setProducts] = useState<ApiProduct[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<ApiProduct | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -47,132 +39,115 @@ export default function LowStockPage() {
     fetchProducts()
   }, [])
 
-  const low = products.filter(p => p.status === 'LOW')
-  const out = products.filter(p => p.status === 'OUT')
-
-  const openReceive = (p?: ApiProduct) => {
-    if (!p) return navigate('/inventory/receive')
+  const openReceive = (p: ApiProduct) => {
     const params = new URLSearchParams({ productId: String(p.id), sku: p.sku, name: p.name })
-    navigate(`/inventory/receive?${params.toString()}`)
+    navigate(`/inventory/receive-stock?${params.toString()}`)
   }
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return null
 
   if (products.length === 0) {
     return (
-      <div className="module-card text-center">
-        <div className="text-green-500 text-6xl">✓</div>
-        <h2 className="mt-4">All products are within safe stock levels</h2>
-        <p className="text-muted mt-2">No action required right now.</p>
+      <div className="max-w-[700px] mx-auto mt-20 p-12 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
+        <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-500 border border-emerald-100">
+           <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+        </div>
+        <h2 className="text-2xl font-black text-gray-900 tracking-tight">All products are within safe stock levels</h2>
+        <p className="text-gray-500 mt-2 font-medium">Your inventory is healthy. No stock replenishments are required at this time.</p>
       </div>
     )
   }
 
+  const outCount = products.filter(p => p.status === 'OUT').length;
+
   return (
-    <div className="space-y-5 max-w-[1200px]">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <span className="text-xl">🔴</span>
-          </div>
-          <div>
-            <p className="text-[12px] text-red-700">Out of Stock</p>
-            <p className="text-[22px] text-red-700" style={{ fontWeight: 700 }}>{out.length} product{out.length !== 1 ? 's' : ''}</p>
-          </div>
+    <div className="max-w-[1400px] mx-auto space-y-8 pb-10">
+      {/* Header exactly like Dashboard */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Critical Stock Alerts</h1>
+          <p className="text-gray-500 mt-1 font-medium">Review and replenish products that have fallen below safety limits.</p>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5 text-yellow-600" />
-          </div>
-          <div>
-            <p className="text-[12px] text-yellow-700">Below Minimum Stock</p>
-            <p className="text-[22px] text-yellow-700" style={{ fontWeight: 700 }}>{low.length} product{low.length !== 1 ? 's' : ''}</p>
-          </div>
+        <div className="flex items-center gap-3">
+          {outCount > 0 && (
+            <span className="px-4 py-2 bg-rose-50 text-rose-700 font-bold rounded-xl border border-rose-100 flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+              </span>
+              {outCount} Depleted
+            </span>
+          )}
+          <span className="px-4 py-2 bg-white text-gray-700 font-bold rounded-xl border border-gray-200 flex items-center gap-2 shadow-sm">
+            <FiBox className="text-indigo-500" />
+            {products.length} Affected
+          </span>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-border overflow-hidden">
-        <div className="px-5 py-3 border-b border-border">
-          <h4 className="text-[14px]" style={{ fontWeight: 600 }}>Products Requiring Attention</h4>
+      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+        
+        {/* Table Header Row */}
+        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-200 bg-gray-50/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+              <FiAlertCircle size={20} />
+            </div>
+            <h4 className="text-lg font-black text-gray-900 tracking-tight">Products Requiring Attention</h4>
+          </div>
         </div>
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-gray-50/50">
-              <th className="text-left px-5 py-2.5 text-[12px] text-muted-foreground">Product</th>
-              <th className="text-left px-5 py-2.5 text-[12px] text-muted-foreground">SKU</th>
-              <th className="text-right px-5 py-2.5 text-[12px] text-muted-foreground">Stock</th>
-              <th className="text-right px-5 py-2.5 text-[12px] text-muted-foreground">Min Stock</th>
-              <th className="text-right px-5 py-2.5 text-[12px] text-muted-foreground">Reorder Qty</th>
-              <th className="text-left px-5 py-2.5 text-[12px] text-muted-foreground">Supplier</th>
-              <th className="text-left px-5 py-2.5 text-[12px] text-muted-foreground">Alert</th>
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-0 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => setSelected(p)}>
-                <td className="px-5 py-3 text-[13px]" style={{ fontWeight: 500 }}>
-                  <div className="flex items-center gap-2"><Package className="w-4 h-4 text-muted-foreground" />{p.name}</div>
-                </td>
-                <td className="px-5 py-3 text-[13px] text-muted-foreground">{p.sku}</td>
-                <td className="px-5 py-3 text-[13px] text-right" style={{ fontWeight: 600, color: p.status === 'OUT' ? '#ef4444' : '#d97706' }}>{p.stock_count}</td>
-                <td className="px-5 py-3 text-[13px] text-right text-muted-foreground">{p.min_stock}</td>
-                <td className="px-5 py-3 text-[13px] text-right text-muted-foreground">{reorderSuggestions[p.name] ?? 20}</td>
-                <td className="px-5 py-3 text-[13px] text-muted-foreground">{p.supplier ?? '-'}</td>
-                <td className="px-5 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded text-[11px] ${p.status === 'OUT' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`} style={{ fontWeight: 500 }}>
-                    {p.status === 'OUT' ? 'Out' : 'Low'}
-                  </span>
-                </td>
+
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest w-[30%]">Product Details</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center bg-gray-50/30">Current</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center">Minimum</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center">Shortfall</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-right">Action</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-white rounded-xl border border-border p-5">
-        <h4 className="text-[14px] mb-4" style={{ fontWeight: 600 }}>Suggested Reorders</h4>
-        <div className="space-y-3">
-          {products.filter(p => p.status === 'OUT' || p.status === 'LOW').map((p) => (
-            <div key={p.id} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
-              <div>
-                <p className="text-[13px]" style={{ fontWeight: 500 }}>{p.name}</p>
-                <p className="text-[12px] text-muted-foreground">{p.supplier ?? '-'} · Reorder {reorderSuggestions[p.name] ?? 20} units</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`inline-flex px-2 py-0.5 rounded text-[11px] ${p.status === 'OUT' ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-700'}`} style={{ fontWeight: 500 }}>
-                  {p.status === 'OUT' ? 'URGENT' : 'Soon'}
-                </span>
-                <button className="px-3 py-1.5 bg-[#D1353B] text-white rounded-lg text-[12px] hover:bg-[#b82e33] transition-colors flex items-center gap-1.5" onClick={() => openReceive(p)}>
-                  <Truck className="w-3.5 h-3.5" /> Order Now
-                </button>
-              </div>
-            </div>
-          ))}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {products.map((p) => {
+                const shortfall = Math.max(0, p.min_stock - p.stock_count)
+                const isOut = p.status === 'OUT'
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <p className="font-bold text-gray-900 text-[15px]">{p.name}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">{p.sku}</span>
+                        {p.category && <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">{p.category}</span>}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center bg-gray-50/10 group-hover:bg-transparent transition-colors">
+                      <span className={`text-[22px] font-black ${isOut ? 'text-rose-600' : 'text-amber-500'}`}>{p.stock_count}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-[15px] font-bold text-gray-400">{p.min_stock}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider ${isOut ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                        -{shortfall} units
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button 
+                        onClick={() => openReceive(p)}
+                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 hover:shadow-lg hover:-translate-y-0.5 transition-all inline-flex items-center gap-2"
+                      >
+                        <FiTruck size={14} /> Refill Stock
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-black opacity-30" onClick={() => setSelected(null)} />
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-6 z-10 m-4">
-            <div className="flex items-start justify-between">
-              <h3 style={{ fontWeight: 700 }}>{selected.name}</h3>
-              <button onClick={() => setSelected(null)} className="text-muted-foreground">Close</button>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Current Stock</span><p className="text-[20px] mt-0.5" style={{ fontWeight: 700, color: selected.status === 'OUT' ? '#ef4444' : '#d97706' }}>{selected.stock_count}</p></div>
-              <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Min Required</span><p className="text-[20px] mt-0.5" style={{ fontWeight: 700 }}>{selected.min_stock}</p></div>
-              <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Supplier</span><p className="text-[13px] mt-0.5">{selected.supplier ?? '-'}</p></div>
-              <div><span className="text-[11px] text-muted-foreground uppercase tracking-wider">Reorder Suggestion</span><p className="text-[13px] mt-0.5" style={{ fontWeight: 500 }}>{reorderSuggestions[selected.name] ?? 20} units</p></div>
-            </div>
-            <div className="mt-6">
-              <button className="w-full py-2 bg-[#D1353B] text-white rounded-lg text-[13px] hover:bg-[#b82e33] transition-colors flex items-center justify-center gap-2" onClick={() => { openReceive(selected); setSelected(null) }}>
-                <Truck className="w-4 h-4" /> Create Purchase Order
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

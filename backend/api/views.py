@@ -302,6 +302,7 @@ class InventoryProductsView(APIView):
                 'category': p.category,
                 'stock_count': stock,
                 'min_stock': minimum,
+                'unit_price_ron': p.unit_price_ron,
                 'status': status_val,
                 'shortfall': shortfall,
             })

@@ -7,6 +7,7 @@ import EmployeesPage from './components/employees/EmployeesPage'
 import LowStockPage from './components/inventory/LowStockPage'
 import ReceiveStockPage from './components/inventory/ReceiveStockPage'
 import StockMovementsPage from './components/inventory/StockMovementsPage'
+import ProductsStockPage from './components/inventory/ProductsStockPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
@@ -282,7 +283,7 @@ function App() {
               path="/inventory/products-stock"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <ProductsStockPage />
                 </ProtectedRoute>
               }
             />
@@ -290,7 +291,7 @@ function App() {
               path="/inventory/receive-stock"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <ReceiveStockPage />
                 </ProtectedRoute>
               }
             />
