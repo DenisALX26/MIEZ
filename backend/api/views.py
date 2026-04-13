@@ -6,8 +6,8 @@ from django.views.decorators.http import require_GET
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum
-from django.db.models.functions import TruncDay, TruncWeek
+from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField
+from django.db.models.functions import TruncDay, TruncWeek, Coalesce
 from django.utils import timezone
 
 from django.conf import settings
@@ -22,11 +22,14 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice
 from .serializers import (
+    CustomerSalesSummarySerializer,
     DepartmentSerializer,
     EmployeeCreateSerializer,
     EmployeeListSerializer,
+    InvoiceListSerializer,
+    OrderCreateSerializer,
     OrderDetailSerializer,
     OrderListSerializer,
     ProductSerializer,
@@ -535,6 +538,25 @@ class OrderPagination(PageNumberPagination):
         )
 
 
+class InvoicePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response(
+            OrderedDict(
+                [
+                    ('total_count', self.page.paginator.count),
+                    ('count', self.page.paginator.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', data),
+                ]
+            )
+        )
+
+
 class TicketFilterSet(filters.FilterSet):
     search = filters.CharFilter(method='filter_search')
     category = filters.CharFilter(method='filter_category')
@@ -611,6 +633,18 @@ class TicketDetailView(RetrieveUpdateAPIView):
       
 class OrderListView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can create orders."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = OrderCreateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        order = serializer.save()
+        response_serializer = OrderDetailSerializer(
+            Order.objects.select_related('customer', 'created_by').prefetch_related('items__product').get(id=order.id)
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
 
     def get(self, request):
         if request.user.role not in [User.Role.SALES, User.Role.CEO]:
@@ -811,3 +845,110 @@ class InventoryDashboardView(APIView):
             "out_of_stock_count": out_of_stock_count,
             "deliveries_today": deliveries_today
         }, status=status.HTTP_200_OK)
+class CustomerListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view customers."}, status=status.HTTP_403_FORBIDDEN)
+
+        customers = (
+            Customer.objects
+            .annotate(total_value_ron=Coalesce(Sum('orders__value_ron'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)))
+            .order_by('-total_value_ron', 'name')
+        )
+
+        serializer = CustomerSalesSummarySerializer(customers, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class InvoiceListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view invoices."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        queryset = Invoice.objects.select_related('order', 'order__customer').all().order_by('-issued_date', '-id')
+
+        status_filter = request.query_params.get('status', '').strip().upper()
+        if status_filter:
+            if status_filter == 'OVERDUE':
+                queryset = queryset.filter(due_date__lt=today).exclude(status=Invoice.Status.PAID)
+            else:
+                queryset = queryset.filter(status__iexact=status_filter)
+
+        paginator = InvoicePagination()
+        paginated = paginator.paginate_queryset(queryset, request)
+        serializer = InvoiceListSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class SalesChannelSplitView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view channel split analytics."}, status=status.HTTP_403_FORBIDDEN)
+
+        rows = (
+            Order.objects
+            .values('channel')
+            .annotate(orders_count=Count('id'))
+            .order_by('channel')
+        )
+        total_orders = sum(row['orders_count'] for row in rows)
+
+        channels = []
+        running_pct = 0.0
+        for index, row in enumerate(rows):
+            if total_orders == 0:
+                pct = 0.0
+            elif index == len(rows) - 1:
+                pct = round(100.0 - running_pct, 2)
+            else:
+                pct = round((row['orders_count'] / total_orders) * 100, 2)
+                running_pct += pct
+
+            channels.append(
+                {
+                    'channel': row['channel'],
+                    'orders_count': row['orders_count'],
+                    'percentage': pct,
+                }
+            )
+
+        return Response({'channels': channels}, status=status.HTTP_200_OK)
+
+
+class SalesRevenueTrendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view revenue trend analytics."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        start_date = today - timedelta(days=6)
+
+        rows = []
+        for index in range(7):
+            current_day = start_date + timedelta(days=index)
+            try:
+                prior_year_day = current_day.replace(year=current_day.year - 1)
+            except ValueError:
+                prior_year_day = current_day - timedelta(days=365)
+
+            current_total = Order.objects.filter(date=current_day).aggregate(total=Sum('value_ron'))['total'] or 0
+            prior_year_total = Order.objects.filter(date=prior_year_day).aggregate(total=Sum('value_ron'))['total'] or 0
+
+            rows.append(
+                {
+                    'date': current_day.isoformat(),
+                    'current_year': str(current_total),
+                    'prior_year': str(prior_year_total),
+                }
+            )
+
+        return Response({'days': rows}, status=status.HTTP_200_OK)
