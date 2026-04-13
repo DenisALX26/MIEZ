@@ -426,7 +426,7 @@ class TicketApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn('title', response.data)
+        self.assertIn('title', response.data['field_errors'])
 
     def test_post_tickets_missing_description_returns_400(self):
         self.client.force_authenticate(user=self.it_user)
@@ -441,7 +441,7 @@ class TicketApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn('description', response.data)
+        self.assertIn('description', response.data['field_errors'])
 
     def test_get_tickets_returns_full_list_sorted_by_created_at_desc(self):
         self.client.force_authenticate(user=self.it_user)
@@ -679,7 +679,7 @@ class EmployeeDepartmentCrudTests(APITestCase):
         response = self.client.post('/api/employees/', payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('first_name', response.data)
+        self.assertIn('first_name', response.data['field_errors'])
 
     def test_post_employees_duplicate_email_returns_400(self):
         User.objects.create_user(
@@ -692,7 +692,7 @@ class EmployeeDepartmentCrudTests(APITestCase):
         response = self.client.post('/api/employees/', self.valid_payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('email', response.data)
+        self.assertIn('email', response.data['field_errors'])
 
     def test_get_employees_returns_paginated_list_with_correct_count(self):
         baker.make(User, _quantity=3, department=self.hr_department, role=User.Role.SALES)
