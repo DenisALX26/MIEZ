@@ -6,7 +6,7 @@ from django.views.decorators.http import require_GET
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper
+from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum
 from django.utils import timezone
 
 from django.conf import settings
@@ -21,11 +21,13 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order
 from .serializers import (
     DepartmentSerializer,
     EmployeeCreateSerializer,
     EmployeeListSerializer,
+    OrderDetailSerializer,
+    OrderListSerializer,
     ProductSerializer,
     SupplierSerializer,
     StockMovementSerializer,
@@ -421,6 +423,26 @@ class TicketPagination(PageNumberPagination):
         )
 
 
+class OrderPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data, total_ron_sum):
+        return Response(
+            OrderedDict(
+                [
+                    ('total_count', self.page.paginator.count),
+                    ('total_ron_sum', str(total_ron_sum)),
+                    ('count', self.page.paginator.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', data),
+                ]
+            )
+        )
+
+
 class TicketFilterSet(filters.FilterSet):
     search = filters.CharFilter(method='filter_search')
     category = filters.CharFilter(method='filter_category')
@@ -493,3 +515,51 @@ class TicketDetailView(RetrieveUpdateAPIView):
         if request.user.role not in [User.Role.IT, User.Role.CEO]:
             raise PermissionDenied('Only IT technicians and CEO can update tickets.')
         return self.partial_update(request, *args, **kwargs)
+      
+      
+class OrderListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view orders."}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = Order.objects.select_related('customer').all().order_by('-date', '-id')
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(order_number__icontains=search) |
+                Q(customer__name__icontains=search)
+            )
+
+        status_filter = request.query_params.get('status', '').strip()
+        if status_filter:
+            queryset = queryset.filter(status__iexact=status_filter)
+
+        channel_filter = request.query_params.get('channel', '').strip()
+        if channel_filter:
+            queryset = queryset.filter(channel__iexact=channel_filter)
+
+        totals = queryset.aggregate(total_ron_sum=Sum('value_ron'))
+        total_ron_sum = totals['total_ron_sum'] or 0
+
+        paginator = OrderPagination()
+        paginated = paginator.paginate_queryset(queryset, request)
+        serializer = OrderListSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data, total_ron_sum)
+
+
+class OrderDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view orders."}, status=status.HTTP_403_FORBIDDEN)
+
+        order = get_object_or_404(
+            Order.objects.select_related('customer', 'created_by').prefetch_related('items__product'),
+            id=id,
+        )
+        serializer = OrderDetailSerializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
