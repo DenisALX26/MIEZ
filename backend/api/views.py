@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum
+from django.db.models.functions import TruncDay
 from django.utils import timezone
 
 from django.conf import settings
@@ -21,7 +22,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem
 from .serializers import (
     DepartmentSerializer,
     EmployeeCreateSerializer,
@@ -622,3 +623,77 @@ class SalesDashboardView(APIView):
             },
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+class SalesDailyOrdersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view daily orders analytics."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        start_date = today - timedelta(days=6)
+
+        aggregated = (
+            Order.objects.filter(date__gte=start_date, date__lte=today)
+            .annotate(day=TruncDay('date'))
+            .values('day')
+            .annotate(orders_count=Count('id'))
+            .order_by('day')
+        )
+
+        by_day = {
+            row['day'].isoformat(): row['orders_count']
+            for row in aggregated
+        }
+
+        days = []
+        for index in range(7):
+            current_day = start_date + timedelta(days=index)
+            day_key = current_day.isoformat()
+            days.append({
+                'date': day_key,
+                'orders_count': by_day.get(day_key, 0),
+            })
+
+        return Response({'days': days}, status=status.HTTP_200_OK)
+
+
+class SalesTopProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view top products analytics."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        week_start = today - timedelta(days=today.weekday())
+
+        products = (
+            OrderItem.objects
+            .annotate(order_day=TruncDay('order__date'))
+            .filter(order__date__gte=week_start, order__date__lte=today)
+            .values('product', 'product__name', 'product__sku')
+            .annotate(units_sold=Sum('quantity'))
+            .order_by('-units_sold', 'product__name')[:5]
+        )
+
+        data = [
+            {
+                'product_id': row['product'],
+                'product_name': row['product__name'],
+                'product_sku': row['product__sku'],
+                'units_sold': row['units_sold'] or 0,
+            }
+            for row in products
+        ]
+
+        return Response(
+            {
+                'week_start': week_start.isoformat(),
+                'week_end': today.isoformat(),
+                'products': data,
+            },
+            status=status.HTTP_200_OK,
+        )
