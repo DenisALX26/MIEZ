@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum
-from django.db.models.functions import TruncDay
+from django.db.models.functions import TruncDay, TruncWeek
 from django.utils import timezone
 
 from django.conf import settings
@@ -402,6 +402,66 @@ class DashboardItView(APIView):
                 "critical_open": base_stats['critical_open'],
             }
         }, status=status.HTTP_200_OK)
+
+
+class ItTicketTrendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response(
+                {"detail": "Access denied. Only IT and CEO can view ticket trends."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        now = timezone.now()
+        current_week_start = now - timedelta(days=now.weekday())
+        current_week_start = current_week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        window_start = current_week_start - timedelta(weeks=5)
+        window_end = current_week_start + timedelta(weeks=1)
+
+        opened_rows = (
+            Ticket.objects.filter(created_at__gte=window_start, created_at__lt=window_end)
+            .annotate(week=TruncWeek('created_at'))
+            .values('week')
+            .annotate(opened_count=Count('id'))
+            .order_by('week')
+        )
+
+        closed_rows = (
+            Ticket.objects.filter(
+                resolved_at__isnull=False,
+                resolved_at__gte=window_start,
+                resolved_at__lt=window_end,
+            )
+            .annotate(week=TruncWeek('resolved_at'))
+            .values('week')
+            .annotate(closed_count=Count('id'))
+            .order_by('week')
+        )
+
+        opened_by_week = {
+            row['week'].date().isoformat(): row['opened_count']
+            for row in opened_rows
+        }
+        closed_by_week = {
+            row['week'].date().isoformat(): row['closed_count']
+            for row in closed_rows
+        }
+
+        weeks = []
+        for week_index in range(6):
+            week_start = window_start + timedelta(weeks=week_index)
+            week_key = week_start.date().isoformat()
+            weeks.append(
+                {
+                    'week_start': week_key,
+                    'opened_count': opened_by_week.get(week_key, 0),
+                    'closed_count': closed_by_week.get(week_key, 0),
+                }
+            )
+
+        return Response({'weeks': weeks}, status=status.HTTP_200_OK)
 
 
 
