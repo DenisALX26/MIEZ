@@ -87,6 +87,7 @@ class Product(models.Model):
     category = models.CharField(max_length=24, choices=Category.choices, default=Category.GENERAL)
     unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     stock_count = models.PositiveIntegerField(default=0)
+    min_stock = models.PositiveIntegerField(default=10)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

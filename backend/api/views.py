@@ -787,3 +787,26 @@ class SalesTopProductsView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class InventoryDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({"detail": "Only Inventory Managers and CEO can view this dashboard."}, status=status.HTTP_403_FORBIDDEN)
+
+        total_products = Product.objects.count()
+        low_stock_count = Product.objects.filter(stock_count__lt=F('min_stock'), stock_count__gt=0).count()
+        out_of_stock_count = Product.objects.filter(stock_count=0).count()
+        deliveries_today = StockMovement.objects.filter(
+            movement_type=StockMovement.Type.INBOUND,
+            expected_date=date.today()
+        ).count()
+
+        return Response({
+            "total_products": total_products,
+            "low_stock_count": low_stock_count,
+            "out_of_stock_count": out_of_stock_count,
+            "deliveries_today": deliveries_today
+        }, status=status.HTTP_200_OK)
