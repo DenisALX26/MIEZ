@@ -1047,6 +1047,7 @@ class SalesAnalyticsTask3Tests(APITestCase):
 
         today = timezone.localdate()
         week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
         previous_week_day = week_start - timedelta(days=1)
 
         self._create_order_with_item(order_date=today, product=self.product_a, quantity=5)
@@ -1058,7 +1059,7 @@ class SalesAnalyticsTask3Tests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['week_start'], week_start.isoformat())
-        self.assertEqual(response.data['week_end'], today.isoformat())
+        self.assertEqual(response.data['week_end'], week_end.isoformat())
 
         products = response.data['products']
         self.assertEqual(len(products), 2)
