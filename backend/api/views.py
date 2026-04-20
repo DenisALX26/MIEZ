@@ -321,6 +321,13 @@ class HrDashboardView(APIView):
 class CeoHrSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _department_matches_role(department, role_keyword):
+        slug = (getattr(department, 'slug', '') or '').strip().lower()
+        name = (getattr(department, 'name', '') or '').strip().lower()
+        keyword = role_keyword.lower().strip()
+        return keyword in slug or keyword in name
+
     def get(self, request):
         if request.user.role != User.Role.CEO:
             return Response({"detail": "Only CEO can view HR summary."}, status=status.HTTP_403_FORBIDDEN)
@@ -343,9 +350,30 @@ class CeoHrSummaryView(APIView):
         department_headcount = []
         departments = Department.objects.order_by('name')
         for department in departments:
-            total = User.objects.filter(department=department).count()
-            on_leave = leave_by_department.get(department.id, 0)
-            active = User.objects.filter(department=department, is_active=True).count()
+            mapped_role = None
+            if self._department_matches_role(department, 'it'):
+                mapped_role = User.Role.IT
+            elif self._department_matches_role(department, 'sales'):
+                mapped_role = User.Role.SALES
+            elif self._department_matches_role(department, 'hr'):
+                mapped_role = User.Role.HR
+            elif self._department_matches_role(department, 'inventory'):
+                mapped_role = User.Role.INVENTORY
+
+            users_qs = User.objects.filter(department=department)
+            leaves_qs = current_leaves.filter(department=department)
+
+            if mapped_role is not None:
+                users_qs = User.objects.filter(
+                    Q(department=department) | (Q(department__isnull=True) & Q(role=mapped_role))
+                )
+                leaves_qs = current_leaves.filter(
+                    Q(department=department) | (Q(department__isnull=True) & Q(employee__role=mapped_role))
+                )
+
+            total = users_qs.count()
+            on_leave = leaves_qs.count()
+            active = users_qs.filter(is_active=True).count()
             active_now = max(active - on_leave, 0)
             utilisation_pct = round((active_now / total) * 100, 1) if total else 0.0
 

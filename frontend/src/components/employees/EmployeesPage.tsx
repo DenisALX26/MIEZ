@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 
 type Department = {
   id: number
@@ -22,11 +23,41 @@ type Employee = {
   }
 }
 
+type EmployeeFormData = {
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  role: 'HR' | 'SALES' | 'IT' | 'INVENTORY'
+  department: string
+  position: string
+  employment_type: 'FULL_TIME' | 'PART_TIME' | 'CONTRACTOR'
+  start_date: string
+  salary_ron: string
+  address: string
+  is_active: boolean
+}
+
 type PaginatedEmployees = {
   count: number
   next: string | null
   previous: string | null
   results: Employee[]
+}
+
+const initialFormData: EmployeeFormData = {
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '+40',
+  role: 'SALES',
+  department: '',
+  position: '',
+  employment_type: 'FULL_TIME',
+  start_date: '',
+  salary_ron: '',
+  address: '',
+  is_active: true,
 }
 
 const getDisplayName = (employee: Employee) => {
@@ -59,8 +90,10 @@ const formatContract = (employmentType: Employee['employment_type']) => {
 }
 
 const EmployeesPage = () => {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
   const [employees, setEmployees] = useState<Employee[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -69,6 +102,46 @@ const EmployeesPage = () => {
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [formData, setFormData] = useState<EmployeeFormData>(initialFormData)
+  const [formErrors, setFormErrors] = useState<Record<string, string[]>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const canCreateEmployees = user?.role === 'CEO' || user?.role === 'HR'
+  const detailRouteBase = location.pathname.startsWith('/employees') ? '/employees' : '/hr/employees'
+
+  const fetchEmployees = async () => {
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams({ page: String(page) })
+
+      if (departmentFilter) {
+        params.set('department', departmentFilter)
+      }
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch)
+      }
+
+      const response = await fetch(`/api/employees/?${params.toString()}`, {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to load employees: ${response.status}`)
+      }
+
+      const data = (await response.json()) as PaginatedEmployees
+      setEmployees(data.results)
+      setTotal(data.count)
+    } catch (error) {
+      console.error('Failed to load employees', error)
+      setEmployees([])
+      setTotal(0)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -80,38 +153,6 @@ const EmployeesPage = () => {
   }, [searchTerm])
 
   useEffect(() => {
-    const fetchEmployees = async () => {
-      setIsLoading(true)
-      try {
-        const params = new URLSearchParams({ page: String(page) })
-
-        if (departmentFilter) {
-          params.set('department', departmentFilter)
-        }
-        if (debouncedSearch) {
-          params.set('search', debouncedSearch)
-        }
-
-        const response = await fetch(`/api/employees/?${params.toString()}`, {
-          credentials: 'include',
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to load employees: ${response.status}`)
-        }
-
-        const data = (await response.json()) as PaginatedEmployees
-        setEmployees(data.results)
-        setTotal(data.count)
-      } catch (error) {
-        console.error('Failed to load employees', error)
-        setEmployees([])
-        setTotal(0)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     fetchEmployees()
   }, [page, departmentFilter, debouncedSearch])
 
@@ -145,16 +186,166 @@ const EmployeesPage = () => {
     return Math.max(1, Math.ceil(total / 10))
   }, [total])
 
-  const detailRouteBase = location.pathname.startsWith('/employees') ? '/employees' : '/hr/employees'
+  const handleFormChange = (field: keyof EmployeeFormData, value: string | boolean) => {
+    setFormData(current => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleCreateEmployee = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setIsSubmitting(true)
+    setFormErrors({})
+
+    try {
+      const payload = {
+        ...formData,
+        department: Number(formData.department),
+        salary_ron: parseFloat(formData.salary_ron),
+      }
+
+      const response = await fetch('/api/employees/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.status === 400) {
+        const data = await response.json()
+        const normalizedErrors = (data?.field_errors as Record<string, string[]>) || data || {}
+        setFormErrors(normalizedErrors)
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to create employee: ${response.status}`)
+      }
+
+      setFormData(initialFormData)
+      setIsFormOpen(false)
+      setPage(1)
+      await fetchEmployees()
+    } catch (error) {
+      console.error('Failed to create employee', error)
+      setFormErrors({ non_field_errors: ['Could not create employee. Please try again.'] })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const renderError = (field: keyof EmployeeFormData | 'non_field_errors') => {
+    const errors = formErrors[field]
+    if (!errors || errors.length === 0) {
+      return null
+    }
+    return <p className="text-[0.82rem] text-red-600">{errors[0]}</p>
+  }
 
   return (
     <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h2 className="text-[1.18rem] font-semibold">Employees</h2>
-        <p className="text-[0.92rem] text-[var(--muted-foreground)]">
-          Search and review employees by role, department, contract and status.
-        </p>
+      <header className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-[1.18rem] font-semibold">Employees</h2>
+          <p className="text-[0.92rem] text-[var(--muted-foreground)]">
+            Search and review employees by role, department, contract and status.
+          </p>
+        </div>
+
+        {canCreateEmployees && (
+          <button
+            type="button"
+            className="min-h-[40px] rounded-[10px] bg-[var(--primary)] text-[var(--primary-foreground)] px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none"
+            onClick={() => setIsFormOpen(current => !current)}
+          >
+            {isFormOpen ? 'Close form' : 'Add employee'}
+          </button>
+        )}
       </header>
+
+      {canCreateEmployees && isFormOpen && (
+        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
+          <h3 className="text-[1rem] font-semibold mb-3">Create employee profile</h3>
+
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={handleCreateEmployee}>
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.first_name} onChange={event => handleFormChange('first_name', event.target.value)} placeholder="First name" required />
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.last_name} onChange={event => handleFormChange('last_name', event.target.value)} placeholder="Last name" required />
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" type="email" value={formData.email} onChange={event => handleFormChange('email', event.target.value)} placeholder="Email" required />
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.phone} onChange={event => handleFormChange('phone', event.target.value)} placeholder="Phone (+40...)" required />
+
+            <select className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.role} onChange={event => handleFormChange('role', event.target.value as EmployeeFormData['role'])}>
+              <option value="HR">HR</option>
+              <option value="SALES">Sales</option>
+              <option value="IT">IT</option>
+              <option value="INVENTORY">Inventory</option>
+            </select>
+
+            <select className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.department} onChange={event => handleFormChange('department', event.target.value)} required>
+              <option value="">Select department</option>
+              {departments.map(department => (
+                <option key={department.id} value={String(department.id)}>{department.name}</option>
+              ))}
+            </select>
+
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.position} onChange={event => handleFormChange('position', event.target.value)} placeholder="Position" required />
+            <select className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.employment_type} onChange={event => handleFormChange('employment_type', event.target.value as EmployeeFormData['employment_type'])} required>
+              <option value="FULL_TIME">Full-time</option>
+              <option value="PART_TIME">Part-time</option>
+              <option value="CONTRACTOR">Contractor</option>
+            </select>
+
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" type="date" value={formData.start_date} onChange={event => handleFormChange('start_date', event.target.value)} required />
+            <input className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" type="number" step="0.01" value={formData.salary_ron} onChange={event => handleFormChange('salary_ron', event.target.value)} placeholder="Salary (RON)" required />
+
+            <input className="md:col-span-2 min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]" value={formData.address} onChange={event => handleFormChange('address', event.target.value)} placeholder="Address" required />
+
+            <label className="md:col-span-2 inline-flex items-center gap-[0.45rem] text-[0.92rem] text-[var(--muted-foreground)]">
+              <input className="w-4 h-4" type="checkbox" checked={formData.is_active} onChange={event => handleFormChange('is_active', event.target.checked)} />
+              Active employee
+            </label>
+
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {renderError('first_name')}
+              {renderError('last_name')}
+              {renderError('email')}
+              {renderError('phone')}
+              {renderError('role')}
+              {renderError('department')}
+              {renderError('position')}
+              {renderError('employment_type')}
+              {renderError('start_date')}
+              {renderError('salary_ron')}
+              {renderError('address')}
+              {renderError('is_active')}
+              {renderError('non_field_errors')}
+            </div>
+
+            <div className="md:col-span-2 flex justify-end gap-2 mt-1">
+              <button
+                type="button"
+                className="min-h-[40px] border border-[var(--border)] rounded-[10px] bg-[var(--card)] text-[var(--card-foreground)] px-[0.9rem] font-semibold cursor-pointer"
+                onClick={() => {
+                  setIsFormOpen(false)
+                  setFormData(initialFormData)
+                  setFormErrors({})
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="min-h-[40px] rounded-[10px] bg-[var(--primary)] text-[var(--primary-foreground)] px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Create employee'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-3">
         <input

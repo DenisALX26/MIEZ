@@ -273,3 +273,26 @@ def test_payroll_deduction_formula_net_equals_base_plus_bonus_minus_deductions(h
     net = Decimal(row['net_salary_ron'])
 
     assert net == base + bonus - deductions
+
+
+def test_ceo_hr_summary_counts_it_and_sales_departments(hr_department):
+    ceo = baker.make(User, role=User.Role.CEO, username='ceo_summary', email='ceo_summary@example.com')
+    client = APIClient()
+    client.force_authenticate(user=ceo)
+
+    it_department = baker.make(Department, name='IT Support', slug='it-support')
+    sales_department = baker.make(Department, name='Sales & Marketing', slug='sales-marketing')
+
+    baker.make(User, role=User.Role.IT, department=it_department, is_active=True)
+    baker.make(User, role=User.Role.IT, department=it_department, is_active=False)
+    baker.make(User, role=User.Role.SALES, department=sales_department, is_active=True)
+
+    response = client.get('/api/hr/ceo-summary/')
+
+    assert response.status_code == 200
+    by_department = {row['department']: row for row in response.data['department_headcount']}
+
+    assert by_department['IT Support']['total'] == 2
+    assert by_department['IT Support']['active'] == 1
+    assert by_department['Sales & Marketing']['total'] == 1
+    assert by_department['Sales & Marketing']['active'] == 1
