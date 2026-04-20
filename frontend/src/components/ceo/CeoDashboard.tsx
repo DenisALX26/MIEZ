@@ -8,6 +8,7 @@ import {
   FiTrash2,
   FiPlus,
 } from 'react-icons/fi'
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 
 type Department = {
@@ -15,6 +16,24 @@ type Department = {
   name: string
   slug: string
   icon?: string
+}
+
+type DepartmentHeadcountRow = {
+  department: string
+  total: number
+  active: number
+  on_leave: number
+  utilisation_pct: number
+}
+
+type AttendanceRateWeek = {
+  week_start: string
+  attendance_rate: number
+}
+
+type CeoHrSummaryResponse = {
+  department_headcount: DepartmentHeadcountRow[]
+  attendance_rate_weeks: AttendanceRateWeek[]
 }
 
 const iconMap = {
@@ -32,6 +51,9 @@ const CeoDashboard = () => {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [icon, setIcon] = useState('Building2')
+  const [hrSummary, setHrSummary] = useState<CeoHrSummaryResponse | null>(null)
+  const [hrSummaryLoading, setHrSummaryLoading] = useState(true)
+  const [hrSummaryError, setHrSummaryError] = useState('')
 
   useEffect(() => {
     const fetchDepartments = async () => {
@@ -62,6 +84,53 @@ const CeoDashboard = () => {
 
     fetchDepartments()
   }, [user?.role])
+
+  useEffect(() => {
+    const fetchHrSummary = async () => {
+      if (user?.role !== 'CEO') {
+        setHrSummary(null)
+        setHrSummaryLoading(false)
+        return
+      }
+
+      try {
+        setHrSummaryLoading(true)
+        setHrSummaryError('')
+
+        const response = await fetch('/api/hr/ceo-summary/', {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to load CEO HR summary: ${response.status}`)
+        }
+
+        const data = (await response.json()) as CeoHrSummaryResponse
+        setHrSummary(data)
+      } catch (error) {
+        console.error('Eroare la incarcarea HR summary pentru CEO', error)
+        setHrSummaryError('Could not load HR summary data right now.')
+      } finally {
+        setHrSummaryLoading(false)
+      }
+    }
+
+    fetchHrSummary()
+  }, [user?.role])
+
+  const attendanceChartData = useMemo(() => {
+    return (hrSummary?.attendance_rate_weeks ?? []).map(point => {
+      const weekDate = new Date(point.week_start)
+      const label = Number.isNaN(weekDate.getTime())
+        ? point.week_start
+        : weekDate.toLocaleDateString('ro-RO', { month: 'short', day: 'numeric' })
+
+      return {
+        ...point,
+        label,
+      }
+    })
+  }, [hrSummary])
 
   const handleDelete = async (id: number) => {
     try {
@@ -157,6 +226,87 @@ const CeoDashboard = () => {
 
   return (
     <div className="flex flex-col gap-5">
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+        <header className="mb-4">
+          <h2 className="text-[1.1rem] font-semibold">CEO HR Summary</h2>
+          <p className="text-[0.92rem] text-[var(--muted-foreground)]">
+            Department headcount, leave status and attendance utilisation trend.
+          </p>
+        </header>
+
+        {hrSummaryLoading && (
+          <p className="text-[0.92rem] text-[var(--muted-foreground)]">Loading HR summary...</p>
+        )}
+
+        {!hrSummaryLoading && hrSummaryError && (
+          <p className="text-[0.92rem] text-[var(--destructive)]">{hrSummaryError}</p>
+        )}
+
+        {!hrSummaryLoading && !hrSummaryError && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="border border-[var(--border)] rounded-xl overflow-hidden">
+              <table className="w-full text-left text-[0.9rem]">
+                <thead className="bg-[var(--input-background)]">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Department</th>
+                    <th className="px-3 py-2 font-semibold">Total</th>
+                    <th className="px-3 py-2 font-semibold">Active</th>
+                    <th className="px-3 py-2 font-semibold">On Leave</th>
+                    <th className="px-3 py-2 font-semibold">Utilisation %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(hrSummary?.department_headcount ?? []).map(row => (
+                    <tr key={row.department} className="border-t border-[var(--border)]">
+                      <td className="px-3 py-2 font-medium">{row.department}</td>
+                      <td className="px-3 py-2">{row.total}</td>
+                      <td className="px-3 py-2 text-emerald-600 font-semibold">{row.active}</td>
+                      <td className="px-3 py-2 text-amber-600 font-semibold">{row.on_leave}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 flex-1 rounded-full bg-[var(--input-background)] overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-[var(--primary)]"
+                              style={{ width: `${Math.max(0, Math.min(100, row.utilisation_pct))}%` }}
+                            />
+                          </div>
+                          <span className="text-[0.8rem] font-semibold">{row.utilisation_pct.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="border border-[var(--border)] rounded-xl p-4">
+              <h3 className="text-[0.95rem] font-semibold mb-2">Attendance Rate per Week (Last 6 Weeks)</h3>
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={attendanceChartData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
+                    <Tooltip
+                      formatter={(value: number) => [`${Number(value).toFixed(1)}%`, 'Attendance Rate']}
+                      labelFormatter={value => `Week of ${String(value)}`}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="attendance_rate"
+                      stroke="var(--primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
       <header className="flex flex-col gap-2">
         <h2 className="text-[1.15rem] font-semibold">Department Management</h2>
         <p className="text-[0.92rem] text-[var(--muted-foreground)]">
