@@ -66,6 +66,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             'last_name',
             'email',
             'phone',
+            'role',
             'department',
             'position',
             'employment_type',
@@ -79,6 +80,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             'first_name': {'required': True},
             'last_name': {'required': True},
             'phone': {'required': True},
+            'role': {'required': False},
             'department': {'required': True},
             'position': {'required': True},
             'employment_type': {'required': True},
@@ -102,13 +104,32 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
             username = f'{base_username}{counter}'
             counter += 1
 
+        explicit_role = validated_data.pop('role', None)
         employment_type = validated_data.pop('employment_type', User.EmploymentType.FULL_TIME)
         validated_data['full_time'] = employment_type == User.EmploymentType.FULL_TIME
+
+        department = validated_data.get('department')
+        role = User.Role.SALES
+        if department is not None:
+            department_slug = (getattr(department, 'slug', '') or '').strip().lower()
+            department_name = (getattr(department, 'name', '') or '').strip().lower()
+
+            if 'it' in department_slug or 'it' in department_name:
+                role = User.Role.IT
+            elif 'sales' in department_slug or 'sales' in department_name:
+                role = User.Role.SALES
+            elif 'hr' in department_slug or 'hr' in department_name:
+                role = User.Role.HR
+            elif 'inventory' in department_slug or 'inventory' in department_name:
+                role = User.Role.INVENTORY
+
+        if explicit_role:
+            role = explicit_role
 
         user = User.objects.create(
             username=username,
             email=email,
-            role=User.Role.SALES,
+            role=role,
             employment_type=employment_type,
             **validated_data,
         )
