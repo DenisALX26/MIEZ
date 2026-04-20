@@ -186,6 +186,14 @@ class EmployeeListView(APIView):
 
         queryset = User.objects.select_related('department').all().order_by('id')
 
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(username__icontains=search)
+            )
+
         department_filter = request.query_params.get('department')
         if department_filter:
             if department_filter.isdigit():
@@ -215,6 +223,18 @@ class EmployeeListView(APIView):
         employee = serializer.save()
         response_serializer = EmployeeListSerializer(employee)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class EmployeeDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view employee details."}, status=status.HTTP_403_FORBIDDEN)
+
+        employee = get_object_or_404(User.objects.select_related('department'), id=id)
+        serializer = EmployeeListSerializer(employee)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class EmployeeStatsView(APIView):
