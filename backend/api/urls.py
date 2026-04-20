@@ -39,4 +39,7 @@ urlpatterns = [
   path('it/ticket-trend/', views.ItTicketTrendView.as_view(), name='it_ticket_trend'),
   path('tickets/', views.TicketListCreateView.as_view(), name='ticket_list'),
   path('tickets/<int:id>/', views.TicketDetailView.as_view(), name='ticket_detail'),
+  path('reports/', views.ReportListView.as_view(), name='report_list'),
+  path('reports/<int:id>/download/', views.ReportDownloadView.as_view(), name='report_download'),
+  path('reports/generate/<slug:slug>/', views.ReportGenerateView.as_view(), name='report_generate'),
 ]
