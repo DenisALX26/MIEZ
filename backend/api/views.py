@@ -22,7 +22,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance
 from .serializers import (
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -292,6 +292,93 @@ class HrDashboardView(APIView):
                 'non_full_time_employees': non_full_time,
                 'retention_rate': retention_rate,
                 'active_employees': active_employees,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CeoHrSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.CEO:
+            return Response({"detail": "Only CEO can view HR summary."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+
+        current_leaves = LeaveRequest.objects.filter(
+            status=LeaveRequest.Status.APPROVED,
+            from_date__lte=today,
+            to_date__gte=today,
+        )
+
+        leave_by_department = {
+            row['department_id']: row['count']
+            for row in (
+                current_leaves.values('department_id').annotate(count=Count('id'))
+            )
+        }
+
+        department_headcount = []
+        departments = Department.objects.order_by('name')
+        for department in departments:
+            total = User.objects.filter(department=department).count()
+            on_leave = leave_by_department.get(department.id, 0)
+            active = User.objects.filter(department=department, is_active=True).count()
+            active_now = max(active - on_leave, 0)
+            utilisation_pct = round((active_now / total) * 100, 1) if total else 0.0
+
+            department_headcount.append(
+                {
+                    'department': department.name,
+                    'total': total,
+                    'active': active_now,
+                    'on_leave': on_leave,
+                    'utilisation_pct': utilisation_pct,
+                }
+            )
+
+        six_weeks_ago = today - timedelta(weeks=5)
+        week_start = six_weeks_ago - timedelta(days=six_weeks_ago.weekday())
+
+        attendance_rows = (
+            Attendance.objects.filter(date__gte=week_start, date__lte=today)
+            .annotate(week=TruncWeek('date'))
+            .values('week')
+            .annotate(
+                total=Count('id'),
+                attended=Count('id', filter=Q(status__in=[Attendance.Status.PRESENT, Attendance.Status.REMOTE])),
+            )
+            .order_by('week')
+        )
+
+        attendance_by_week = {}
+        for row in attendance_rows:
+            week_value = row['week']
+            week_date = week_value.date() if hasattr(week_value, 'date') else week_value
+            key = week_date.isoformat()
+
+            total_count = row['total'] or 0
+            attended_count = row['attended'] or 0
+            rate = round((attended_count / total_count) * 100, 1) if total_count else 0.0
+
+            attendance_by_week[key] = rate
+
+        attendance_rate_weeks = []
+        for index in range(6):
+            current_week = week_start + timedelta(weeks=index)
+            week_key = current_week.isoformat()
+            attendance_rate_weeks.append(
+                {
+                    'week_start': week_key,
+                    'attendance_rate': attendance_by_week.get(week_key, 0.0),
+                }
+            )
+
+        return Response(
+            {
+                'department_headcount': department_headcount,
+                'attendance_rate_weeks': attendance_rate_weeks,
             },
             status=status.HTTP_200_OK,
         )

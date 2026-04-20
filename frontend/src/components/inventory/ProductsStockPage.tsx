@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FiSearch, FiPackage, FiFilter, FiDownload, FiCheckCircle, FiAlertTriangle, FiXCircle, FiX, FiActivity, FiDollarSign } from "react-icons/fi";
+import { FiSearch, FiPackage, FiCheckCircle, FiAlertTriangle, FiXCircle, FiX, FiActivity, FiDollarSign } from "react-icons/fi";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 
 interface Product {
