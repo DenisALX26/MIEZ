@@ -1,5 +1,6 @@
 from datetime import timedelta, datetime, date
 from collections import OrderedDict
+from decimal import Decimal, InvalidOperation
 
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
@@ -22,7 +23,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry
 from .serializers import (
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -402,6 +403,238 @@ class CeoHrSummaryView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class HrAttendanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view attendance."}, status=status.HTTP_403_FORBIDDEN)
+
+        week_raw = request.query_params.get('week')
+        today = timezone.localdate()
+
+        if week_raw:
+            parsed_week_start = None
+            try:
+                parsed_week_start = datetime.strptime(week_raw, '%Y-%m-%d').date()
+            except ValueError:
+                try:
+                    parsed_week_start = datetime.strptime(f'{week_raw}-1', '%G-W%V-%u').date()
+                except ValueError:
+                    return Response({'detail': 'Invalid week format. Use YYYY-MM-DD or YYYY-Www.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            week_start = parsed_week_start - timedelta(days=parsed_week_start.weekday())
+        else:
+            week_start = today - timedelta(days=today.weekday())
+
+        days = [week_start + timedelta(days=offset) for offset in range(7)]
+        week_end = days[-1]
+
+        attendance_rows = Attendance.objects.filter(date__gte=week_start, date__lte=week_end).select_related('employee')
+        by_key = {(row.employee_id, row.date.isoformat()): row.status for row in attendance_rows}
+
+        employees = User.objects.select_related('department').all().order_by('id')
+        employee_grid = []
+        for employee in employees:
+            statuses = {}
+            for day in days:
+                day_key = day.isoformat()
+                statuses[day_key] = by_key.get((employee.id, day_key), None)
+
+            full_name = f'{employee.first_name} {employee.last_name}'.strip() or employee.username
+            employee_grid.append(
+                {
+                    'employee_id': employee.id,
+                    'employee_name': full_name,
+                    'department': employee.department.name if employee.department else None,
+                    'statuses': statuses,
+                }
+            )
+
+        return Response(
+            {
+                'week_start': week_start.isoformat(),
+                'week_end': week_end.isoformat(),
+                'days': [d.isoformat() for d in days],
+                'grid': employee_grid,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class LeaveRequestListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can create leave requests."}, status=status.HTTP_403_FORBIDDEN)
+
+        employee_id = request.data.get('employee')
+        leave_type = request.data.get('type', LeaveRequest.Type.VACATION)
+        from_date_raw = request.data.get('from_date')
+        to_date_raw = request.data.get('to_date')
+        reason = request.data.get('reason', '')
+
+        if not employee_id or not from_date_raw or not to_date_raw:
+            return Response({'detail': 'employee, from_date and to_date are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        employee = get_object_or_404(User.objects.select_related('department'), id=employee_id)
+
+        try:
+            from_date_value = date.fromisoformat(from_date_raw)
+            to_date_value = date.fromisoformat(to_date_raw)
+        except ValueError:
+            return Response({'detail': 'Invalid date format. Use YYYY-MM-DD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        leave_request = LeaveRequest.objects.create(
+            employee=employee,
+            department=employee.department,
+            type=leave_type,
+            from_date=from_date_value,
+            to_date=to_date_value,
+            reason=reason,
+            status=LeaveRequest.Status.PENDING,
+        )
+
+        return Response(
+            {
+                'id': leave_request.id,
+                'employee': leave_request.employee_id,
+                'type': leave_request.type,
+                'from_date': leave_request.from_date.isoformat(),
+                'to_date': leave_request.to_date.isoformat(),
+                'status': leave_request.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class LeaveRequestApproveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can approve leave requests."}, status=status.HTTP_403_FORBIDDEN)
+
+        leave_request = get_object_or_404(LeaveRequest, id=id)
+        leave_request.status = LeaveRequest.Status.APPROVED
+        leave_request.approved_by = request.user
+        leave_request.save(update_fields=['status', 'approved_by', 'updated_at'])
+
+        return Response({'id': leave_request.id, 'status': leave_request.status}, status=status.HTTP_200_OK)
+
+
+class LeaveRequestRejectView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can reject leave requests."}, status=status.HTTP_403_FORBIDDEN)
+
+        leave_request = get_object_or_404(LeaveRequest, id=id)
+        leave_request.status = LeaveRequest.Status.REJECTED
+        leave_request.approved_by = request.user
+        leave_request.save(update_fields=['status', 'approved_by', 'updated_at'])
+
+        return Response({'id': leave_request.id, 'status': leave_request.status}, status=status.HTTP_200_OK)
+
+
+class ContractListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _computed_status(contract, today):
+        if contract.end_date is None:
+            return 'ACTIVE'
+        if contract.end_date < today:
+            return 'EXPIRED'
+        if contract.end_date <= today + timedelta(days=30):
+            return 'EXPIRING'
+        return 'ACTIVE'
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view contracts."}, status=status.HTTP_403_FORBIDDEN)
+
+        status_filter = (request.query_params.get('status') or '').strip().lower()
+        today = timezone.localdate()
+
+        contracts = Contract.objects.select_related('employee', 'department').all().order_by('id')
+        rows = []
+        for contract in contracts:
+            computed_status = self._computed_status(contract, today)
+
+            if status_filter == 'expiring' and computed_status != 'EXPIRING':
+                continue
+
+            rows.append(
+                {
+                    'id': contract.id,
+                    'contract_number': contract.contract_number,
+                    'employee': contract.employee_id,
+                    'employee_name': (f'{contract.employee.first_name} {contract.employee.last_name}'.strip() or contract.employee.username),
+                    'department': contract.department.name if contract.department else None,
+                    'type': contract.type,
+                    'start_date': contract.start_date.isoformat(),
+                    'end_date': contract.end_date.isoformat() if contract.end_date else None,
+                    'salary_ron': str(contract.salary_ron),
+                    'status': computed_status,
+                }
+            )
+
+        return Response({'contracts': rows}, status=status.HTTP_200_OK)
+
+
+class PayrollListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view payroll."}, status=status.HTTP_403_FORBIDDEN)
+
+        month_raw = request.query_params.get('month')
+        if not month_raw:
+            return Response({'detail': 'month query parameter is required (YYYY-MM).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            month_start = date.fromisoformat(f'{month_raw}-01')
+        except ValueError:
+            return Response({'detail': 'Invalid month format. Use YYYY-MM.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        bonus_raw = request.query_params.get('bonus', '0')
+        deductions_raw = request.query_params.get('deductions', '0')
+        try:
+            bonus_value = Decimal(str(bonus_raw))
+            deductions_value = Decimal(str(deductions_raw))
+        except (InvalidOperation, TypeError):
+            return Response({'detail': 'bonus and deductions must be numeric values.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        entries = PayrollEntry.objects.select_related('employee').filter(
+            month__year=month_start.year,
+            month__month=month_start.month,
+        ).order_by('id')
+
+        rows = []
+        for entry in entries:
+            base = Decimal(entry.gross_salary_ron or 0)
+            net = base + bonus_value - deductions_value
+
+            rows.append(
+                {
+                    'id': entry.id,
+                    'employee': entry.employee_id,
+                    'employee_name': (f'{entry.employee.first_name} {entry.employee.last_name}'.strip() or entry.employee.username),
+                    'month': month_start.isoformat(),
+                    'base_salary_ron': str(base),
+                    'bonus_ron': str(bonus_value),
+                    'deductions_ron': str(deductions_value),
+                    'net_salary_ron': str(net),
+                }
+            )
+
+        return Response({'month': month_raw, 'payroll': rows}, status=status.HTTP_200_OK)
 
 
 class SupplierListView(APIView):
