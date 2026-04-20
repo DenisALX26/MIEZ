@@ -19,6 +19,7 @@ import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
+import ReportsPage from './components/reports/ReportsPage'
 
 type ModulePageProps = {
   title: string
@@ -370,12 +371,7 @@ function App() {
             />
             <Route
               path="/reports"
-              element={
-                <ModulePage
-                  title="Reports"
-                  description="View operational metrics and exported business reports."
-                />
-              }
+              element={<ReportsPage />}
             />
             <Route
               path="/workflows"

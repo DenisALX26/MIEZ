@@ -399,8 +399,13 @@ class SystemStatistic(models.Model):
 
 class Report(models.Model):
     name = models.CharField(max_length=160)
+    slug = models.SlugField(max_length=100, unique=True, default='')
     category = models.CharField(max_length=80, blank=True, default='')
     period = models.CharField(max_length=80, blank=True, default='')
     file_path = models.CharField(max_length=255, blank=True, default='')
-    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='reports_generated')
-    generated_at = models.DateTimeField(auto_now_add=True)
+    file_size_kb = models.IntegerField(default=0)
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reports_generated')
+    generated_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return self.name
