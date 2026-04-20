@@ -22,7 +22,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice
+from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest
 from .serializers import (
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -251,6 +251,47 @@ class EmployeeStatsView(APIView):
                 'active': stats['active'],
                 'full_time': stats['full_time'],
                 'departments': departments,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class HrDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view HR dashboard KPIs."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        month_start = today.replace(day=1)
+
+        employees = User.objects.all()
+        total_employees = employees.count()
+        active_employees = employees.filter(is_active=True).count()
+        full_time_employees = employees.filter(full_time=True).count()
+
+        new_hires_this_month = employees.filter(start_date__gte=month_start, start_date__lte=today).count()
+
+        leave_requests_this_month = LeaveRequest.objects.filter(
+            created_at__date__gte=month_start,
+            created_at__date__lte=today,
+        ).count()
+        pending_leave_requests = LeaveRequest.objects.filter(status=LeaveRequest.Status.PENDING).count()
+
+        non_full_time = max(total_employees - full_time_employees, 0)
+        retention_rate = round((active_employees / total_employees) * 100, 1) if total_employees else 0.0
+
+        return Response(
+            {
+                'total_employees': total_employees,
+                'new_hires_this_month': new_hires_this_month,
+                'leave_requests_this_month': leave_requests_this_month,
+                'pending_leave_requests': pending_leave_requests,
+                'full_time_employees': full_time_employees,
+                'non_full_time_employees': non_full_time,
+                'retention_rate': retention_rate,
+                'active_employees': active_employees,
             },
             status=status.HTTP_200_OK,
         )

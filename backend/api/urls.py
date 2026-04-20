@@ -17,6 +17,7 @@ urlpatterns = [
   path('departments/<int:id>/', views.DepartmentDeleteView.as_view(), name='department_delete'),
   path('employees/', views.EmployeeListView.as_view(), name='employee_list'),
   path('employees/stats/', views.EmployeeStatsView.as_view(), name='employee_stats'),
+  path('hr/dashboard/', views.HrDashboardView.as_view(), name='hr_dashboard_kpis'),
   path('sales/dashboard/', views.SalesDashboardView.as_view(), name='sales_dashboard_kpis'),
   path('sales/daily-orders/', views.SalesDailyOrdersView.as_view(), name='sales_daily_orders'),
   path('sales/top-products/', views.SalesTopProductsView.as_view(), name='sales_top_products'),

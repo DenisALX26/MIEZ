@@ -15,6 +15,7 @@ import ItDashboard from './components/it/ItDashboard'
 import SalesDashboard from './components/sales/SalesDashboard'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
+import HrDashboard from './components/hr/HrDashboard' 
 
 type ModulePageProps = {
   title: string
@@ -167,7 +168,7 @@ function App() {
               path="/hr/dashboard"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <HrDashboard /> {/* Aici apar cardurile tale KPI */}
                 </ProtectedRoute>
               }
             />
@@ -175,7 +176,7 @@ function App() {
               path="/hr/employees"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <EmployeesPage /> {/* Folosim componenta dedicată angajaților */}
                 </ProtectedRoute>
               }
             />
@@ -183,7 +184,10 @@ function App() {
               path="/hr/attendance"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <ModulePage 
+                    title="Attendance Tracking" 
+                    description="View and manage daily attendance logs for all staff." 
+                  />
                 </ProtectedRoute>
               }
             />
@@ -191,7 +195,10 @@ function App() {
               path="/hr/leave-requests"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <ModulePage 
+                    title="Leave Requests" 
+                    description="Manage vacation, medical, and other leave applications." 
+                  />
                 </ProtectedRoute>
               }
             />
@@ -199,7 +206,10 @@ function App() {
               path="/hr/contracts"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <ModulePage 
+                    title="Contract Management" 
+                    description="Store and track employee contracts and legal documents." 
+                  />
                 </ProtectedRoute>
               }
             />
@@ -207,7 +217,10 @@ function App() {
               path="/hr/payroll"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <DashboardPage />
+                  <ModulePage 
+                    title="Payroll" 
+                    description="Process salaries, bonuses, and tax deductions." 
+                  />
                 </ProtectedRoute>
               }
             />
