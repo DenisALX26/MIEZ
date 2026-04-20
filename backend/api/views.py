@@ -1177,10 +1177,12 @@ class SalesDailyOrdersView(APIView):
             .order_by('day')
         )
 
-        by_day = {
-            row['day'].isoformat(): row['orders_count']
-            for row in aggregated
-        }
+        by_day = {}
+        for row in aggregated:
+            day_value = row['day']
+            if hasattr(day_value, 'date'):
+                day_value = day_value.date()
+            by_day[day_value.isoformat()] = row['orders_count']
 
         days = []
         for index in range(7):
@@ -1203,13 +1205,18 @@ class SalesTopProductsView(APIView):
 
         today = timezone.localdate()
         week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
 
         products = (
             OrderItem.objects
             .annotate(order_day=TruncDay('order__date'))
-            .filter(order__date__gte=week_start, order__date__lte=today)
+            .filter(order__date__gte=week_start, order__date__lte=week_end)
             .values('product', 'product__name', 'product__sku')
-            .annotate(units_sold=Sum('quantity'))
+            .annotate(
+                units_sold=Sum('quantity'),
+                order_lines=Count('id'),
+                selling_days=Count('order_day', distinct=True),
+            )
             .order_by('-units_sold', 'product__name')[:5]
         )
 
@@ -1226,7 +1233,7 @@ class SalesTopProductsView(APIView):
         return Response(
             {
                 'week_start': week_start.isoformat(),
-                'week_end': today.isoformat(),
+                'week_end': week_end.isoformat(),
                 'products': data,
             },
             status=status.HTTP_200_OK,

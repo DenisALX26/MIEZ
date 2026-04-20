@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
 import SalesDashboard from './components/sales/SalesDashboard'
+import SalesOrdersPage from './components/sales/SalesOrdersPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard' 
@@ -239,7 +240,7 @@ function App() {
               path="/sales/dashboard"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <DashboardPage />
+                  <SalesDashboard />
                 </ProtectedRoute>
               }
             />
@@ -247,7 +248,7 @@ function App() {
               path="/sales/orders"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <DashboardPage />
+                  <SalesOrdersPage />
                 </ProtectedRoute>
               }
             />
@@ -255,7 +256,10 @@ function App() {
               path="/sales/customers"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <DashboardPage />
+                  <ModulePage
+                    title="Customers"
+                    description="Review customer accounts, contact history, and order relationships."
+                  />
                 </ProtectedRoute>
               }
             />
@@ -263,7 +267,10 @@ function App() {
               path="/sales/products"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <DashboardPage />
+                  <ModulePage
+                    title="Products"
+                    description="Browse the sales catalog and product availability."
+                  />
                 </ProtectedRoute>
               }
             />
@@ -271,7 +278,10 @@ function App() {
               path="/sales/invoices"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <DashboardPage />
+                  <ModulePage
+                    title="Invoices"
+                    description="Track billing documents, paid invoices, and outstanding balances."
+                  />
                 </ProtectedRoute>
               }
             />
