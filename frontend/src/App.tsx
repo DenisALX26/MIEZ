@@ -4,6 +4,7 @@ import AppShell from './components/layout/AppShell'
 import LoginPage from './components/LoginPage'
 import DashboardPage from './components/dashboard/DashboardPage'
 import EmployeesPage from './components/employees/EmployeesPage'
+import EmployeeDetailPage from './components/employees/EmployeeDetailPage.tsx'
 import LowStockPage from './components/inventory/LowStockPage'
 import ReceiveStockPage from './components/inventory/ReceiveStockPage'
 import StockMovementsPage from './components/inventory/StockMovementsPage'
@@ -181,6 +182,14 @@ function App() {
               }
             />
             <Route
+              path="/hr/employees/:id"
+              element={
+                <ProtectedRoute requiredRole="HR">
+                  <EmployeeDetailPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/hr/attendance"
               element={
                 <ProtectedRoute requiredRole="HR">
@@ -329,6 +338,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRoles={['CEO', 'HR']}>
                   <EmployeesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employees/:id"
+              element={
+                <ProtectedRoute requiredRoles={['CEO', 'HR']}>
+                  <EmployeeDetailPage />
                 </ProtectedRoute>
               }
             />
