@@ -4,6 +4,7 @@ from django.utils import timezone
 
 from .models import Department, User
 from .models import Product
+from .models import Report
 from .models import Supplier, StockMovement
 from .models import Ticket, Order, OrderItem, Customer, Invoice
 
@@ -398,3 +399,14 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
                 validated_data['assigned_to'] = request.user
 
         return super().update(instance, validated_data)
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    file_available = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Report
+        fields = ['id', 'name', 'slug', 'category', 'period', 'file_size_kb', 'generated_at', 'file_available']
+
+    def get_file_available(self, obj):
+        return bool(obj.file_path)

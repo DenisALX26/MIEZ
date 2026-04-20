@@ -2,9 +2,7 @@ from datetime import timedelta, datetime, date
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
 
-from django.http import JsonResponse
-from django.views.decorators.http import require_GET
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField
@@ -23,7 +21,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry
+from .models import Department, Report, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry
 from .serializers import (
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -34,6 +32,7 @@ from .serializers import (
     OrderDetailSerializer,
     OrderListSerializer,
     ProductSerializer,
+    ReportSerializer,
     SupplierSerializer,
     StockMovementSerializer,
     TicketCreateSerializer,
@@ -1368,3 +1367,40 @@ class SalesRevenueTrendView(APIView):
             )
 
         return Response({'days': rows}, status=status.HTTP_200_OK)
+
+
+class ReportListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        reports = Report.objects.all().order_by('-generated_at')
+        category = request.query_params.get('category')
+        if category:
+            reports = reports.filter(category=category)
+        return Response(ReportSerializer(reports, many=True).data)
+
+
+class ReportDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        from pathlib import Path
+        report = get_object_or_404(Report, id=id)
+        if not report.file_path:
+            return Response({'detail': 'File not available.'}, status=status.HTTP_404_NOT_FOUND)
+        path = Path(report.file_path)
+        if not path.exists():
+            return Response({'detail': 'File not found on server.'}, status=status.HTTP_404_NOT_FOUND)
+        return FileResponse(open(path, 'rb'), content_type='text/csv', as_attachment=True, filename=path.name)
+
+
+class ReportGenerateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, slug):
+        from .report_utils import generate_report_file
+        if request.user.role != User.Role.CEO and not request.user.is_staff:
+            raise PermissionDenied('Only CEO or admin can generate reports.')
+        report = get_object_or_404(Report, slug=slug)
+        generate_report_file(report, user=request.user)
+        return Response(ReportSerializer(report).data, status=status.HTTP_200_OK)
