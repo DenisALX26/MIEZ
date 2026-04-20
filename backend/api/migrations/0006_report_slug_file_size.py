@@ -100,7 +100,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='report',
             name='slug',
-            field=models.SlugField(default='', max_length=100),
+            field=models.SlugField(default='', max_length=100, db_index=False),
         ),
         migrations.AddField(
             model_name='report',

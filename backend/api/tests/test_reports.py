@@ -11,6 +11,7 @@ from ..models import Report, User
 
 
 def _make_user(username, role=User.Role.HR, **kwargs):
+    kwargs.setdefault('email', f'{username}@test.com')
     return User.objects.create_user(username=username, password='testpass', role=role, **kwargs)
 
 
@@ -29,6 +30,7 @@ def _make_report(**kwargs):
 
 class ReportListTests(APITestCase):
     def setUp(self):
+        Report.objects.all().delete()
         self.user = _make_user('hruser')
         self.client.force_authenticate(user=self.user)
         self.url = reverse('report_list')
