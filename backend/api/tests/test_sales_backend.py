@@ -6,7 +6,7 @@ from django.utils import timezone
 from model_bakery import baker
 from rest_framework.test import APIClient
 
-from api.models import Customer, Invoice, Order, Product, User
+from api.models import Customer, Invoice, Order, OrderItem, Product, User
 
 
 pytestmark = pytest.mark.django_db
@@ -242,3 +242,60 @@ def test_get_sales_revenue_trend_returns_7_entries_with_current_and_prior_year_v
     assert today_row is not None
     assert Decimal(today_row['current_year']) == Decimal('75.00')
     assert Decimal(today_row['prior_year']) == Decimal('50.00')
+
+
+def test_get_sales_daily_orders_returns_last_7_days_with_counts():
+    client, user = _authed_sales_client()
+    customer = baker.make(Customer)
+
+    today = timezone.localdate()
+    two_days_ago = today - timedelta(days=2)
+
+    baker.make(Order, customer=customer, created_by=user, date=today)
+    baker.make(Order, customer=customer, created_by=user, date=today)
+    baker.make(Order, customer=customer, created_by=user, date=two_days_ago)
+    baker.make(Order, customer=customer, created_by=user, date=today - timedelta(days=10))
+
+    response = client.get('/api/sales/daily-orders/')
+
+    assert response.status_code == 200
+    assert 'days' in response.data
+    assert len(response.data['days']) == 7
+
+    by_date = {entry['date']: entry['orders_count'] for entry in response.data['days']}
+    assert by_date[today.isoformat()] == 2
+    assert by_date[two_days_ago.isoformat()] == 1
+
+
+def test_get_sales_top_products_returns_current_iso_week_ranked_by_units_sold():
+    client, user = _authed_sales_client()
+    customer = baker.make(Customer)
+    product_a = baker.make(Product, name='Alpha Product', sku='ALPHA-001')
+    product_b = baker.make(Product, name='Beta Product', sku='BETA-001')
+
+    today = timezone.localdate()
+    week_start = today - timedelta(days=today.weekday())
+    week_end = week_start + timedelta(days=6)
+    previous_week_day = week_start - timedelta(days=1)
+
+    order_today = baker.make(Order, customer=customer, created_by=user, date=today)
+    order_week_start = baker.make(Order, customer=customer, created_by=user, date=week_start)
+    order_previous_week = baker.make(Order, customer=customer, created_by=user, date=previous_week_day)
+
+    baker.make(OrderItem, order=order_today, product=product_a, quantity=3)
+    baker.make(OrderItem, order=order_week_start, product=product_a, quantity=2)
+    baker.make(OrderItem, order=order_today, product=product_b, quantity=4)
+    baker.make(OrderItem, order=order_previous_week, product=product_a, quantity=99)
+
+    response = client.get('/api/sales/top-products/')
+
+    assert response.status_code == 200
+    assert response.data['week_start'] == week_start.isoformat()
+    assert response.data['week_end'] == week_end.isoformat()
+    assert 'products' in response.data
+
+    products = response.data['products']
+    by_sku = {entry['product_sku']: entry for entry in products}
+
+    assert by_sku['ALPHA-001']['units_sold'] == 5
+    assert by_sku['BETA-001']['units_sold'] == 4
