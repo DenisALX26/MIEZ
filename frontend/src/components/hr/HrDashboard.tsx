@@ -1,149 +1,295 @@
-import React from 'react';
+import React from 'react'
+import { useAuth } from '../../context/AuthContext'
 
 type HrKpiResponse = {
-  total_employees: number;
-  new_hires_this_month: number;
-  leave_requests_this_month: number;
-  pending_leave_requests: number;
-  full_time_employees: number;
-  non_full_time_employees: number;
-  retention_rate: number;
-  active_employees: number;
-};
+  total_employees: number
+  new_hires_this_month: number
+  leave_requests_this_month: number
+  pending_leave_requests: number
+  full_time_employees: number
+  non_full_time_employees: number
+  retention_rate: number
+  active_employees: number
+}
+
+type DepartmentHeadcount = {
+  department: string
+  total: number
+  active: number
+  on_leave: number
+  utilisation_pct: number
+}
+
+type AttendanceWeek = {
+  week_start: string
+  attendance_rate: number
+}
+
+type CeoSummaryResponse = {
+  department_headcount: DepartmentHeadcount[]
+  attendance_rate_weeks: AttendanceWeek[]
+}
+
+type Employee = {
+  id: number
+  username: string
+  first_name: string
+  last_name: string
+  email: string
+  role: string
+  position: string
+  employment_type: string
+  department: { id: number; name: string } | null
+  start_date: string
+}
 
 const UsersIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
   </svg>
-);
+)
 
-const CalendarIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-  </svg>
-);
+const formatDate = (value: string) =>
+  new Date(value).toLocaleDateString('ro-RO')
 
-const BriefcaseIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-  </svg>
-);
-
-const TrendingUpIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-  </svg>
-);
+const roleBadge: Record<string, string> = {
+  CEO:       'bg-rose-50 text-rose-700 border border-rose-200',
+  HR:        'bg-purple-50 text-purple-700 border border-purple-200',
+  IT:        'bg-blue-50 text-blue-700 border border-blue-200',
+  SALES:     'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  INVENTORY: 'bg-amber-50 text-amber-700 border border-amber-200',
+}
 
 const HrDashboard = () => {
-  const [kpis, setKpis] = React.useState<HrKpiResponse | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState('');
+  const { user } = useAuth()
+  const isCeo = user?.role === 'CEO'
 
+  const [kpis, setKpis] = React.useState<HrKpiResponse | null>(null)
+  const [loadingKpis, setLoadingKpis] = React.useState(true)
+  const [kpisError, setKpisError] = React.useState('')
+
+  const [ceoSummary, setCeoSummary] = React.useState<CeoSummaryResponse | null>(null)
+  const [loadingSummary, setLoadingSummary] = React.useState(false)
+
+  const [employees, setEmployees] = React.useState<Employee[]>([])
+  const [loadingEmployees, setLoadingEmployees] = React.useState(false)
+  const [employeesError, setEmployeesError] = React.useState('')
+  const [empSearch, setEmpSearch] = React.useState('')
+
+  // KPIs
   React.useEffect(() => {
-    const loadHrKpis = async () => {
-      try {
-        setLoading(true);
-        setError('');
+    fetch('/api/hr/dashboard/', { credentials: 'include' })
+      .then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
+      .then((data: HrKpiResponse) => setKpis(data))
+      .catch(() => setKpisError('Could not load HR KPI data.'))
+      .finally(() => setLoadingKpis(false))
+  }, [])
 
-        const response = await fetch('/api/hr/dashboard/', {
-          credentials: 'include',
-        });
+  // CEO summary (department headcount + attendance trend)
+  React.useEffect(() => {
+    if (!isCeo) return
+    setLoadingSummary(true)
+    fetch('/api/hr/ceo-summary/', { credentials: 'include' })
+      .then(r => r.json())
+      .then((data: CeoSummaryResponse) => setCeoSummary(data))
+      .catch(console.error)
+      .finally(() => setLoadingSummary(false))
+  }, [isCeo])
 
-        if (!response.ok) {
-          throw new Error(`HR KPI request failed: ${response.status}`);
-        }
+  // Employee list
+  React.useEffect(() => {
+    if (!isCeo) return
+    setLoadingEmployees(true)
+    fetch('/api/employees/?page_size=50', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setEmployees(Array.isArray(data.results) ? data.results : Array.isArray(data) ? data : []))
+      .catch(() => setEmployeesError('Could not load employees.'))
+      .finally(() => setLoadingEmployees(false))
+  }, [isCeo])
 
-        const data = (await response.json()) as HrKpiResponse;
-        setKpis(data);
-      } catch (fetchError) {
-        console.error('Failed to load HR dashboard KPIs:', fetchError);
-        setError('Could not load HR KPI data right now.');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const filteredEmployees = React.useMemo(() => {
+    if (!empSearch.trim()) return employees
+    const q = empSearch.toLowerCase()
+    return employees.filter(e =>
+      `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
+      e.position.toLowerCase().includes(q) ||
+      e.role.toLowerCase().includes(q)
+    )
+  }, [employees, empSearch])
 
-    loadHrKpis();
-  }, []);
+  const maxAttendance = React.useMemo(
+    () => Math.max(...(ceoSummary?.attendance_rate_weeks.map(w => w.attendance_rate) ?? [1]), 1),
+    [ceoSummary]
+  )
 
-  const kpiData = [
-    { 
-      id: 1, 
-      title: 'Total Employees', 
-      value: String(kpis?.total_employees ?? 0), 
-      trend: `+${kpis?.new_hires_this_month ?? 0} this month`, 
-      isPositive: true,
-      icon: <UsersIcon />, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
-    },
-    { 
-      id: 2, 
-      title: 'Leave Requests', 
-      value: String(kpis?.leave_requests_this_month ?? 0), 
-      trend: `${kpis?.pending_leave_requests ?? 0} pending approval`, 
-      isPositive: false,
-      icon: <CalendarIcon />, 
-      color: 'text-orange-600', 
-      bg: 'bg-orange-50' 
-    },
-    { 
-      id: 3, 
-      title: 'Full-Time Employees', 
-      value: String(kpis?.full_time_employees ?? 0), 
-      trend: `${kpis?.non_full_time_employees ?? 0} non-full-time`, 
-      isPositive: true,
-      icon: <BriefcaseIcon />, 
-      color: 'text-purple-600', 
-      bg: 'bg-purple-50' 
-    },
-    { 
-      id: 4, 
-      title: 'Retention Rate', 
-      value: `${(kpis?.retention_rate ?? 0).toFixed(1)}%`, 
-      trend: `${kpis?.active_employees ?? 0}/${kpis?.total_employees ?? 0} active`, 
-      isPositive: true,
-      icon: <TrendingUpIcon />, 
-      color: 'text-emerald-600', 
-      bg: 'bg-emerald-50' 
-    },
-  ];
+  const kpiCards = [
+    { title: 'Total Employees',   value: kpis?.total_employees ?? 0,         sub: `+${kpis?.new_hires_this_month ?? 0} this month`,             color: 'text-blue-600',   bg: 'bg-blue-50' },
+    { title: 'Leave Requests',    value: kpis?.leave_requests_this_month ?? 0, sub: `${kpis?.pending_leave_requests ?? 0} pending approval`,     color: 'text-orange-600', bg: 'bg-orange-50' },
+    { title: 'Full-Time',         value: kpis?.full_time_employees ?? 0,      sub: `${kpis?.non_full_time_employees ?? 0} non full-time`,         color: 'text-purple-600', bg: 'bg-purple-50' },
+    { title: 'Retention Rate',    value: `${(kpis?.retention_rate ?? 0).toFixed(1)}%`, sub: `${kpis?.active_employees ?? 0}/${kpis?.total_employees ?? 0} active`, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  ]
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">HR Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Overview of human resources metrics and KPIs.</p>
-        {error && <p className="text-red-600 text-sm mt-2">{error}</p>}
-      </div>
+    <div className="space-y-6">
 
-      {loading && <p className="text-gray-500 text-sm mb-4">Loading KPI data...</p>}
+      {/* KPI Cards */}
+      <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
+        <h2 className="text-lg font-semibold">HR Dashboard</h2>
+        <p className="text-sm text-black/60 mt-1">Human resources metrics and headcount overview.</p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpiData.map((kpi) => (
-          <div key={kpi.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-xl ${kpi.bg} ${kpi.color}`}>
-                {kpi.icon}
+        {loadingKpis ? (
+          <p className="text-sm text-black/60 mt-3">Loading KPI data…</p>
+        ) : kpisError ? (
+          <p className="text-sm text-red-600 mt-3">{kpisError}</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            {kpiCards.map(card => (
+              <div key={card.title} className="rounded-xl border border-[var(--border)] bg-white p-4">
+                <p className="text-xs uppercase tracking-wide text-black/50">{card.title}</p>
+                <p className="text-2xl font-semibold mt-1">{card.value}</p>
+                <p className="text-xs mt-1 text-black/60">{card.sub}</p>
               </div>
-            </div>
-            
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* CEO-only: Department Headcount + Attendance Trend */}
+      {isCeo && (
+        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-gray-500 text-sm font-medium">{kpi.title}</h3>
-              <p className="text-3xl font-bold text-gray-900 mt-1">{kpi.value}</p>
-            </div>
-            
-            <div className="mt-4">
-              <span className={`text-xs font-medium ${kpi.isPositive ? 'text-emerald-600' : 'text-orange-600'}`}>
-                {kpi.trend}
-              </span>
+              <h3 className="text-lg font-semibold">Department Overview</h3>
+              <p className="text-sm text-black/60 mt-1">Headcount and 6-week attendance rate by department.</p>
             </div>
           </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
-export default HrDashboard;
+          {loadingSummary ? (
+            <p className="text-sm text-black/60 mt-3">Loading summary…</p>
+          ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-4">
+
+              {/* Department headcount table */}
+              <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+                <p className="text-xs uppercase tracking-wide text-black/50 px-4 pt-4 pb-2">Headcount by department</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-t border-[var(--border)]">
+                      {['Department', 'Total', 'Active', 'On Leave', 'Utilisation'].map(h => (
+                        <th key={h} className="text-left px-4 py-2 text-xs font-medium text-black/50">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(ceoSummary?.department_headcount ?? []).map(row => (
+                      <tr key={row.department} className="border-t border-[var(--border)] hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-medium">{row.department}</td>
+                        <td className="px-4 py-2.5">{row.total}</td>
+                        <td className="px-4 py-2.5 text-emerald-700">{row.active}</td>
+                        <td className="px-4 py-2.5 text-orange-600">{row.on_leave}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                              <div
+                                className="bg-blue-500 h-1.5 rounded-full"
+                                style={{ width: `${row.utilisation_pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold w-10 text-right">{row.utilisation_pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Attendance rate 6-week trend */}
+              <div className="rounded-xl border border-[var(--border)] bg-white p-4">
+                <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Attendance rate — last 6 weeks</p>
+                <div className="h-44 flex items-end gap-1.5">
+                  {(ceoSummary?.attendance_rate_weeks ?? []).map(week => {
+                    const height = (week.attendance_rate / maxAttendance) * 100
+                    const label = new Date(week.week_start).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+                    return (
+                      <div key={week.week_start} className="flex-1 flex flex-col items-center justify-end h-full">
+                        <span className="text-[9px] text-black/50 mb-1">{week.attendance_rate}%</span>
+                        <div
+                          className="w-full rounded-t-md bg-purple-400/80 border border-purple-500/20"
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                        />
+                        <span className="text-[9px] text-black/50 mt-1 text-center">{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* CEO-only: Employee List */}
+      {isCeo && (
+        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <UsersIcon />
+                All Employees
+              </h3>
+              <p className="text-sm text-black/60 mt-1">Full roster across all departments.</p>
+            </div>
+            <span className="text-sm text-black/50">{filteredEmployees.length} of {employees.length}</span>
+          </div>
+
+          <input
+            value={empSearch}
+            onChange={e => setEmpSearch(e.target.value)}
+            placeholder="Search by name, position, or role…"
+            className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+          />
+
+          {loadingEmployees ? (
+            <p className="text-sm text-black/60">Loading employees…</p>
+          ) : employeesError ? (
+            <p className="text-sm text-red-600">{employeesError}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-separate border-spacing-y-1.5">
+                <thead>
+                  <tr>
+                    {['Name', 'Position', 'Department', 'Role', 'Type', 'Start Date'].map(h => (
+                      <th key={h} className="text-left text-xs uppercase tracking-wide text-black/50 px-3">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredEmployees.map(emp => (
+                    <tr key={emp.id} className="bg-white border border-[var(--border)]">
+                      <td className="px-3 py-2.5">
+                        <p className="text-sm font-semibold">{emp.first_name} {emp.last_name}</p>
+                        <p className="text-xs text-black/50">{emp.email}</p>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm">{emp.position || '—'}</td>
+                      <td className="px-3 py-2.5 text-sm">{emp.department?.name ?? '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleBadge[emp.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {emp.role}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-black/60">{emp.employment_type?.replace('_', ' ') ?? '—'}</td>
+                      <td className="px-3 py-2.5 text-sm text-black/60">{formatDate(emp.start_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  )
+}
+
+export default HrDashboard

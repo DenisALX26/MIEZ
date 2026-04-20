@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { FiX, FiActivity, FiPackage, FiBox, FiAlertTriangle, FiXCircle, FiTruck, FiRepeat } from "react-icons/fi";
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Sankey, AreaChart, Area } from "recharts";
+import { FiX, FiPackage, FiBox, FiAlertTriangle, FiXCircle, FiTruck, FiRepeat } from "react-icons/fi";
+import { ResponsiveContainer, Sankey } from "recharts";
 
 // --- API DATA TYPES ---
 interface DashboardKpis {
@@ -10,34 +10,17 @@ interface DashboardKpis {
   deliveries_today: number;
 }
 
-// --- MOCK DATA ---
-const products = [
-  {
-    id: 1, name: "Laptop Stand X2", sku: "SKU-001", category: "Electronics", stock: 45, minStock: 10, status: "OK", supplier: "TechSupply SRL", lastReceived: "01 Mar", history: [
-      { day: "1", qty: 50 }, { day: "5", qty: 48 }, { day: "10", qty: 45 }, { day: "15", qty: 42 }, { day: "20", qty: 47 }, { day: "25", qty: 45 },
-    ]
-  },
-  {
-    id: 2, name: "USB-C Hub Pro", sku: "SKU-002", category: "Electronics", stock: 6, minStock: 10, status: "Low", supplier: "GadgetWorld SRL", lastReceived: "25 Feb", history: [
-      { day: "1", qty: 20 }, { day: "5", qty: 15 }, { day: "10", qty: 12 }, { day: "15", qty: 10 }, { day: "20", qty: 8 }, { day: "25", qty: 6 },
-    ]
-  },
-  {
-    id: 3, name: "Office Chair B", sku: "SKU-003", category: "Furniture", stock: 0, minStock: 5, status: "Out", supplier: "FurnitureRO SRL", lastReceived: "10 Feb", history: [
-      { day: "1", qty: 8 }, { day: "5", qty: 5 }, { day: "10", qty: 3 }, { day: "15", qty: 2 }, { day: "20", qty: 1 }, { day: "25", qty: 0 },
-    ]
-  },
-  {
-    id: 4, name: "Desk Lamp LED", sku: "SKU-004", category: "Lighting", stock: 23, minStock: 8, status: "OK", supplier: "LightHouse SRL", lastReceived: "05 Mar", history: [
-      { day: "1", qty: 30 }, { day: "5", qty: 28 }, { day: "10", qty: 25 }, { day: "15", qty: 22 }, { day: "20", qty: 25 }, { day: "25", qty: 23 },
-    ]
-  },
-  {
-    id: 5, name: "Wireless Mouse", sku: "SKU-005", category: "Electronics", stock: 32, minStock: 15, status: "OK", supplier: "TechSupply SRL", lastReceived: "03 Mar", history: [
-      { day: "1", qty: 40 }, { day: "5", qty: 38 }, { day: "10", qty: 35 }, { day: "15", qty: 33 }, { day: "20", qty: 34 }, { day: "25", qty: 32 },
-    ]
-  },
-];
+interface ApiProduct {
+  id: number;
+  name: string;
+  sku: string;
+  category: string;
+  stock_count: number;
+  min_stock: number;
+  unit_price_ron: number;
+  status: 'OK' | 'LOW' | 'OUT';
+  shortfall: number;
+}
 
 const depositFlowData = {
   nodes: [
@@ -155,27 +138,25 @@ const KPICard = ({ label, value, icon: Icon, iconColor }: any) => (
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
-    OK: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Low: "bg-amber-50 text-amber-700 border-amber-200",
-    Out: "bg-rose-50 text-rose-700 border-rose-200",
+    OK:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+    LOW: "bg-amber-50 text-amber-700 border-amber-200",
+    OUT: "bg-rose-50 text-rose-700 border-rose-200",
   };
+  const label: Record<string, string> = { OK: 'Healthy', LOW: 'Low Stock', OUT: 'Depleted' };
   return (
-    <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${styles[status] || "bg-gray-50 text-gray-600"}`}>
-      {status === 'OK' ? 'Healthy' : status === 'Low' ? 'Low Stock' : 'Depleted'}
+    <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${styles[status] ?? "bg-gray-50 text-gray-600"}`}>
+      {label[status] ?? status}
     </span>
   );
 };
 
-const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () => void, product: any }) => {
+const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () => void, product: ApiProduct | null }) => {
   return (
     <>
-      {/* Backdrop */}
       <div
         className={`fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-
-      {/* Drawer */}
       <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white border-l border-gray-200 z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
@@ -193,11 +174,10 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
         <div className="flex-1 overflow-y-auto p-6 bg-white">
           {product && (
             <div className="space-y-6">
-              {/* Metric Row */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Current Stock</p>
-                  <p className="text-3xl font-black text-gray-900">{product.stock}</p>
+                  <p className="text-3xl font-black text-gray-900">{product.stock_count}</p>
                 </div>
                 <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</p>
@@ -205,47 +185,21 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
                 </div>
               </div>
 
-              {/* Info Block */}
               <div className="space-y-3 py-4 border-t border-b border-gray-100">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500 font-medium">Minimum Threshold</span>
-                  <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">{product.minStock} units</span>
+                  <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">{product.min_stock} units</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Supplier</span>
-                  <span className="text-sm font-bold text-gray-900">{product.supplier}</span>
+                  <span className="text-sm text-gray-500 font-medium">Unit Price</span>
+                  <span className="text-sm font-bold text-gray-900">{product.unit_price_ron.toFixed(2)} RON</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Last Received</span>
-                  <span className="text-sm font-bold text-gray-900">{product.lastReceived}</span>
-                </div>
-              </div>
-
-              {/* Recharts Temporal Chart */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <FiActivity className="text-blue-500" />
-                  <h3 className="font-bold text-gray-900">30-Day Activity</h3>
-                </div>
-                <div className="h-48 w-full border border-gray-200 rounded-xl p-4 bg-gray-50/50">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={product.history} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorQty" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
-                      <Tooltip
-                        contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: 'none' }}
-                      />
-                      <Area type="monotone" dataKey="qty" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorQty)" />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                {product.status !== 'OK' && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-500 font-medium">Shortfall</span>
+                    <span className="text-sm font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded">{product.shortfall} units</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -259,23 +213,24 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
 export default function InventoryDashboard() {
   const [kpis, setKpis] = useState<DashboardKpis | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<typeof products[0] | null>(null);
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [selectedProduct, setSelectedProduct] = useState<ApiProduct | null>(null);
 
   useEffect(() => {
-    const fetchKpis = async () => {
-      try {
-        const response = await fetch('/api/inventory/dashboard/', { credentials: 'include' });
-        if (response.ok) {
-          const data = await response.json();
-          setKpis(data);
-        }
-      } catch (err) {
-        console.error('Error fetching inventory KPIs:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchKpis();
+    fetch('/api/inventory/dashboard/', { credentials: 'include' })
+      .then(r => { if (r.ok) return r.json(); throw new Error() })
+      .then(data => setKpis(data))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/inventory/products/', { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setProducts(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false))
   }, []);
 
   return (
@@ -366,6 +321,9 @@ export default function InventoryDashboard() {
           </div>
         </div>
 
+        {loadingProducts ? (
+          <p className="px-6 py-8 text-sm text-gray-400">Loading products…</p>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -394,10 +352,10 @@ export default function InventoryDashboard() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[15px] font-black text-gray-900">{p.stock}</span>
+                    <span className="text-[15px] font-black text-gray-900">{p.stock_count}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[14px] text-gray-500 font-semibold">{p.minStock}</span>
+                    <span className="text-[14px] text-gray-500 font-semibold">{p.min_stock}</span>
                   </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={p.status} />
@@ -407,6 +365,7 @@ export default function InventoryDashboard() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       <DetailDrawer

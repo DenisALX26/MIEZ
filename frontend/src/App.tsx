@@ -18,6 +18,7 @@ import SalesOrdersPage from './components/sales/SalesOrdersPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
+import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
 
 type ModulePageProps = {
@@ -52,6 +53,14 @@ const DepartmentModulePage = () => {
 
   if (slug?.toLowerCase() === 'sales') {
     return <SalesDashboard />
+  }
+
+  if (slug?.toLowerCase() === 'hr') {
+    return <HrDashboard />
+  }
+
+  if (slug?.toLowerCase() === 'inventory') {
+    return <InventoryDashboard />
   }
 
   return (
