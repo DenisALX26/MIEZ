@@ -38,10 +38,10 @@ const TypeIcon = ({ type }: { type: string }) => {
 
 const renderQty = (m: Movement) => {
   const t = (m.movement_type || '').toUpperCase()
-  if (t === 'INBOUND') return <span className="text-emerald-600 font-black text-lg">+{m.quantity}</span>
-  if (t === 'OUTBOUND' || t === 'WRITE_OFF') return <span className="text-rose-600 font-black text-lg">-{m.quantity}</span>
-  if (t === 'ADJUSTMENT') return <span className="text-blue-600 font-black text-lg">{m.quantity}</span>
-  return <span className="font-black text-lg">{m.quantity}</span>
+  if (t === 'INBOUND') return <span className="text-emerald-600 font-semibold text-[1rem]">+{m.quantity}</span>
+  if (t === 'OUTBOUND' || t === 'WRITE_OFF') return <span className="text-rose-600 font-semibold text-[1rem]">-{m.quantity}</span>
+  if (t === 'ADJUSTMENT') return <span className="text-blue-600 font-semibold text-[1rem]">{m.quantity}</span>
+  return <span className="font-semibold text-[1rem]">{m.quantity}</span>
 }
 
 export default function StockMovementsPage() {
@@ -99,7 +99,7 @@ export default function StockMovementsPage() {
             <FiRefreshCw size={32} strokeWidth={2} />
           </div>
           <div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Stock Movements Registry</h1>
+            <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Stock Movements Registry</h1>
             <p className="text-gray-500 mt-2 font-medium">Complete, transparent ledger of all inbound, outbound, and inventory adjustments.</p>
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function StockMovementsPage() {
              <FiFilter className="text-gray-400 ml-3 mr-2" />
              <select 
                value={typeFilter} 
-               onChange={(e) => { setTypeFilter(e.target.value); setPage(1); fetchData(1); }} 
+               onChange={(e) => setTypeFilter(e.target.value)} 
                className="bg-transparent border-none outline-none text-sm font-bold text-gray-700 py-2 pr-4 pl-1 cursor-pointer focus:ring-0"
              >
                 <option value="ALL">All Event Types</option>
@@ -122,13 +122,13 @@ export default function StockMovementsPage() {
            
            <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-200/70 items-center overflow-hidden">
              <FiCalendar className="text-gray-400 ml-3 mr-2 shrink-0" />
-             <input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPage(1); }} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
+             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
              <span className="text-gray-300 font-light px-1">-</span>
-             <input type="date" value={dateTo} onChange={(e) => { setDateTo(e.target.value); setPage(1); }} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
+             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-xs font-bold text-gray-600 focus:ring-0 w-[110px]" />
            </div>
 
            <button 
-             onClick={() => fetchData(1)}
+             onClick={() => { setPage(1); fetchData(1); }}
              className="px-6 py-2 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-indigo-600 transition-colors shadow-sm"
            >
              Filter
@@ -155,7 +155,7 @@ export default function StockMovementsPage() {
         )}
 
         <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-          <h4 className="text-lg font-black text-gray-900 tracking-tight">Movement History</h4>
+          <h4 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Movement History</h4>
           <span className="inline-flex px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg">{count} Records Found</span>
         </div>
 

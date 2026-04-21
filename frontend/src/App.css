@@ -2,7 +2,7 @@
 
 body {
   background: radial-gradient(circle at 10% 20%, #ffffff 0%, color-mix(in srgb, var(--primary) 6%, #ffffff) 45%, #ffffff 100%);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 /* Inventory low-stock styles */

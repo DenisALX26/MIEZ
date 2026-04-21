@@ -23,20 +23,20 @@ const getStatus = (stock: number, minStock: number) => {
 const StatusBadge = ({ status }: { status: string }) => {
   if (status === "Out") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 shadow-sm">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 shadow-sm">
         <FiXCircle /> Depleted
       </span>
     );
   }
   if (status === "Low") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm">
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm">
         <FiAlertTriangle /> Critical
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100/80 text-emerald-700 border border-emerald-200 shadow-sm">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100/80 text-emerald-700 border border-emerald-200 shadow-sm">
         <FiCheckCircle /> Healthy
     </span>
   );
@@ -69,7 +69,7 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
       <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white border-l border-gray-100 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{product.name}</h2>
+            <h2 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">{product.name}</h2>
             <div className="flex items-center gap-2 mt-1">
               <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono tracking-wider">{product.sku}</span>
               <span className="text-sm font-medium text-gray-400">• {product.category}</span>
@@ -85,7 +85,7 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Current Stock</span>
-                <p className="text-3xl font-black text-gray-900">{product.stock_count}</p>
+                <p className="text-2xl font-bold text-gray-900">{product.stock_count}</p>
               </div>
               <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Status Flag</span>
@@ -105,7 +105,7 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-500 font-medium">Total Stock Value</span>
-                  <span className="text-sm font-black text-indigo-600">{stockValue.toLocaleString('ro-RO')} RON</span>
+                  <span className="text-sm font-semibold text-indigo-600">{stockValue.toLocaleString('ro-RO')} RON</span>
                 </div>
               </div>
             </div>
@@ -183,7 +183,7 @@ export default function ProductsStockPage() {
     <div className="max-w-[1400px] mx-auto space-y-6 animate-[fadeIn_0.5s_ease-out] pb-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Products & Stock</h1>
+          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Products & Stock</h1>
           <p className="text-gray-500 mt-1 font-medium flex items-center gap-2">
             Showing <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{filtered.length}</span> of {products.length} products
           </p>
@@ -224,11 +224,11 @@ export default function ProductsStockPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-8 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">Product Info</th>
-                <th className="px-8 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap text-right">Stock</th>
-                <th className="px-8 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap text-right">Min</th>
-                <th className="px-8 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap text-right">Unit Cost</th>
-                <th className="px-8 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap text-center">Status</th>
+                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Product Info</th>
+                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Stock</th>
+                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Min</th>
+                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Unit Cost</th>
+                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -261,7 +261,7 @@ export default function ProductsStockPage() {
                             <FiPackage size={18} />
                           </div>
                           <div>
-                            <p className="font-bold text-gray-900 text-[14px] group-hover:text-blue-600 transition-colors">{p.name}</p>
+                            <p className="font-semibold text-gray-900 text-[0.92rem] group-hover:text-blue-600 transition-colors">{p.name}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-xs text-gray-400 font-mono">{p.sku}</span>
                               <span className="text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-0.5 rounded">{p.category}</span>
@@ -270,13 +270,13 @@ export default function ProductsStockPage() {
                         </div>
                       </td>
                       <td className="px-8 py-5 text-right w-32">
-                        <span className="text-lg font-black text-gray-900">{p.stock_count}</span>
+                        <span className="text-[0.95rem] font-semibold text-gray-900">{p.stock_count}</span>
                       </td>
                       <td className="px-8 py-5 text-right w-32">
                         <span className="text-sm font-semibold text-gray-400">{p.min_stock}</span>
                       </td>
                       <td className="px-8 py-5 text-right w-32">
-                        <p className="font-bold text-gray-900 inline-flex items-center gap-1">
+                        <p className="font-medium text-gray-900 inline-flex items-center gap-1 text-sm">
                           {parseFloat(p.unit_price_ron).toFixed(2)} <span className="text-[10px] text-gray-400 uppercase">RON</span>
                         </p>
                       </td>

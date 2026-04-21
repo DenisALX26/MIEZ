@@ -126,8 +126,8 @@ const KPICard = ({ label, value, icon: Icon, iconColor }: any) => (
   <div className="p-5 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors">
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-3xl font-black text-gray-900 tracking-tight">{value}</p>
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
       </div>
       <div className={`p-3 rounded-xl bg-gray-50 border border-gray-100 ${iconColor}`}>
         <Icon size={24} strokeWidth={2.5} />
@@ -160,7 +160,7 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
       <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white border-l border-gray-200 z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
           <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">{product?.name}</h2>
+            <h2 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">{product?.name}</h2>
             <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
               <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono">{product?.sku}</span>
               • {product?.category}
@@ -177,7 +177,7 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Current Stock</p>
-                  <p className="text-3xl font-black text-gray-900">{product.stock_count}</p>
+                  <p className="text-2xl font-bold text-gray-900">{product.stock_count}</p>
                 </div>
                 <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
                   <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</p>
@@ -247,7 +247,7 @@ export default function InventoryDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Intelligence Center</h1>
+          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Intelligence Center</h1>
           <p className="text-gray-500 mt-1 font-medium">Real-time inventory metrics and forecasting.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -292,7 +292,7 @@ export default function InventoryDashboard() {
         <div className="flex items-center justify-between mb-4 px-1">
           <div className="flex items-center gap-2">
             <FiRepeat className="text-gray-400" />
-            <h2 className="text-lg font-black text-gray-900 tracking-tight">Global Logistics Map</h2>
+            <h2 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Global Logistics Map</h2>
           </div>
           <span className="text-[10px] font-bold tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 shadow-sm uppercase shadow-indigo-100">Live End-to-End View</span>
         </div>
@@ -317,7 +317,7 @@ export default function InventoryDashboard() {
             <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
               <FiPackage size={20} />
             </div>
-            <h4 className="text-lg font-black text-gray-900 tracking-tight">Active Inventory</h4>
+            <h4 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Active Inventory</h4>
           </div>
         </div>
 
@@ -352,7 +352,7 @@ export default function InventoryDashboard() {
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="text-[15px] font-black text-gray-900">{p.stock_count}</span>
+                    <span className="text-[0.95rem] font-semibold text-gray-900">{p.stock_count}</span>
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-[14px] text-gray-500 font-semibold">{p.min_stock}</span>
