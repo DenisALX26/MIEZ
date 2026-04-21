@@ -209,10 +209,8 @@ class StockMovement(models.Model):
                     self.product.stock_count = new_count
                     self.product.save(update_fields=['stock_count'])
                 elif self.movement_type == StockMovement.Type.ADJUSTMENT:
-                    # Adjustment movements are stored for audit. They may represent manual corrections
-                    # and won't automatically change stock here. If you want adjustments to change stock,
-                    # implement the intended +/- semantics (e.g. include a signed quantity).
-                    pass
+                    self.product.stock_count = int(self.quantity)
+                    self.product.save(update_fields=['stock_count'])
             except Exception:
                 # Don't let product save failures block the movement creation; log later if needed
                 pass

@@ -65,7 +65,7 @@ export default function LowStockPage() {
       {/* Header exactly like Dashboard */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Critical Stock Alerts</h1>
+          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Critical Stock Alerts</h1>
           <p className="text-gray-500 mt-1 font-medium">Review and replenish products that have fallen below safety limits.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -93,7 +93,7 @@ export default function LowStockPage() {
             <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
               <FiAlertCircle size={20} />
             </div>
-            <h4 className="text-lg font-black text-gray-900 tracking-tight">Products Requiring Attention</h4>
+            <h4 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Products Requiring Attention</h4>
           </div>
         </div>
 
@@ -123,7 +123,7 @@ export default function LowStockPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center bg-gray-50/10 group-hover:bg-transparent transition-colors">
-                      <span className={`text-[22px] font-black ${isOut ? 'text-rose-600' : 'text-amber-500'}`}>{p.stock_count}</span>
+                      <span className={`text-[1.15rem] font-bold ${isOut ? 'text-rose-600' : 'text-amber-500'}`}>{p.stock_count}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className="text-[15px] font-bold text-gray-400">{p.min_stock}</span>
