@@ -2,6 +2,7 @@ import type { IconType } from "react-icons";
 import StatsCard from "./StatsCard";
 import ItTicketTrendChart from "./ItTicketTrendChart";
 import ItTicketsSection from "./ItTicketsSection";
+import SystemStatusPanel from "../common/SystemStatusPanel";
 import { LuTicket } from "react-icons/lu";
 import { IoSunnyOutline } from "react-icons/io5";
 import { IoMdCheckmarkCircleOutline } from "react-icons/io";
@@ -181,20 +182,30 @@ const ItDashboard = () => {
         ))}
       </div>
 
-      {user?.role === "CEO" && (
-        <ItTicketTrendChart
-          loading={loadingTrend}
-          error={trendError}
-          ticketTrend={ticketTrend}
-        />
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {user?.role === "CEO" && (
+            <ItTicketTrendChart
+              loading={loadingTrend}
+              error={trendError}
+              ticketTrend={ticketTrend}
+            />
+          )}
 
-      <ItTicketsSection
-        userRole={user?.role}
-        tickets={tickets}
-        loadingTickets={loadingTickets}
-        ticketsError={ticketsError}
-      />
+          <ItTicketsSection
+            userRole={user?.role}
+            tickets={tickets}
+            loadingTickets={loadingTickets}
+            ticketsError={ticketsError}
+          />
+        </div>
+
+        {user?.role === "CEO" && (
+          <div className="lg:col-span-1">
+            <SystemStatusPanel />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

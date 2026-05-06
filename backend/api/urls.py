@@ -37,6 +37,7 @@ urlpatterns = [
   path('orders/<int:id>/', views.OrderDetailView.as_view(), name='order_detail'),
   path('it/dashboard/', views.DashboardItView.as_view(), name='dashboard_data'),
   path('it/ticket-trend/', views.ItTicketTrendView.as_view(), name='it_ticket_trend'),
+  path('it/system-status/', views.SystemStatusListView.as_view(), name='system_status'),
   path('tickets/', views.TicketListCreateView.as_view(), name='ticket_list'),
   path('tickets/<int:id>/', views.TicketDetailView.as_view(), name='ticket_detail'),
   path('reports/', views.ReportListView.as_view(), name='report_list'),
