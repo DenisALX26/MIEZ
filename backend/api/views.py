@@ -1023,6 +1023,31 @@ class TicketListCreateView(ListCreateAPIView):
             'department', 'requested_by', 'assigned_to'
         ).all().order_by('-created_at')
 
+    def list(self, request, *args, **kwargs):
+        # call parent to get paginated response
+        response = super().list(request, *args, **kwargs)
+
+        assigned_to = request.query_params.get('assigned_to')
+        if assigned_to == 'me' and request.user and request.user.is_authenticated:
+            base_qs = Ticket.objects.filter(assigned_to=request.user)
+            in_progress_count = base_qs.filter(status=Ticket.Status.IN_PROGRESS).count()
+            assigned_count = base_qs.count()
+            resolved_count = base_qs.filter(status=Ticket.Status.RESOLVED).count()
+
+            # attach a technician summary to the response payload
+            try:
+                # response.data is a dict-like from DRF
+                response.data['technician_summary'] = {
+                    'in_progress_count': in_progress_count,
+                    'assigned_count': assigned_count,
+                    'resolved_count': resolved_count,
+                }
+            except Exception:
+                # best-effort: if response.data isn't mutable, skip
+                pass
+
+        return response
+
 
 class TicketDetailView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]

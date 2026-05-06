@@ -133,7 +133,7 @@ const ItDashboard = () => {
         setLoadingTickets(true);
         setTicketsError("");
 
-        let nextUrl: string | null = "/api/tickets/?page_size=100";
+        let nextUrl: string | null = "/api/tickets/?page_size=10";
         const allTickets: TicketItem[] = [];
 
         while (nextUrl) {
