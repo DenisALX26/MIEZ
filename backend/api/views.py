@@ -910,7 +910,7 @@ class ItTicketTrendView(APIView):
 class TicketPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
-    max_page_size = 100
+    max_page_size = 10
 
     def get_paginated_response(self, data):
         return Response(
@@ -929,7 +929,7 @@ class TicketPagination(PageNumberPagination):
 class OrderPagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
-    max_page_size = 100
+    max_page_size = 10
 
     def get_paginated_response(self, data, total_ron_sum):
         return Response(
@@ -949,7 +949,7 @@ class OrderPagination(PageNumberPagination):
 class InvoicePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
-    max_page_size = 100
+    max_page_size = 10
 
     def get_paginated_response(self, data):
         return Response(
@@ -1020,8 +1020,12 @@ class TicketListCreateView(ListCreateAPIView):
             raise PermissionDenied("Only IT technicians and CEO can view tickets.")
 
         return Ticket.objects.select_related(
-            'department', 'requested_by', 'assigned_to'
+            'department', 'requested_by', 'assigned_to', 'requested_for'
         ).all().order_by('-created_at')
+
+    def create(self, request, *args, **kwargs):
+        """Allow any authenticated user to create a ticket"""
+        return super().create(request, *args, **kwargs)
 
     def list(self, request, *args, **kwargs):
         # call parent to get paginated response

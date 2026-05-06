@@ -307,6 +307,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
 
 class TicketSerializer(serializers.ModelSerializer):
     requested_by_username = serializers.CharField(source='requested_by.username', read_only=True)
+    requested_for_username = serializers.CharField(source='requested_for.username', read_only=True, allow_null=True)
     assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True, allow_null=True)
     department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
 
@@ -317,12 +318,15 @@ class TicketSerializer(serializers.ModelSerializer):
             'ticket_number',
             'title',
             'description',
+            'category',
             'priority',
             'status',
             'department',
             'department_name',
             'requested_by',
             'requested_by_username',
+            'requested_for',
+            'requested_for_username',
             'assigned_to',
             'assigned_to_username',
             'location',
@@ -341,9 +345,11 @@ class TicketCreateSerializer(serializers.ModelSerializer):
             'ticket_number',
             'title',
             'description',
+            'category',
             'priority',
             'status',
             'department',
+            'requested_for',
             'assigned_to',
             'location',
             'requested_by',
@@ -355,6 +361,12 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'title': {'required': True, 'allow_blank': False},
             'description': {'required': True, 'allow_blank': False},
+            'category': {'required': False},
+            'priority': {'required': False},
+            'department': {'required': False},
+            'requested_for': {'required': False, 'allow_null': True},
+            'assigned_to': {'required': False, 'allow_null': True},
+            'location': {'required': False},
         }
 
     def create(self, validated_data):
