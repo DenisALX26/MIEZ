@@ -7,6 +7,7 @@ from .models import Product
 from .models import Report
 from .models import Supplier, StockMovement
 from .models import Ticket, Order, OrderItem, Customer, Invoice
+from .models import SystemStatus
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -422,3 +423,10 @@ class ReportSerializer(serializers.ModelSerializer):
 
     def get_file_available(self, obj):
         return bool(obj.file_path)
+
+
+class SystemStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SystemStatus
+        fields = ['id', 'name', 'uptime_pct', 'status', 'last_incident_date', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']

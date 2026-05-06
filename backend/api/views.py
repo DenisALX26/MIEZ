@@ -21,7 +21,7 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Report, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry
+from .models import Department, Report, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry, SystemStatus
 from .serializers import (
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -35,6 +35,7 @@ from .serializers import (
     ReportSerializer,
     SupplierSerializer,
     StockMovementSerializer,
+    SystemStatusSerializer,
     TicketCreateSerializer,
     TicketSerializer,
     TicketUpdateSerializer,
@@ -1433,3 +1434,16 @@ class ReportGenerateView(APIView):
         report = get_object_or_404(Report, slug=slug)
         generate_report_file(report, user=request.user)
         return Response(ReportSerializer(report).data, status=status.HTTP_200_OK)
+
+
+class SystemStatusListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Only CEO and IT can view system status
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            raise PermissionDenied('Only CEO or IT team can view system status.')
+        
+        systems = SystemStatus.objects.all()
+        serializer = SystemStatusSerializer(systems, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
