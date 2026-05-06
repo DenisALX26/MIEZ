@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
-type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
+export type TicketPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
-type SortKey =
+export type SortKey =
   | "ticket_number"
   | "title"
   | "priority"
@@ -18,7 +18,7 @@ type SortKey =
 
 type SortDirection = "asc" | "desc";
 
-interface TicketItem {
+export interface TicketItem {
   id: number;
   ticket_number: string;
   title: string;
