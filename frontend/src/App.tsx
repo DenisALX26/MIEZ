@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
 import ItAssignedPage from './components/it/ItAssignedPage'
+import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
@@ -162,8 +163,8 @@ function App() {
             <Route
               path="/it/create"
               element={
-                <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
+                <ProtectedRoute>
+                  <CreateTicketPage />
                 </ProtectedRoute>
               }
             />
