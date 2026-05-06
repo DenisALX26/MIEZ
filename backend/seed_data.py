@@ -11,7 +11,7 @@ django.setup()
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from api.models import Department
+from api.models import Department, SystemStatus
 
 
 User = get_user_model()
@@ -472,8 +472,52 @@ def seed_sales_orders():
         print(f"{'Created' if created else 'Updated'} order: {order.order_number}")
 
 
+def seed_systems():
+    systems = [
+        {
+            'name': 'Database Server',
+            'uptime_pct': Decimal('99.98'),
+            'status': SystemStatus.StatusChoices.ONLINE,
+            'last_incident_date': None,
+        },
+        {
+            'name': 'API Server',
+            'uptime_pct': Decimal('99.95'),
+            'status': SystemStatus.StatusChoices.ONLINE,
+            'last_incident_date': None,
+        },
+        {
+            'name': 'Frontend CDN',
+            'uptime_pct': Decimal('98.50'),
+            'status': SystemStatus.StatusChoices.DEGRADED,
+            'last_incident_date': timezone.make_aware(timezone.datetime(2024, 1, 15, 10, 30, 0)),
+        },
+        {
+            'name': 'Email Service',
+            'uptime_pct': Decimal('95.00'),
+            'status': SystemStatus.StatusChoices.DEGRADED,
+            'last_incident_date': timezone.make_aware(timezone.datetime(2024, 1, 18, 14, 20, 0)),
+        },
+    ]
+
+    for system_data in systems:
+        system, created = SystemStatus.objects.update_or_create(
+            name=system_data['name'],
+            defaults={
+                'uptime_pct': system_data['uptime_pct'],
+                'status': system_data['status'],
+                'last_incident_date': system_data['last_incident_date'],
+            }
+        )
+        status_msg = 'Created' if created else 'Updated'
+        print(f'{status_msg} system: {system.name} - {system.status}')
+
+    print('System status data seeded successfully!')
+
+
 if __name__ == "__main__":
     seed_users()
     seed_products()
     seed_sales_orders()
     seed_tickets()
+    seed_systems()
