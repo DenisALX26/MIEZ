@@ -24,6 +24,17 @@ def _require_roles(user: User, allowed_roles: list[str], message: str) -> None:
         raise _permission_error(message)
 
 
+def can_generate_reports(user: User) -> bool:
+    if user.role == User.Role.CEO:
+        return True
+
+    position = (user.position or '').strip().lower()
+    if not position:
+        return False
+
+    return any(token in position for token in ('manager', 'lead', 'head', 'director'))
+
+
 def _serialize_department(department: Department | None) -> dict[str, Any] | None:
     if department is None:
         return None
@@ -349,8 +360,8 @@ def create_leave_request(user: User, **payload: Any) -> LeaveRequest:
 
 @agent_tool(name='generate_report', description='Generate a report from an existing report definition.')
 def generate_report(user: User, slug: str) -> Report:
-    if user.role != User.Role.CEO and not user.is_staff:
-        raise _permission_error('Only CEO or staff users can generate reports through the assistant.')
+    if not can_generate_reports(user):
+        raise _permission_error('Only the CEO or department managers can generate reports through the assistant.')
 
     report = Report.objects.get(slug=slug)
     generate_report_file(report, user=user)

@@ -26,6 +26,13 @@ class AssistantToolTests(TestCase):
 
         self.ceo = User.objects.create_user(username='ceo', email='ceo@example.com', role=User.Role.CEO)
         self.hr_user = User.objects.create_user(username='hr', email='hr@example.com', role=User.Role.HR, department=self.hr_department)
+        self.hr_manager = User.objects.create_user(
+            username='hr-manager',
+            email='hr-manager@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            position='HR Manager',
+        )
         self.sales_user = User.objects.create_user(username='sales', email='sales@example.com', role=User.Role.SALES, department=self.department)
         self.it_user = User.objects.create_user(username='it', email='it@example.com', role=User.Role.IT)
 
@@ -291,6 +298,20 @@ class AssistantToolTests(TestCase):
 
         with self.assertRaises(PermissionError):
             generate_report(user=self.sales_user, slug=report.slug)
+
+    def test_generate_report_allowed_for_department_manager(self):
+        report = Report.objects.create(
+            name='HR Headcount',
+            slug='hr-headcount-manager',
+            category='HR',
+            period='May 2026',
+        )
+
+        with patch('api.agent.operations.generate_report_file') as mocked_generate:
+            result = generate_report(user=self.hr_manager, slug=report.slug)
+
+        mocked_generate.assert_called_once()
+        self.assertEqual(result.id, report.id)
 
     def test_generate_report_allowed_for_ceo_with_mocked_file_generation(self):
         report = Report.objects.create(

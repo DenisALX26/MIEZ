@@ -5,8 +5,9 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
-from api.agent import AgentRunner, Tool, agent_tool
-from api.models import User
+from api.agent import AgentRunner, Tool, agent_tool, get_registry
+from api.agent.operations import generate_report
+from api.models import Report, User
 
 
 def _text_block(text):
@@ -27,6 +28,19 @@ class AgentRunnerLoopTests(TestCase):
             username='ceo-loop',
             email='ceo-loop@example.com',
             role=User.Role.CEO,
+        )
+        self.hr_manager = User.objects.create_user(
+            username='hr-manager-loop',
+            email='hr-manager-loop@example.com',
+            role=User.Role.HR,
+            position='HR Manager',
+        )
+
+        self.report = Report.objects.create(
+            name='HR Headcount',
+            slug='hr-headcount-runner',
+            category='HR',
+            period='May 2026',
         )
 
     @patch('api.agent.runner.Anthropic')
@@ -74,6 +88,37 @@ class AgentRunnerLoopTests(TestCase):
         self.assertEqual(second_call_messages[-1]['role'], 'user')
         self.assertEqual(second_call_messages[-1]['content'][0]['type'], 'tool_result')
         self.assertFalse(second_call_messages[-1]['content'][0]['is_error'])
+
+    def test_get_system_prompt_includes_report_catalog_for_manager(self):
+        runner = AgentRunner(self.hr_manager)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('Available report slugs:', prompt)
+        self.assertIn('hr-headcount-runner (HR Headcount)', prompt)
+
+    def test_get_tools_for_user_includes_generate_report_for_manager(self):
+        runner = AgentRunner(self.hr_manager, tools=get_registry().get_all())
+
+        tool_names = [tool.name for tool in runner.get_tools_for_user()]
+
+        self.assertIn('generate_report', tool_names)
+
+    @patch('api.agent.operations.generate_report_file')
+    @patch('api.agent.runner.Anthropic')
+    def test_run_generate_report_returns_queued_follow_up(self, mock_anthropic, mocked_generate_file):
+        client = mock_anthropic.return_value
+        client.messages.create.side_effect = [
+            _response('tool_use', [_tool_use_block('tool-1', 'generate_report', {'slug': self.report.slug})]),
+        ]
+
+        runner = AgentRunner(self.hr_manager)
+        result = runner.run('generate the HR Headcount report')
+
+        self.assertEqual(result['response'], 'The HR Headcount report has been queued. It will be available in Reports shortly.')
+        self.assertEqual(len(result['tool_calls_made']), 1)
+        self.assertEqual(result['tool_calls_made'][0]['tool_name'], 'generate_report')
+        mocked_generate_file.assert_called_once()
 
     @patch('api.agent.runner.Anthropic')
     def test_run_multiple_sequential_tool_calls_resolved_correctly(self, mock_anthropic):

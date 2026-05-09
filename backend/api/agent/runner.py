@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - patched in tests when anthropic is abs
     Anthropic = None
 
 from .tools import get_tool, get_registry
+from .operations import can_generate_reports
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -38,12 +39,14 @@ You have access to various tools to help users with their tasks across different
 
 User Role: {role}
 User Permissions: {permissions}
+Available report slugs: {report_catalog}
 
 You should:
 1. Help users with their specific departmental tasks
 2. Use available tools appropriately when needed
 3. Provide clear and actionable responses
 4. Respect role-based permissions
+5. When you queue a report with generate_report(slug), reply exactly: The {{report_name}} report has been queued. It will be available in Reports shortly.
 
 Available tools will be provided in the conversation context."""
 
@@ -110,10 +113,12 @@ Available tools will be provided in the conversation context."""
         if self._system_prompt is None:
             permissions = self.ROLE_PERMISSIONS.get(self.user.role, [])
             permissions_str = ', '.join(permissions) if permissions else 'none'
+            report_catalog = self._build_report_catalog()
             
             self._system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(
                 role=self.user.get_role_display(),
                 permissions=permissions_str,
+                report_catalog=report_catalog,
             )
         
         return self._system_prompt
@@ -223,6 +228,12 @@ Available tools will be provided in the conversation context."""
 
             conversation.append({'role': 'user', 'content': tool_result_blocks})
 
+            if len(tool_uses) == 1 and tool_calls_made and tool_calls_made[-1]['tool_name'] == 'generate_report' and tool_calls_made[-1]['error'] is None:
+                return {
+                    'response': self._format_report_generation_response(tool_calls_made[-1]['result']),
+                    'tool_calls_made': tool_calls_made,
+                }
+
         return {
             'response': 'The assistant could not complete the request after several tool iterations.',
             'tool_calls_made': tool_calls_made,
@@ -298,6 +309,25 @@ Available tools will be provided in the conversation context."""
 
             return json.dumps(result, default=str)
         return str(result)
+
+    @staticmethod
+    def _format_report_generation_response(result: Any) -> str:
+        report_name = 'report'
+        if isinstance(result, dict):
+            report_name = str(result.get('report_name') or report_name)
+        elif isinstance(result, str) and result.strip():
+            report_name = result.strip()
+        return f'The {report_name} report has been queued. It will be available in Reports shortly.'
+
+    def _build_report_catalog(self) -> str:
+        from api.models import Report
+
+        if not can_generate_reports(self.user):
+            return 'none'
+
+        report_items = Report.objects.order_by('name').values_list('slug', 'name')
+        catalog = [f'{slug} ({name})' for slug, name in report_items]
+        return ', '.join(catalog) if catalog else 'none'
     
     def get_tools_for_user(self) -> list:
         """
@@ -311,7 +341,14 @@ Available tools will be provided in the conversation context."""
         # Filter tools by user permissions
         available_tools = [
             tool for tool in self.tools
-            if not getattr(tool, 'required_permission', None) or tool.required_permission in user_permissions
+            if (
+                tool.name == 'generate_report' and can_generate_reports(self.user)
+            ) or (
+                tool.name != 'generate_report' and (
+                    not getattr(tool, 'required_permission', None)
+                    or tool.required_permission in user_permissions
+                )
+            )
         ]
         
         return available_tools
