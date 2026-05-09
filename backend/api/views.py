@@ -1421,7 +1421,17 @@ class ReportDownloadView(APIView):
         path = Path(report.file_path)
         if not path.exists():
             return Response({'detail': 'File not found on server.'}, status=status.HTTP_404_NOT_FOUND)
-        return FileResponse(open(path, 'rb'), content_type='text/csv', as_attachment=True, filename=path.name)
+        
+        # Determine content type based on file extension
+        ext = path.suffix.lower()
+        if ext == '.pdf':
+            content_type = 'application/pdf'
+        elif ext == '.csv':
+            content_type = 'text/csv'
+        else:
+            content_type = 'application/octet-stream'
+        
+        return FileResponse(open(path, 'rb'), content_type=content_type, as_attachment=True, filename=path.name)
 
 
 class ReportGenerateView(APIView):
