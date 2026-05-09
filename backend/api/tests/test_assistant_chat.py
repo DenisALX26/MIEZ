@@ -2,11 +2,14 @@
 Tests for the MIEZ Assistant chat endpoint.
 """
 
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
 from api.models import User
 from django.core.cache import cache
+from api.agent.runner import AgentRunner
 
 
 class AssistantChatEndpointTests(TestCase):
@@ -16,6 +19,13 @@ class AssistantChatEndpointTests(TestCase):
         """Set up test fixtures."""
         self.client = APIClient()
         self.endpoint = '/api/assistant/chat/'
+
+        self.anthropic_patch = patch.object(
+            AgentRunner,
+            '_call_anthropic',
+            return_value={'response': 'mocked anthropic response', 'tool_calls_made': []},
+        )
+        self.mock_anthropic = self.anthropic_patch.start()
         
         # Create test users with different roles
         self.ceo_user = User.objects.create_user(
@@ -38,9 +48,26 @@ class AssistantChatEndpointTests(TestCase):
             password='testpass123',
             role=User.Role.SALES,
         )
+
+        self.it_user = User.objects.create_user(
+            username='it_user',
+            email='it@miez.com',
+            password='testpass123',
+            role=User.Role.IT,
+        )
+
+        self.inventory_user = User.objects.create_user(
+            username='inventory_user',
+            email='inventory@miez.com',
+            password='testpass123',
+            role=User.Role.INVENTORY,
+        )
         
         # Clear cache before each test
         cache.clear()
+
+    def tearDown(self):
+        self.anthropic_patch.stop()
     
     def test_requires_authentication(self):
         """Test that endpoint requires authentication."""
@@ -73,6 +100,7 @@ class AssistantChatEndpointTests(TestCase):
         self.assertIn('response', response.data)
         self.assertIn('tool_calls_made', response.data)
         self.assertIsInstance(response.data['tool_calls_made'], list)
+        self.assertEqual(response.data['response'], 'mocked anthropic response')
     
     def test_chat_without_history(self):
         """Test chat request without conversation history."""
@@ -189,6 +217,8 @@ class AssistantChatEndpointTests(TestCase):
             (self.ceo_user, 'CEO'),
             (self.hr_user, 'HR'),
             (self.sales_user, 'SALES'),
+            (self.it_user, 'IT'),
+            (self.inventory_user, 'INVENTORY'),
         ]:
             cache.clear()  # Clear rate limit for each user
             self.client.force_authenticate(user=user)
