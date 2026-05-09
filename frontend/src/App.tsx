@@ -17,6 +17,7 @@ import ItAssignedPage from './components/it/ItAssignedPage'
 import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
+import SalesCustomersPage from './components/sales/SalesCustomersPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
@@ -268,10 +269,7 @@ function App() {
               path="/sales/customers"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <ModulePage
-                    title="Customers"
-                    description="Review customer accounts, contact history, and order relationships."
-                  />
+                  <SalesCustomersPage />
                 </ProtectedRoute>
               }
             />
