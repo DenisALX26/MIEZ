@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField
 from django.db.models.functions import TruncDay, TruncWeek, Coalesce
 from django.utils import timezone
+from django.core.cache import cache
 
 from django.conf import settings
 from rest_framework.views import APIView
@@ -23,6 +24,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import Department, Report, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry, SystemStatus
 from .serializers import (
+    AssistantChatRequestSerializer,
+    AssistantChatResponseSerializer,
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
     EmployeeCreateSerializer,
@@ -40,6 +43,8 @@ from .serializers import (
     TicketSerializer,
     TicketUpdateSerializer,
 )
+from .agent import AgentRunner
+from .rate_limiting import rate_limit
 
 
 # Create your views here.
@@ -1457,3 +1462,111 @@ class SystemStatusListView(APIView):
         systems = SystemStatus.objects.all()
         serializer = SystemStatusSerializer(systems, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class AssistantChatView(APIView):
+    """
+    API endpoint for the MIEZ Assistant chat functionality.
+    
+    POST /api/assistant/chat/
+    - Accepts a user message and conversation history
+    - Instantiates AgentRunner with role-specific system prompt and tools
+    - Returns agent response and any tool calls made
+    - Rate limited: 20 requests per user per minute
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Handle chat message POST request.
+        
+        Request body:
+        {
+            "message": "user message",
+            "history": [
+                {"role": "user", "content": "..."},
+                {"role": "assistant", "content": "..."}
+            ]
+        }
+        
+        Response:
+        {
+            "response": "agent response text",
+            "tool_calls_made": [
+                {"tool_name": "...", "arguments": {...}},
+                ...
+            ]
+        }
+        """
+        # Check rate limit
+        if not self._check_rate_limit(request.user):
+            return Response(
+                {
+                    'detail': 'Rate limit exceeded. Maximum 20 requests per minute per user.',
+                    'rate_limit': {
+                        'limit': 20,
+                        'window_seconds': 60,
+                    }
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
+        # Validate request
+        serializer = AssistantChatRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        message = serializer.validated_data['message']
+        history = serializer.validated_data.get('history', [])
+        
+        try:
+            # Initialize agent runner with user context
+            agent = AgentRunner(user=request.user)
+            
+            # TODO: Register actual tools here
+            # Example:
+            # agent.register_tools([
+            #     EmployeeManagementTool(),
+            #     SalesReportTool(),
+            #     ...
+            # ])
+            
+            # Run the agent
+            result = agent.run(message=message, history=history)
+            
+            # Validate response format
+            response_serializer = AssistantChatResponseSerializer(data=result)
+            if not response_serializer.is_valid():
+                return Response(
+                    {'detail': 'Invalid agent response format'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            # Log the error (implement logging as needed)
+            return Response(
+                {'detail': f'Error processing chat: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _check_rate_limit(self, user) -> bool:
+        """
+        Check rate limit for user: max 20 requests per minute.
+        
+        Args:
+            user: Django User object
+        
+        Returns:
+            True if within limit, False if exceeded
+        """
+        cache_key = f'assistant_chat_rate_limit_{user.id}'
+        request_count = cache.get(cache_key, 0)
+        
+        if request_count >= 20:
+            return False
+        
+        # Increment and set 60-second expiry
+        cache.set(cache_key, request_count + 1, timeout=60)
+        return True
