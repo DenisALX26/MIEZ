@@ -171,9 +171,9 @@ def seed_products():
     from api.models import Product
 
     products = [
-        {"name": "Widget A", "sku": "WIDGET-A", "category": "Widgets", "stock_count": 2, "min_stock": 5},
-        {"name": "Widget B", "sku": "WIDGET-B", "category": "Widgets", "stock_count": 0, "min_stock": 10},
-        {"name": "Gadget X", "sku": "GADGET-X", "category": "Gadgets", "stock_count": 20, "min_stock": 5},
+        {"name": "Widget A", "sku": "WIDGET-A", "category": "Electronics", "stock_count": 2, "min_stock": 5},
+        {"name": "Widget B", "sku": "WIDGET-B", "category": "Accessories", "stock_count": 0, "min_stock": 10},
+        {"name": "Gadget X", "sku": "GADGET-X", "category": "Electronics", "stock_count": 20, "min_stock": 5},
     ]
 
     # Build defaults/update dicts only with fields that exist on the current Product model
@@ -329,9 +329,9 @@ def seed_sales_orders():
 
     # Ensure product fixtures used for order line items exist.
     product_defaults = {
-        'WIDGET-A': {'name': 'Widget A', 'category': Product.Category.SALES},
-        'WIDGET-B': {'name': 'Widget B', 'category': Product.Category.SALES},
-        'GADGET-X': {'name': 'Gadget X', 'category': Product.Category.SALES},
+        'WIDGET-A': {'name': 'Widget A', 'category': Product.Category.ELECTRONICS},
+        'WIDGET-B': {'name': 'Widget B', 'category': Product.Category.ACCESSORIES},
+        'GADGET-X': {'name': 'Gadget X', 'category': Product.Category.ELECTRONICS},
     }
 
     products = {}

@@ -298,11 +298,12 @@ def query_inventory(
     queryset = Product.objects.all()
 
     if category:
-        category_name = category.strip().upper()
+        category_input = category.strip()
         valid_categories = {choice[0] for choice in Product.Category.choices}
-        if category_name not in valid_categories:
+        matched = next((c for c in valid_categories if c.lower() == category_input.lower()), None)
+        if matched is None:
             raise ValueError(f'Unsupported product category: {category}')
-        queryset = queryset.filter(category=category_name)
+        queryset = queryset.filter(category=matched)
 
     if below_min_stock is True:
         queryset = queryset.filter(stock_count__lt=F('min_stock'))

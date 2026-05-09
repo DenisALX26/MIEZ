@@ -31,6 +31,7 @@ from .management.commands.generate_hr_digest import DigestGenerator
 from .serializers import (
     AssistantChatRequestSerializer,
     AssistantChatResponseSerializer,
+    CustomerDetailSerializer,
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
     EmployeeCreateSerializer,
@@ -41,6 +42,7 @@ from .serializers import (
     OrderListSerializer,
     ProductSerializer,
     ReportSerializer,
+    SalesProductSerializer,
     SupplierSerializer,
     StockMovementSerializer,
     SystemStatusSerializer,
@@ -1300,6 +1302,56 @@ class InventoryDashboardView(APIView):
             "out_of_stock_count": out_of_stock_count,
             "deliveries_today": deliveries_today
         }, status=status.HTTP_200_OK)
+class ProductPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response(
+            OrderedDict(
+                [
+                    ('total_count', self.page.paginator.count),
+                    ('count', self.page.paginator.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', data),
+                ]
+            )
+        )
+
+
+class SalesProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view the product catalogue."}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = Product.objects.all().order_by('name')
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | Q(sku__icontains=search)
+            )
+
+        category = request.query_params.get('category', '').strip()
+        if category:
+            queryset = queryset.filter(category__iexact=category)
+
+        paginator = ProductPagination()
+        paginated = paginator.paginate_queryset(queryset, request)
+        serializer = SalesProductSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class CustomerPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class CustomerListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1309,11 +1361,28 @@ class CustomerListView(APIView):
 
         customers = (
             Customer.objects
-            .annotate(total_value_ron=Coalesce(Sum('orders__value_ron'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)))
+            .annotate(
+                total_value_ron=Coalesce(Sum('orders__value_ron'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)),
+                orders_count=Count('orders'),
+            )
             .order_by('-total_value_ron', 'name')
         )
 
-        serializer = CustomerSalesSummarySerializer(customers, many=True)
+        paginator = CustomerPagination()
+        paginated = paginator.paginate_queryset(customers, request)
+        serializer = CustomerSalesSummarySerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class CustomerDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view customers."}, status=status.HTTP_403_FORBIDDEN)
+
+        customer = get_object_or_404(Customer.objects.prefetch_related('orders'), id=id)
+        serializer = CustomerDetailSerializer(customer)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -1325,7 +1394,21 @@ class InvoiceListView(APIView):
             return Response({"detail": "Only Sales and CEO can view invoices."}, status=status.HTTP_403_FORBIDDEN)
 
         today = timezone.localdate()
-        queryset = Invoice.objects.select_related('order', 'order__customer').all().order_by('-issued_date', '-id')
+        all_invoices = Invoice.objects.all()
+
+        totals = all_invoices.aggregate(
+            paid_total=Sum('amount_ron', filter=Q(status=Invoice.Status.PAID)),
+            pending_total=Sum(
+                'amount_ron',
+                filter=Q(status__in=[Invoice.Status.DRAFT, Invoice.Status.ISSUED]) & (Q(due_date__gte=today) | Q(due_date__isnull=True)),
+            ),
+            overdue_total=Sum(
+                'amount_ron',
+                filter=Q(due_date__lt=today) & ~Q(status=Invoice.Status.PAID),
+            ),
+        )
+
+        queryset = all_invoices.select_related('order', 'order__customer').order_by('-issued_date', '-id')
 
         status_filter = request.query_params.get('status', '').strip().upper()
         if status_filter:
@@ -1337,7 +1420,11 @@ class InvoiceListView(APIView):
         paginator = InvoicePagination()
         paginated = paginator.paginate_queryset(queryset, request)
         serializer = InvoiceListSerializer(paginated, many=True)
-        return paginator.get_paginated_response(serializer.data)
+        paginated_response = paginator.get_paginated_response(serializer.data)
+        paginated_response.data['paid_total'] = str(totals['paid_total'] or '0.00')
+        paginated_response.data['pending_total'] = str(totals['pending_total'] or '0.00')
+        paginated_response.data['overdue_total'] = str(totals['overdue_total'] or '0.00')
+        return paginated_response
 
 
 class SalesChannelSplitView(APIView):

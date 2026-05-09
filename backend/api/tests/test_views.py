@@ -1076,4 +1076,159 @@ class SalesAnalyticsTask3Tests(APITestCase):
 
         self.assertEqual(daily_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(top_response.status_code, status.HTTP_403_FORBIDDEN)
-        
+
+
+from datetime import timedelta
+from api.models import Invoice
+
+
+class InvoiceListViewTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(
+            username='sales_invoices',
+            role=User.Role.SALES,
+            email='sales_invoices@example.com',
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_invoices',
+            role=User.Role.HR,
+            email='hr_invoices@example.com',
+        )
+        self.customer = Customer.objects.create(name='Invoice Customer')
+        today = timezone.localdate()
+
+        order_a = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('100.00'))
+        order_b = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('200.00'))
+        order_c = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('300.00'))
+
+        Invoice.objects.filter(order=order_a).update(status=Invoice.Status.PAID, amount_ron=Decimal('100.00'))
+        Invoice.objects.filter(order=order_b).update(
+            status=Invoice.Status.ISSUED, due_date=today - timedelta(days=1), amount_ron=Decimal('200.00')
+        )
+        Invoice.objects.filter(order=order_c).update(
+            status=Invoice.Status.ISSUED, due_date=today + timedelta(days=7), amount_ron=Decimal('300.00')
+        )
+
+    def test_get_invoices_returns_summary_totals(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/invoices/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('paid_total', response.data)
+        self.assertIn('pending_total', response.data)
+        self.assertIn('overdue_total', response.data)
+        self.assertEqual(Decimal(response.data['paid_total']), Decimal('100.00'))
+        self.assertEqual(Decimal(response.data['overdue_total']), Decimal('200.00'))
+        self.assertEqual(Decimal(response.data['pending_total']), Decimal('300.00'))
+
+    def test_get_invoices_summary_totals_unaffected_by_status_filter(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/invoices/?status=Paid')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 1)
+        self.assertEqual(Decimal(response.data['paid_total']), Decimal('100.00'))
+        self.assertEqual(Decimal(response.data['overdue_total']), Decimal('200.00'))
+
+    def test_get_invoices_forbids_non_sales_roles(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.get('/api/invoices/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_order_creation_auto_creates_invoice_via_signal(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.post('/api/orders/', {
+            'customer': self.customer.id,
+            'value_ron': '450.00',
+            'date': timezone.localdate().isoformat(),
+            'status': Order.Status.PENDING,
+            'channel': Order.Channel.WEBSITE,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(id=response.data['id'])
+        self.assertTrue(Invoice.objects.filter(order=order).exists())
+        invoice = Invoice.objects.get(order=order)
+        self.assertTrue(invoice.invoice_number.startswith('INV-'))
+        self.assertEqual(invoice.amount_ron, Decimal('450.00'))
+
+
+class CustomerListViewTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(username='sales_cust', role=User.Role.SALES, email='sales_cust@example.com')
+        self.hr_user = User.objects.create_user(username='hr_cust', role=User.Role.HR, email='hr_cust@example.com')
+
+        self.customer_a = Customer.objects.create(name='Alpha Corp', tier=Customer.Tier.GOLD)
+        self.customer_b = Customer.objects.create(name='Beta Ltd', tier=Customer.Tier.SILVER)
+
+        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('500.00'), status=Order.Status.PENDING)
+        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('300.00'), status=Order.Status.PENDING)
+        Order.objects.create(customer=self.customer_b, created_by=self.sales_user, value_ron=Decimal('100.00'), status=Order.Status.PENDING)
+
+    def test_customer_list_returns_orders_count_and_tier(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/customers/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        alpha = next(r for r in results if r['name'] == 'Alpha Corp')
+        self.assertEqual(alpha['orders_count'], 2)
+        self.assertEqual(alpha['tier'], Customer.Tier.GOLD)
+
+    def test_customer_list_sorted_by_total_value_desc(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/customers/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        values = [Decimal(r['total_value_ron']) for r in results]
+        self.assertEqual(values, sorted(values, reverse=True))
+
+    def test_customer_list_forbids_non_sales_role(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.get('/api/customers/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class CustomerDetailViewTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(username='sales_detail', role=User.Role.SALES, email='sales_detail@example.com')
+        self.hr_user = User.objects.create_user(username='hr_detail', role=User.Role.HR, email='hr_detail@example.com')
+
+        self.customer = Customer.objects.create(name='Detail Corp', contact_name='Jane Doe', tier=Customer.Tier.BRONZE)
+        self.order = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('250.00'), status=Order.Status.SHIPPED)
+
+    def test_customer_detail_returns_order_history(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get(f'/api/customers/{self.customer.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['name'], 'Detail Corp')
+        self.assertEqual(response.data['contact_name'], 'Jane Doe')
+        self.assertEqual(response.data['tier'], Customer.Tier.BRONZE)
+        self.assertEqual(len(response.data['orders']), 1)
+        self.assertEqual(response.data['orders'][0]['order_number'], self.order.order_number)
+
+    def test_customer_detail_returns_404_for_missing_id(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/customers/99999/')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_customer_detail_forbids_non_sales_role(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.get(f'/api/customers/{self.customer.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

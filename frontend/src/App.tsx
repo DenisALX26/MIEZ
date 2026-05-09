@@ -17,6 +17,9 @@ import ItAssignedPage from './components/it/ItAssignedPage'
 import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
+import SalesCustomersPage from './components/sales/SalesCustomersPage'
+import SalesInvoicesPage from './components/sales/SalesInvoicesPage'
+import SalesProductsPage from './components/sales/SalesProductsPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
@@ -268,10 +271,7 @@ function App() {
               path="/sales/customers"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <ModulePage
-                    title="Customers"
-                    description="Review customer accounts, contact history, and order relationships."
-                  />
+                  <SalesCustomersPage />
                 </ProtectedRoute>
               }
             />
@@ -279,10 +279,7 @@ function App() {
               path="/sales/products"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <ModulePage
-                    title="Products"
-                    description="Browse the sales catalog and product availability."
-                  />
+                  <SalesProductsPage />
                 </ProtectedRoute>
               }
             />
@@ -290,10 +287,7 @@ function App() {
               path="/sales/invoices"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <ModulePage
-                    title="Invoices"
-                    description="Track billing documents, paid invoices, and outstanding balances."
-                  />
+                  <SalesInvoicesPage />
                 </ProtectedRoute>
               }
             />

@@ -147,6 +147,17 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class SalesProductSerializer(serializers.ModelSerializer):
+    availability = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'sku', 'category', 'unit_price_ron', 'stock_count', 'availability']
+
+    def get_availability(self, obj):
+        return obj.availability
+
+
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
@@ -269,13 +280,52 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
 class CustomerSalesSummarySerializer(serializers.ModelSerializer):
     total_value_ron = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    orders_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Customer
         fields = [
             'id',
             'name',
+            'contact_name',
+            'location',
+            'tier',
+            'orders_count',
             'total_value_ron',
+        ]
+
+
+class CustomerOrderHistorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'order_number',
+            'value_ron',
+            'date',
+            'status',
+            'channel',
+        ]
+
+
+class CustomerDetailSerializer(serializers.ModelSerializer):
+    orders = CustomerOrderHistorySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Customer
+        fields = [
+            'id',
+            'name',
+            'contact_name',
+            'contact_email',
+            'contact_phone',
+            'address',
+            'location',
+            'tier',
+            'notes',
+            'created_at',
+            'updated_at',
+            'orders',
         ]
 
 

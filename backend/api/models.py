@@ -63,11 +63,19 @@ class Department(models.Model):
 
 
 class Customer(models.Model):
+    class Tier(models.TextChoices):
+        GOLD = 'Gold', 'Gold'
+        SILVER = 'Silver', 'Silver'
+        BRONZE = 'Bronze', 'Bronze'
+        INDIVIDUAL = 'Individual', 'Individual'
+
     name = models.CharField(max_length=160)
+    contact_name = models.CharField(max_length=160, blank=True, default='')
     contact_email = models.EmailField(blank=True, default='')
     contact_phone = models.CharField(max_length=20, blank=True, default='')
     address = models.TextField(blank=True, default='')
     location = models.CharField(max_length=160, blank=True, default='')
+    tier = models.CharField(max_length=20, choices=Tier.choices, default=Tier.INDIVIDUAL)
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -78,13 +86,14 @@ class Customer(models.Model):
 
 class Product(models.Model):
     class Category(models.TextChoices):
-        GENERAL = 'GENERAL', 'General'
-        INVENTORY = 'INVENTORY', 'Inventory'
-        SALES = 'SALES', 'Sales'
+        ELECTRONICS = 'Electronics', 'Electronics'
+        FURNITURE = 'Furniture', 'Furniture'
+        LIGHTING = 'Lighting', 'Lighting'
+        ACCESSORIES = 'Accessories', 'Accessories'
 
     name = models.CharField(max_length=160)
     sku = models.CharField(max_length=64, unique=True)
-    category = models.CharField(max_length=24, choices=Category.choices, default=Category.GENERAL)
+    category = models.CharField(max_length=24, choices=Category.choices, default=Category.ELECTRONICS)
     unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     stock_count = models.PositiveIntegerField(default=0)
     min_stock = models.PositiveIntegerField(default=10)
@@ -96,7 +105,7 @@ class Product(models.Model):
         stock = int(self.stock_count or 0)
         if stock <= 0:
             return 'Out of Stock'
-        if stock <= 5:
+        if stock <= 9:
             return 'Low Stock'
         return 'In Stock'
 
