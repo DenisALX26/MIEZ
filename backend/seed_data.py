@@ -515,9 +515,232 @@ def seed_systems():
     print('System status data seeded successfully!')
 
 
+def seed_reports():
+    from api.models import Report
+    from django.utils.text import slugify
+    from pathlib import Path
+    import csv
+    from io import StringIO
+
+    ceo_user = User.objects.filter(username='admin').first()
+    
+    # Ensure reports directory exists
+    reports_dir = Path('/app/reports')
+    reports_dir.mkdir(exist_ok=True)
+
+    # Template data for different report types
+    report_templates = {
+        'q4-sales-report': {
+            'headers': ['Month', 'Sales Target (RON)', 'Actual Sales (RON)', 'Achievement %', 'Units Sold'],
+            'rows': [
+                ['October 2024', '500000', '520000', '104%', '1250'],
+                ['November 2024', '520000', '545000', '105%', '1340'],
+                ['December 2024', '550000', '580000', '105%', '1420'],
+                ['TOTAL Q4', '1570000', '1645000', '105%', '4010'],
+            ]
+        },
+        'monthly-finance-summary': {
+            'headers': ['Category', 'Budget (RON)', 'Actual (RON)', 'Variance (RON)', 'Variance %'],
+            'rows': [
+                ['Revenue', '1570000', '1645000', '+75000', '+4.8%'],
+                ['Cost of Goods', '785000', '802000', '-17000', '-2.2%'],
+                ['Operating Expenses', '400000', '398000', '+2000', '+0.5%'],
+                ['Net Income', '385000', '445000', '+60000', '+15.6%'],
+            ]
+        },
+        'inventory-movement-analysis': {
+            'headers': ['Product', 'Opening Stock', 'Inbound', 'Outbound', 'Closing Stock', 'Status'],
+            'rows': [
+                ['Widget A', '150', '200', '220', '130', 'Low'],
+                ['Widget B', '85', '150', '100', '135', 'Normal'],
+                ['Gadget X', '500', '300', '450', '350', 'Normal'],
+                ['Gadget Y', '200', '250', '300', '150', 'Low'],
+                ['Tool Z', '400', '100', '120', '380', 'Normal'],
+            ]
+        },
+        'employee-attendance': {
+            'headers': ['Department', 'Total Employees', 'Present', 'Absent', 'Remote', 'Leave', 'Attendance %'],
+            'rows': [
+                ['HR', '2', '2', '0', '0', '0', '100%'],
+                ['Sales', '3', '2', '0', '1', '0', '100%'],
+                ['IT', '2', '1', '0', '1', '0', '100%'],
+                ['Inventory', '1', '1', '0', '0', '0', '100%'],
+                ['TOTAL', '8', '6', '0', '2', '0', '100%'],
+            ]
+        },
+        'it-support-tickets-summary': {
+            'headers': ['Priority', 'Open', 'In Progress', 'Resolved', 'Closed', 'Avg Resolution Time'],
+            'rows': [
+                ['Urgent', '1', '2', '15', '2', '2.5 hours'],
+                ['High', '3', '4', '28', '8', '6 hours'],
+                ['Medium', '8', '5', '42', '15', '12 hours'],
+                ['Low', '12', '3', '38', '20', '24 hours'],
+                ['TOTAL', '24', '14', '123', '45', '11 hours'],
+            ]
+        },
+        'revenue-by-channel': {
+            'headers': ['Channel', 'Orders', 'Revenue (RON)', 'Avg Order Value', 'Growth %'],
+            'rows': [
+                ['eMAG', '450', '675000', '1500', '+12%'],
+                ['Website', '320', '520000', '1625', '+8%'],
+                ['Direct Sales', '145', '350000', '2414', '+15%'],
+                ['TOTAL', '915', '1545000', '1688', '+11%'],
+            ]
+        },
+        'budget-vs-actual': {
+            'headers': ['Quarter', 'Budget (RON)', 'Actual (RON)', 'Difference', 'Status'],
+            'rows': [
+                ['Q1 2024', '1200000', '1185000', '-15000', 'Under'],
+                ['Q2 2024', '1300000', '1325000', '+25000', 'Over'],
+                ['Q3 2024', '1450000', '1468000', '+18000', 'Over'],
+                ['Q4 2024 (Est)', '1570000', '1645000', '+75000', 'Over'],
+                ['FULL YEAR', '5520000', '5623000', '+103000', 'Over'],
+            ]
+        },
+        'stock-levels-report': {
+            'headers': ['Product SKU', 'Current Stock', 'Min Stock Level', 'Status', 'Reorder Qty', 'Days to Stockout'],
+            'rows': [
+                ['WIDGET-A', '130', '50', 'Low', '200', '15'],
+                ['WIDGET-B', '135', '40', 'Normal', '0', '45'],
+                ['GADGET-X', '350', '100', 'Normal', '0', '60'],
+                ['GADGET-Y', '150', '75', 'Low', '150', '20'],
+                ['TOOL-Z', '380', '100', 'Normal', '0', '90'],
+            ]
+        },
+        'payroll-report': {
+            'headers': ['Employee', 'Department', 'Gross Salary (RON)', 'Deductions (RON)', 'Net Salary (RON)', 'Status'],
+            'rows': [
+                ['Admin MIEZ', 'CEO', '8500', '2040', '6460', 'Processed'],
+                ['Ana Mihai', 'HR', '4200', '1008', '3192', 'Processed'],
+                ['Mihai Popescu', 'Sales', '5000', '1200', '3800', 'Processed'],
+                ['Elena Vasile', 'IT', '6000', '1440', '4560', 'Processed'],
+                ['TOTAL PAYROLL', '-', '23700', '5688', '18012', 'Completed'],
+            ]
+        },
+    }
+
+    reports = [
+        {
+            'name': 'Q4 Sales Report',
+            'category': Report.Category.SALES,
+            'period': 'Oct-Dec 2024',
+            'file_size_kb': 245,
+            'generated_at': timezone.now() - timedelta(days=5),
+            'slug': 'q4-sales-report',
+        },
+        {
+            'name': 'Monthly Finance Summary',
+            'category': Report.Category.FINANCE,
+            'period': 'December 2024',
+            'file_size_kb': 156,
+            'generated_at': timezone.now() - timedelta(days=2),
+            'slug': 'monthly-finance-summary',
+        },
+        {
+            'name': 'Inventory Movement Analysis',
+            'category': Report.Category.INVENTORY,
+            'period': 'Oct-Dec 2024',
+            'file_size_kb': 312,
+            'generated_at': timezone.now() - timedelta(days=10),
+            'slug': 'inventory-movement-analysis',
+        },
+        {
+            'name': 'Employee Attendance',
+            'category': Report.Category.HR,
+            'period': 'December 2024',
+            'file_size_kb': 89,
+            'generated_at': timezone.now() - timedelta(days=1),
+            'slug': 'employee-attendance',
+        },
+        {
+            'name': 'IT Support Tickets Summary',
+            'category': Report.Category.IT,
+            'period': 'Q4 2024',
+            'file_size_kb': 201,
+            'generated_at': timezone.now() - timedelta(days=7),
+            'slug': 'it-support-tickets-summary',
+        },
+        {
+            'name': 'Revenue by Channel',
+            'category': Report.Category.SALES,
+            'period': 'November 2024',
+            'file_size_kb': 178,
+            'generated_at': timezone.now() - timedelta(days=15),
+            'slug': 'revenue-by-channel',
+        },
+        {
+            'name': 'Budget vs Actual',
+            'category': Report.Category.FINANCE,
+            'period': 'Q4 2024',
+            'file_size_kb': 267,
+            'generated_at': timezone.now() - timedelta(days=20),
+            'slug': 'budget-vs-actual',
+        },
+        {
+            'name': 'Stock Levels Report',
+            'category': Report.Category.INVENTORY,
+            'period': 'December 2024',
+            'file_size_kb': 134,
+            'generated_at': timezone.now() - timedelta(days=3),
+            'slug': 'stock-levels-report',
+        },
+        {
+            'name': 'Payroll Report',
+            'category': Report.Category.HR,
+            'period': 'December 2024',
+            'file_size_kb': 95,
+            'generated_at': timezone.now() - timedelta(days=4),
+            'slug': 'payroll-report',
+        },
+    ]
+
+    for data in reports:
+        # Create a realistic CSV file for each report
+        file_path = reports_dir / f"{data['slug']}.csv"
+        
+        template = report_templates.get(data['slug'], {
+            'headers': ['Column 1', 'Column 2', 'Column 3'],
+            'rows': [['Data 1', 'Data 2', 'Data 3']]
+        })
+        
+        # Write CSV file
+        with open(file_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(template['headers'])
+            writer.writerows(template['rows'])
+        
+        report, created = Report.objects.get_or_create(
+            slug=data['slug'],
+            defaults={
+                'name': data['name'],
+                'category': data['category'],
+                'period': data['period'],
+                'file_size_kb': data['file_size_kb'],
+                'generated_at': data['generated_at'],
+                'generated_by': ceo_user,
+                'file_path': str(file_path),
+            },
+        )
+        if created:
+            print(f"Created report: {report.name} ({report.category})")
+        else:
+            report.name = data['name']
+            report.category = data['category']
+            report.period = data['period']
+            report.file_size_kb = data['file_size_kb']
+            report.generated_at = data['generated_at']
+            report.generated_by = ceo_user
+            report.file_path = str(file_path)
+            report.save()
+            print(f"Updated report: {report.name}")
+
+    print('Report data seeded successfully!')
+
+
 if __name__ == "__main__":
     seed_users()
     seed_products()
     seed_sales_orders()
     seed_tickets()
     seed_systems()
+    seed_reports()
