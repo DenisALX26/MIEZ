@@ -16,8 +16,18 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://backend:8000',  // ← "backend" nu "localhost"
-        changeOrigin: true,             // numele serviciului din docker-compose
+        target: 'http://backend:8000',
+        changeOrigin: true,
+      }
+    }
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
+    proxy: {
+      '/api': {
+        target: 'http://backend:8000',
+        changeOrigin: true,
       }
     }
   }
