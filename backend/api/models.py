@@ -78,13 +78,14 @@ class Customer(models.Model):
 
 class Product(models.Model):
     class Category(models.TextChoices):
-        GENERAL = 'GENERAL', 'General'
-        INVENTORY = 'INVENTORY', 'Inventory'
-        SALES = 'SALES', 'Sales'
+        ELECTRONICS = 'Electronics', 'Electronics'
+        FURNITURE = 'Furniture', 'Furniture'
+        LIGHTING = 'Lighting', 'Lighting'
+        ACCESSORIES = 'Accessories', 'Accessories'
 
     name = models.CharField(max_length=160)
     sku = models.CharField(max_length=64, unique=True)
-    category = models.CharField(max_length=24, choices=Category.choices, default=Category.GENERAL)
+    category = models.CharField(max_length=24, choices=Category.choices, default=Category.ELECTRONICS)
     unit_price_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     stock_count = models.PositiveIntegerField(default=0)
     min_stock = models.PositiveIntegerField(default=10)
@@ -96,7 +97,7 @@ class Product(models.Model):
         stock = int(self.stock_count or 0)
         if stock <= 0:
             return 'Out of Stock'
-        if stock <= 5:
+        if stock <= 9:
             return 'Low Stock'
         return 'In Stock'
 

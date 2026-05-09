@@ -199,16 +199,16 @@ class AssistantToolTests(TestCase):
             Product.objects.create(
                 name=f'Inventory Item {index}',
                 sku=f'SKU-INV-{index}',
-                category=Product.Category.INVENTORY,
+                category=Product.Category.ELECTRONICS,
                 stock_count=2,
                 min_stock=10,
                 unit_price_ron='10.00',
             )
 
         Product.objects.create(
-            name='General Item',
-            sku='SKU-GENERAL-1',
-            category=Product.Category.GENERAL,
+            name='Accessories Item',
+            sku='SKU-ACC-1',
+            category=Product.Category.ACCESSORIES,
             stock_count=2,
             min_stock=10,
             unit_price_ron='5.00',
@@ -216,7 +216,7 @@ class AssistantToolTests(TestCase):
         Product.objects.create(
             name='Stock Healthy Item',
             sku='SKU-INV-OK',
-            category=Product.Category.INVENTORY,
+            category=Product.Category.ELECTRONICS,
             stock_count=30,
             min_stock=10,
             unit_price_ron='20.00',
@@ -231,14 +231,14 @@ class AssistantToolTests(TestCase):
         results = query_inventory(
             user=inventory_user,
             status='low_stock',
-            category='INVENTORY',
+            category='Electronics',
             below_min_stock=True,
             limit=50,
         )
 
         self.assertEqual(len(results), 10)
         self.assertTrue(all(item['status'] == 'Low Stock' for item in results))
-        self.assertTrue(all(item['category'] == Product.Category.INVENTORY for item in results))
+        self.assertTrue(all(item['category'] == Product.Category.ELECTRONICS for item in results))
 
     def test_create_ticket_sets_requested_by_to_request_user(self):
         ticket = create_ticket(

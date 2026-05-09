@@ -36,6 +36,7 @@ from .serializers import (
     OrderListSerializer,
     ProductSerializer,
     ReportSerializer,
+    SalesProductSerializer,
     SupplierSerializer,
     StockMovementSerializer,
     SystemStatusSerializer,
@@ -1295,6 +1296,50 @@ class InventoryDashboardView(APIView):
             "out_of_stock_count": out_of_stock_count,
             "deliveries_today": deliveries_today
         }, status=status.HTTP_200_OK)
+class ProductPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_paginated_response(self, data):
+        return Response(
+            OrderedDict(
+                [
+                    ('total_count', self.page.paginator.count),
+                    ('count', self.page.paginator.count),
+                    ('next', self.get_next_link()),
+                    ('previous', self.get_previous_link()),
+                    ('results', data),
+                ]
+            )
+        )
+
+
+class SalesProductsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view the product catalogue."}, status=status.HTTP_403_FORBIDDEN)
+
+        queryset = Product.objects.all().order_by('name')
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) | Q(sku__icontains=search)
+            )
+
+        category = request.query_params.get('category', '').strip()
+        if category:
+            queryset = queryset.filter(category__iexact=category)
+
+        paginator = ProductPagination()
+        paginated = paginator.paginate_queryset(queryset, request)
+        serializer = SalesProductSerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
 class CustomerListView(APIView):
     permission_classes = [IsAuthenticated]
 
