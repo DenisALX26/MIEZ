@@ -6,8 +6,16 @@ with the MIEZ system, including tool registration, conversation management, and
 system prompt injection based on user role.
 """
 
-from typing import Optional
+from __future__ import annotations
 
+from typing import Optional, Any
+
+try:
+    from anthropic import Anthropic  # type: ignore
+except ImportError:  # pragma: no cover - patched in tests when anthropic is absent
+    Anthropic = None
+
+from .tools import get_tool, get_registry
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -38,6 +46,9 @@ You should:
 4. Respect role-based permissions
 
 Available tools will be provided in the conversation context."""
+
+    MODEL_NAME = 'claude-3-5-sonnet-latest'
+    MAX_ITERATIONS = 5
     
     # Role-to-permissions mapping
     ROLE_PERMISSIONS = {
@@ -135,23 +146,158 @@ Available tools will be provided in the conversation context."""
         return self._call_anthropic(message=message, history=history or [], tools=self.get_tools_for_user())
 
     def _call_anthropic(self, message: str, history: list, tools: list) -> dict:
-        """Execute the Anthropic-backed agent call.
+        """Execute the Anthropic-backed agent loop.
 
-        Tests can patch this method directly to avoid any external API dependency.
+        The loop handles assistant text responses, tool execution cycles, tool
+        errors, and a bounded retry count to avoid unbounded recursion.
         """
-        try:
-            from anthropic import Anthropic  # type: ignore
-        except ImportError:
+        if Anthropic is None:
             return {
                 'response': f'[STUB] Processing message: {message}',
                 'tool_calls_made': [],
             }
 
-        _ = Anthropic()
+        client = Anthropic()
+        conversation = self._build_initial_conversation(message=message, history=history)
+        tool_calls_made: list[dict[str, Any]] = []
+
+        for iteration in range(self.MAX_ITERATIONS):
+            response = client.messages.create(
+                model=self.MODEL_NAME,
+                max_tokens=1024,
+                system=self.get_system_prompt(),
+                messages=conversation,
+                tools=[tool.to_dict() for tool in tools],
+            )
+
+            text_response = self._extract_text_response(response)
+            tool_uses = self._extract_tool_uses(response)
+
+            if not tool_uses or getattr(response, 'stop_reason', None) == 'end_turn':
+                return {
+                    'response': text_response,
+                    'tool_calls_made': tool_calls_made,
+                }
+
+            assistant_content = self._normalize_response_content(getattr(response, 'content', []))
+            if assistant_content:
+                conversation.append({'role': 'assistant', 'content': assistant_content})
+
+            tool_result_blocks = []
+            for tool_use in tool_uses:
+                tool_name = tool_use.get('name')
+                tool_input = tool_use.get('input', {}) or {}
+                tool_identifier = tool_use.get('id')
+                try:
+                    tool = self._resolve_tool(tool_name, tools)
+                    result = tool.execute(user=self.user, **tool_input)
+                    serialized_result = result if isinstance(result, str) else self._stringify_result(result)
+                    tool_call_record = {
+                        'tool_name': tool_name,
+                        'arguments': tool_input,
+                        'result': serialized_result,
+                        'error': None,
+                    }
+                    tool_result_blocks.append({
+                        'type': 'tool_result',
+                        'tool_use_id': tool_identifier,
+                        'content': serialized_result,
+                        'is_error': False,
+                    })
+                except Exception as exc:  # pragma: no cover - exercised through tests
+                    serialized_result = str(exc)
+                    tool_call_record = {
+                        'tool_name': tool_name,
+                        'arguments': tool_input,
+                        'result': None,
+                        'error': serialized_result,
+                    }
+                    tool_result_blocks.append({
+                        'type': 'tool_result',
+                        'tool_use_id': tool_identifier,
+                        'content': serialized_result,
+                        'is_error': True,
+                    })
+
+                tool_calls_made.append(tool_call_record)
+
+            conversation.append({'role': 'user', 'content': tool_result_blocks})
+
         return {
-            'response': f'[STUB] Processing message: {message}',
-            'tool_calls_made': [],
+            'response': 'The assistant could not complete the request after several tool iterations.',
+            'tool_calls_made': tool_calls_made,
         }
+
+    def _build_initial_conversation(self, message: str, history: list) -> list:
+        conversation = []
+        for entry in history:
+            conversation.append({'role': entry.get('role'), 'content': entry.get('content')})
+        conversation.append({'role': 'user', 'content': message})
+        return conversation
+
+    @staticmethod
+    def _extract_text_response(response: Any) -> str:
+        content_blocks = getattr(response, 'content', []) or []
+        text_parts = []
+        for block in content_blocks:
+            block_type = getattr(block, 'type', None) or block.get('type')
+            if block_type == 'text':
+                text_parts.append(getattr(block, 'text', None) or block.get('text', ''))
+        return ''.join(text_parts)
+
+    @staticmethod
+    def _extract_tool_uses(response: Any) -> list[dict[str, Any]]:
+        content_blocks = getattr(response, 'content', []) or []
+        tool_uses = []
+        for block in content_blocks:
+            block_type = getattr(block, 'type', None) or block.get('type')
+            if block_type != 'tool_use':
+                continue
+            tool_uses.append({
+                'id': getattr(block, 'id', None) or block.get('id'),
+                'name': getattr(block, 'name', None) or block.get('name'),
+                'input': getattr(block, 'input', None) or block.get('input', {}),
+            })
+        return tool_uses
+
+    @staticmethod
+    def _normalize_response_content(content: list[Any]) -> list[dict[str, Any]]:
+        normalized = []
+        for block in content or []:
+            block_type = getattr(block, 'type', None) or block.get('type')
+            if block_type == 'text':
+                normalized.append({'type': 'text', 'text': getattr(block, 'text', None) or block.get('text', '')})
+            elif block_type == 'tool_use':
+                normalized.append({
+                    'type': 'tool_use',
+                    'id': getattr(block, 'id', None) or block.get('id'),
+                    'name': getattr(block, 'name', None) or block.get('name'),
+                    'input': getattr(block, 'input', None) or block.get('input', {}),
+                })
+        return normalized
+
+    def _resolve_tool(self, tool_name: str, tools: list) -> Any:
+        for tool in tools:
+            if getattr(tool, 'name', None) == tool_name:
+                return tool
+
+        registry_tool = get_tool(tool_name)
+        if registry_tool is not None:
+            return registry_tool
+
+        registry_tool = get_registry().get(tool_name)
+        if registry_tool is not None:
+            return registry_tool
+
+        raise ValueError(f'Tool {tool_name} is not registered')
+
+    @staticmethod
+    def _stringify_result(result: Any) -> str:
+        if isinstance(result, (dict, list)):
+            import json
+
+            return json.dumps(result, default=str)
+        return str(result)
     
     def get_tools_for_user(self) -> list:
         """
@@ -165,7 +311,7 @@ Available tools will be provided in the conversation context."""
         # Filter tools by user permissions
         available_tools = [
             tool for tool in self.tools
-            if not hasattr(tool, 'required_permission') or tool.required_permission in user_permissions
+            if not getattr(tool, 'required_permission', None) or tool.required_permission in user_permissions
         ]
         
         return available_tools

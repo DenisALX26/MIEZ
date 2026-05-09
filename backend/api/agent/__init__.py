@@ -9,6 +9,7 @@ Provides the core agent infrastructure for the MIEZ Assistant, including:
 
 from .runner import AgentRunner
 from .tools import (
+    agent_tool,
     Tool,
     ToolRegistry,
     get_registry,
@@ -29,6 +30,7 @@ register_default_tools()
 
 __all__ = [
     'AgentRunner',
+    'agent_tool',
     'Tool',
     'ToolRegistry',
     'get_registry',
