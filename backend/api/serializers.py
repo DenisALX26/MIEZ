@@ -430,3 +430,34 @@ class SystemStatusSerializer(serializers.ModelSerializer):
         model = SystemStatus
         fields = ['id', 'name', 'uptime_pct', 'status', 'last_incident_date', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ChatMessageHistorySerializer(serializers.Serializer):
+    """Serializer for a single message in conversation history."""
+    role = serializers.ChoiceField(choices=['user', 'assistant'])
+    content = serializers.CharField()
+
+
+class AssistantChatRequestSerializer(serializers.Serializer):
+    """Serializer for the assistant chat endpoint request."""
+    message = serializers.CharField(required=True)
+    history = ChatMessageHistorySerializer(many=True, required=False, allow_empty=True)
+
+    def validate_message(self, value):
+        if not value.strip():
+            raise serializers.ValidationError('Message cannot be empty.')
+        if len(value) > 4000:
+            raise serializers.ValidationError('Message cannot exceed 4000 characters.')
+        return value
+
+
+class ToolCallSerializer(serializers.Serializer):
+    """Serializer for tool calls made by the agent."""
+    tool_name = serializers.CharField()
+    arguments = serializers.JSONField()
+
+
+class AssistantChatResponseSerializer(serializers.Serializer):
+    """Serializer for the assistant chat endpoint response."""
+    response = serializers.CharField()
+    tool_calls_made = ToolCallSerializer(many=True, allow_empty=True)

@@ -153,6 +153,17 @@ SIMPLE_JWT = {
 
 AUTH_USER_MODEL = 'api.User'
 
+# Cache configuration for rate limiting and caching
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'miez-cache',
+        'OPTIONS': {
+            'MAX_ENTRIES': 10000,
+        }
+    }
+}
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,

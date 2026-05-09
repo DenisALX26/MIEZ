@@ -43,4 +43,5 @@ urlpatterns = [
   path('reports/', views.ReportListView.as_view(), name='report_list'),
   path('reports/<int:id>/download/', views.ReportDownloadView.as_view(), name='report_download'),
   path('reports/generate/<slug:slug>/', views.ReportGenerateView.as_view(), name='report_generate'),
+  path('assistant/chat/', views.AssistantChatView.as_view(), name='assistant_chat'),
 ]
