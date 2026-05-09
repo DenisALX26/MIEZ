@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from decimal import Decimal
 from typing import Any
 
 from django.db.models import Count, Sum
@@ -84,13 +85,13 @@ def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
             return round(((current_numeric - previous_numeric) / previous_numeric) * 100, 2)
 
         orders_today = today_stats['orders_today'] or 0
-        revenue_today_ron = today_stats['revenue_today_ron'] or 0
+        revenue_today_ron = Decimal(str(today_stats['revenue_today_ron'] or 0)).quantize(Decimal('0.01'))
         orders_yesterday = yesterday_stats['orders_yesterday'] or 0
         revenue_yesterday_ron = yesterday_stats['revenue_yesterday_ron'] or 0
 
         return {
             'orders_today': orders_today,
-            'revenue_today_ron': str(revenue_today_ron),
+            'revenue_today_ron': f'{revenue_today_ron:.2f}',
             'pending_orders': base_queryset.filter(status=Order.Status.PENDING).count(),
             'returns_this_week': base_queryset.filter(
                 status=Order.Status.RETURNED,
