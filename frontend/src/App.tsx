@@ -18,6 +18,7 @@ import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
 import SalesCustomersPage from './components/sales/SalesCustomersPage'
+import SalesInvoicesPage from './components/sales/SalesInvoicesPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
@@ -288,10 +289,7 @@ function App() {
               path="/sales/invoices"
               element={
                 <ProtectedRoute requiredRole="SALES">
-                  <ModulePage
-                    title="Invoices"
-                    description="Track billing documents, paid invoices, and outstanding balances."
-                  />
+                  <SalesInvoicesPage />
                 </ProtectedRoute>
               }
             />
