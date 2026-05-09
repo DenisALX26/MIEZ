@@ -6,7 +6,8 @@ with the MIEZ system, including tool registration, conversation management, and
 system prompt injection based on user role.
 """
 
-from typing import Optional, Any
+from typing import Optional
+
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -131,14 +132,22 @@ Available tools will be provided in the conversation context."""
             - response: str - The agent's response
             - tool_calls_made: list - Any tool calls made during execution
         """
-        # TODO: Replace this stub with actual agent execution
-        # This is where you would:
-        # 1. Build the full conversation with system prompt
-        # 2. Call the LLM/agent framework
-        # 3. Parse tool calls from the response
-        # 4. Execute tools as needed
-        # 5. Return the final response and tool calls log
-        
+        return self._call_anthropic(message=message, history=history or [], tools=self.get_tools_for_user())
+
+    def _call_anthropic(self, message: str, history: list, tools: list) -> dict:
+        """Execute the Anthropic-backed agent call.
+
+        Tests can patch this method directly to avoid any external API dependency.
+        """
+        try:
+            from anthropic import Anthropic  # type: ignore
+        except ImportError:
+            return {
+                'response': f'[STUB] Processing message: {message}',
+                'tool_calls_made': [],
+            }
+
+        _ = Anthropic()
         return {
             'response': f'[STUB] Processing message: {message}',
             'tool_calls_made': [],

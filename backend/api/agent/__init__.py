@@ -15,6 +15,17 @@ from .tools import (
     register_tool,
     get_tool,
 )
+from .operations import (
+    create_leave_request,
+    create_ticket,
+    generate_report,
+    get_dashboard_summary,
+    query_employees,
+    query_tickets,
+    register_default_tools,
+)
+
+register_default_tools()
 
 __all__ = [
     'AgentRunner',
@@ -23,4 +34,10 @@ __all__ = [
     'get_registry',
     'register_tool',
     'get_tool',
+    'get_dashboard_summary',
+    'query_tickets',
+    'query_employees',
+    'create_ticket',
+    'create_leave_request',
+    'generate_report',
 ]

@@ -43,7 +43,7 @@ from .serializers import (
     TicketSerializer,
     TicketUpdateSerializer,
 )
-from .agent import AgentRunner
+from .agent import AgentRunner, get_registry
 from .rate_limiting import rate_limit
 
 
@@ -1522,14 +1522,7 @@ class AssistantChatView(APIView):
         try:
             # Initialize agent runner with user context
             agent = AgentRunner(user=request.user)
-            
-            # TODO: Register actual tools here
-            # Example:
-            # agent.register_tools([
-            #     EmployeeManagementTool(),
-            #     SalesReportTool(),
-            #     ...
-            # ])
+            agent.register_tools(get_registry().get_all())
             
             # Run the agent
             result = agent.run(message=message, history=history)
