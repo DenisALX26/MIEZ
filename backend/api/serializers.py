@@ -147,6 +147,17 @@ class ProductSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class SalesProductSerializer(serializers.ModelSerializer):
+    availability = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = ['id', 'name', 'sku', 'category', 'unit_price_ron', 'stock_count', 'availability']
+
+    def get_availability(self, obj):
+        return obj.availability
+
+
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier

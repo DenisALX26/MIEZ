@@ -31,6 +31,7 @@ urlpatterns = [
   path('sales/top-products/', views.SalesTopProductsView.as_view(), name='sales_top_products'),
   path('sales/channel-split/', views.SalesChannelSplitView.as_view(), name='sales_channel_split'),
   path('sales/revenue-trend/', views.SalesRevenueTrendView.as_view(), name='sales_revenue_trend'),
+  path('products/', views.SalesProductsView.as_view(), name='product_catalogue'),
   path('customers/', views.CustomerListView.as_view(), name='customer_list'),
   path('invoices/', views.InvoiceListView.as_view(), name='invoice_list'),
   path('orders/', views.OrderListView.as_view(), name='order_list'),
