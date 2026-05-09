@@ -26,6 +26,7 @@ from .models import Department, Report, Supplier, User, Product, StockMovement, 
 from .serializers import (
     AssistantChatRequestSerializer,
     AssistantChatResponseSerializer,
+    CustomerDetailSerializer,
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
     EmployeeCreateSerializer,
@@ -1340,6 +1341,12 @@ class SalesProductsView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
+class CustomerPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class CustomerListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1349,11 +1356,28 @@ class CustomerListView(APIView):
 
         customers = (
             Customer.objects
-            .annotate(total_value_ron=Coalesce(Sum('orders__value_ron'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)))
+            .annotate(
+                total_value_ron=Coalesce(Sum('orders__value_ron'), Value(0), output_field=DecimalField(max_digits=12, decimal_places=2)),
+                orders_count=Count('orders'),
+            )
             .order_by('-total_value_ron', 'name')
         )
 
-        serializer = CustomerSalesSummarySerializer(customers, many=True)
+        paginator = CustomerPagination()
+        paginated = paginator.paginate_queryset(customers, request)
+        serializer = CustomerSalesSummarySerializer(paginated, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+
+class CustomerDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view customers."}, status=status.HTTP_403_FORBIDDEN)
+
+        customer = get_object_or_404(Customer.objects.prefetch_related('orders'), id=id)
+        serializer = CustomerDetailSerializer(customer)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
