@@ -442,6 +442,14 @@ class Report(models.Model):
     file_size_kb = models.IntegerField(default=0)
     generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reports_generated')
     generated_at = models.DateTimeField(null=True, blank=True)
+    # Store digest data as JSON (for HR digest or similar structured reports)
+    digest_data = models.JSONField(null=True, blank=True, default=None)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
 
+    class Meta:
+        ordering = ['-generated_at']
+
+    def __str__(self):
+        return self.name
     def __str__(self):
         return self.name

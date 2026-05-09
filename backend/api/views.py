@@ -22,7 +22,12 @@ from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
-from .models import Department, Report, Supplier, User, Product, StockMovement, Ticket, Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, PayrollEntry, SystemStatus
+from .models import (
+    Department, Report, Supplier, User, Product, StockMovement, Ticket, 
+    Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, 
+    PayrollEntry, SystemStatus, Notification
+)
+from .management.commands.generate_hr_digest import DigestGenerator
 from .serializers import (
     AssistantChatRequestSerializer,
     AssistantChatResponseSerializer,
@@ -1650,3 +1655,76 @@ class AssistantChatView(APIView):
         # Increment and set 60-second expiry
         cache.set(cache_key, request_count + 1, timeout=60)
         return True
+
+
+class HrDigestGenerateView(APIView):
+    """Generate weekly HR digest with insights and create notifications for critical issues."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Only CEO can request digest generation
+        if request.user.role != User.Role.CEO:
+            return Response(
+                {"detail": "Only CEO can request HR digest generation."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        try:
+            # Generate the digest
+            generator = DigestGenerator()
+            digest = generator.generate()
+            
+            # Save as Report record
+            report = Report.objects.create(
+                name=f'HR Weekly Digest - {generator.week_start.strftime("%Y-%m-%d")}',
+                slug=f'hr-digest-{generator.week_start.strftime("%Y%m%d")}',
+                category=Report.Category.HR,
+                period=digest['period'],
+                file_path='',
+                file_size_kb=0,
+                generated_by=request.user,
+                generated_at=generator.generated_at,
+                digest_data=digest,
+            )
+            
+            # Create notification for HR Manager if critical issues exist
+            critical_insights = digest.get('critical', [])
+            if critical_insights:
+                self._notify_hr_managers(digest)
+            else:
+                # Log entry: No anomalies detected
+                pass
+            
+            return Response(
+                {
+                    'success': True,
+                    'digest': digest,
+                    'report_id': report.id,
+                    'notifications_sent': len(critical_insights) > 0,
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        except Exception as e:
+            return Response(
+                {'detail': f'Error generating digest: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _notify_hr_managers(self, digest):
+        """Create notifications for active HR Managers with critical issue summary."""
+        hr_managers = User.objects.filter(
+            role=User.Role.HR,
+            is_active=True
+        )
+        
+        summary = digest['summary_line']
+        critical_count = len(digest.get('critical', []))
+        
+        for hr_manager in hr_managers:
+            Notification.objects.create(
+                recipient=hr_manager,
+                title=f'🚨 Critical HR Issues Detected ({critical_count})',
+                body=summary,
+                link='/reports?category=HR',
+            )
