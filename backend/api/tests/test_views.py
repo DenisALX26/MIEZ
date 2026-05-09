@@ -1076,4 +1076,83 @@ class SalesAnalyticsTask3Tests(APITestCase):
 
         self.assertEqual(daily_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(top_response.status_code, status.HTTP_403_FORBIDDEN)
-        
+
+
+from datetime import timedelta
+from api.models import Invoice
+
+
+class InvoiceListViewTests(APITestCase):
+    def setUp(self):
+        self.sales_user = User.objects.create_user(
+            username='sales_invoices',
+            role=User.Role.SALES,
+            email='sales_invoices@example.com',
+        )
+        self.hr_user = User.objects.create_user(
+            username='hr_invoices',
+            role=User.Role.HR,
+            email='hr_invoices@example.com',
+        )
+        self.customer = Customer.objects.create(name='Invoice Customer')
+        today = timezone.localdate()
+
+        order_a = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('100.00'))
+        order_b = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('200.00'))
+        order_c = Order.objects.create(customer=self.customer, created_by=self.sales_user, value_ron=Decimal('300.00'))
+
+        Invoice.objects.filter(order=order_a).update(status=Invoice.Status.PAID, amount_ron=Decimal('100.00'))
+        Invoice.objects.filter(order=order_b).update(
+            status=Invoice.Status.ISSUED, due_date=today - timedelta(days=1), amount_ron=Decimal('200.00')
+        )
+        Invoice.objects.filter(order=order_c).update(
+            status=Invoice.Status.ISSUED, due_date=today + timedelta(days=7), amount_ron=Decimal('300.00')
+        )
+
+    def test_get_invoices_returns_summary_totals(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/invoices/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('paid_total', response.data)
+        self.assertIn('pending_total', response.data)
+        self.assertIn('overdue_total', response.data)
+        self.assertEqual(Decimal(response.data['paid_total']), Decimal('100.00'))
+        self.assertEqual(Decimal(response.data['overdue_total']), Decimal('200.00'))
+        self.assertEqual(Decimal(response.data['pending_total']), Decimal('300.00'))
+
+    def test_get_invoices_summary_totals_unaffected_by_status_filter(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.get('/api/invoices/?status=Paid')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_count'], 1)
+        self.assertEqual(Decimal(response.data['paid_total']), Decimal('100.00'))
+        self.assertEqual(Decimal(response.data['overdue_total']), Decimal('200.00'))
+
+    def test_get_invoices_forbids_non_sales_roles(self):
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.get('/api/invoices/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_order_creation_auto_creates_invoice_via_signal(self):
+        self.client.force_authenticate(user=self.sales_user)
+
+        response = self.client.post('/api/orders/', {
+            'customer': self.customer.id,
+            'value_ron': '450.00',
+            'date': timezone.localdate().isoformat(),
+            'status': Order.Status.PENDING,
+            'channel': Order.Channel.WEBSITE,
+        }, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        order = Order.objects.get(id=response.data['id'])
+        self.assertTrue(Invoice.objects.filter(order=order).exists())
+        invoice = Invoice.objects.get(order=order)
+        self.assertTrue(invoice.invoice_number.startswith('INV-'))
+        self.assertEqual(invoice.amount_ron, Decimal('450.00'))
