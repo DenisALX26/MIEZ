@@ -83,4 +83,4 @@ credentials.yml.enc
 .devcontainer/
 
 # report csv
-backend/api/reports/*.csv
+backend/reports/*.csv
