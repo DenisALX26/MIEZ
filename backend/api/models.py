@@ -418,9 +418,16 @@ class SystemStatus(models.Model):
 
 
 class Report(models.Model):
+    class Category(models.TextChoices):
+        SALES = 'Sales', 'Sales'
+        FINANCE = 'Finance', 'Finance'
+        INVENTORY = 'Inventory', 'Inventory'
+        HR = 'HR', 'HR'
+        IT = 'IT', 'IT'
+
     name = models.CharField(max_length=160)
     slug = models.SlugField(max_length=100, unique=True, default='')
-    category = models.CharField(max_length=80, blank=True, default='')
+    category = models.CharField(max_length=20, choices=Category.choices, blank=True, default='')
     period = models.CharField(max_length=80, blank=True, default='')
     file_path = models.CharField(max_length=255, blank=True, default='')
     file_size_kb = models.IntegerField(default=0)
