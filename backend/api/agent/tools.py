@@ -5,7 +5,64 @@ Provides a centralized registry for managing agent tools, including
 registration, validation, and access control based on user roles.
 """
 
-from typing import List, Dict, Optional, Callable, Any
+from __future__ import annotations
+
+import inspect
+from typing import List, Dict, Optional, Callable, Any, get_args, get_origin
+
+
+def _annotation_to_json_schema(annotation: Any) -> Dict[str, Any]:
+    origin = get_origin(annotation)
+    if annotation in (int,):
+        return {'type': 'integer'}
+    if annotation in (float,):
+        return {'type': 'number'}
+    if annotation in (bool,):
+        return {'type': 'boolean'}
+    if annotation in (list,) or origin in (list, List):
+        item_annotation = get_args(annotation)[0] if get_args(annotation) else Any
+        return {'type': 'array', 'items': _annotation_to_json_schema(item_annotation)}
+    if annotation in (dict,) or origin in (dict, Dict):
+        return {'type': 'object'}
+    return {'type': 'string'}
+
+
+def build_schema_from_callable(func: Callable) -> Dict[str, Any]:
+    signature = inspect.signature(func)
+    properties: Dict[str, Any] = {}
+    required: List[str] = []
+
+    for parameter_name, parameter in signature.parameters.items():
+        if parameter.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            continue
+        if parameter_name == 'user':
+            continue
+        annotation = parameter.annotation if parameter.annotation is not inspect._empty else Any
+        properties[parameter_name] = _annotation_to_json_schema(annotation)
+        if parameter.default is inspect._empty:
+            required.append(parameter_name)
+
+    return {
+        'type': 'object',
+        'properties': properties,
+        'required': required,
+        'additionalProperties': False,
+    }
+
+
+def agent_tool(name: Optional[str] = None, description: Optional[str] = None, schema: Optional[Dict[str, Any]] = None):
+    def decorator(func: Callable) -> Callable:
+        tool_name = name or func.__name__
+        tool_description = description or (inspect.getdoc(func) or '').strip()
+        tool_schema = schema or build_schema_from_callable(func)
+        func.agent_tool = {
+            'name': tool_name,
+            'description': tool_description,
+            'schema': tool_schema,
+        }
+        return func
+
+    return decorator
 
 
 class Tool:
@@ -22,6 +79,7 @@ class Tool:
         description: str,
         required_permission: Optional[str] = None,
         execute_fn: Optional[Callable] = None,
+        schema: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize a tool.
@@ -36,6 +94,25 @@ class Tool:
         self.description = description
         self.required_permission = required_permission
         self.execute_fn = execute_fn
+        self.schema = schema or {}
+
+    @classmethod
+    def from_callable(
+        cls,
+        func: Callable,
+        required_permission: Optional[str] = None,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        schema: Optional[Dict[str, Any]] = None,
+    ) -> 'Tool':
+        tool_meta = getattr(func, 'agent_tool', {})
+        return cls(
+            name=name or tool_meta.get('name') or func.__name__,
+            description=description or tool_meta.get('description') or (inspect.getdoc(func) or '').strip(),
+            required_permission=required_permission,
+            execute_fn=func,
+            schema=schema or tool_meta.get('schema') or build_schema_from_callable(func),
+        )
     
     def can_use(self, permissions: List[str]) -> bool:
         """
@@ -51,7 +128,7 @@ class Tool:
             return True
         return self.required_permission in permissions
     
-    def execute(self, **kwargs) -> Any:
+    def execute(self, user: Any = None, **kwargs) -> Any:
         """
         Execute the tool with given arguments.
         
@@ -63,7 +140,13 @@ class Tool:
         """
         if self.execute_fn is None:
             raise NotImplementedError(f"Tool {self.name} does not have an execute function")
-        return self.execute_fn(**kwargs)
+
+        call_kwargs = dict(kwargs)
+        signature = inspect.signature(self.execute_fn)
+        if 'user' in signature.parameters and 'user' not in call_kwargs:
+            call_kwargs['user'] = user
+
+        return self.execute_fn(**call_kwargs)
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -76,6 +159,7 @@ class Tool:
             'name': self.name,
             'description': self.description,
             'required_permission': self.required_permission,
+            'input_schema': self.schema,
         }
 
 

@@ -12,7 +12,7 @@ from django.utils import timezone
 from api.models import Department, LeaveRequest, Order, Report, Ticket, User
 from api.report_utils import generate_report_file
 
-from .tools import Tool, get_registry, register_tool
+from .tools import Tool, agent_tool, get_registry, register_tool
 
 
 def _permission_error(message: str) -> PermissionError:
@@ -58,6 +58,7 @@ def _serialize_employee(employee: User) -> dict[str, Any]:
     }
 
 
+@agent_tool(name='get_dashboard_summary', description='Get dashboard summary data by module.')
 def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
     module_name = (module or '').strip().lower()
     if module_name == 'sales':
@@ -131,6 +132,7 @@ def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
     raise ValueError(f'Unsupported module: {module}')
 
 
+@agent_tool(name='query_tickets', description='Query tickets by status.')
 def query_tickets(status: str, user: User) -> list[dict[str, Any]]:
     _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can query tickets.')
 
@@ -150,6 +152,7 @@ def query_tickets(status: str, user: User) -> list[dict[str, Any]]:
     return [_serialize_ticket(ticket) for ticket in tickets]
 
 
+@agent_tool(name='query_employees', description='Query employees.')
 def query_employees(user: User) -> list[dict[str, Any]]:
     _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can query employees.')
 
@@ -157,6 +160,7 @@ def query_employees(user: User) -> list[dict[str, Any]]:
     return [_serialize_employee(employee) for employee in employees]
 
 
+@agent_tool(name='create_ticket', description='Create a support ticket.')
 def create_ticket(user: User, **payload: Any) -> Ticket:
     return Ticket.objects.create(
         title=payload['title'],
@@ -172,6 +176,7 @@ def create_ticket(user: User, **payload: Any) -> Ticket:
     )
 
 
+@agent_tool(name='create_leave_request', description='Create a leave request.')
 def create_leave_request(user: User, **payload: Any) -> LeaveRequest:
     _require_roles(user, [User.Role.HR], 'Only HR can create leave requests through the assistant.')
 
@@ -190,6 +195,7 @@ def create_leave_request(user: User, **payload: Any) -> LeaveRequest:
     )
 
 
+@agent_tool(name='generate_report', description='Generate a report from an existing report definition.')
 def generate_report(user: User, slug: str) -> Report:
     if user.role != User.Role.CEO and not user.is_staff:
         raise _permission_error('Only CEO or staff users can generate reports through the assistant.')
@@ -204,9 +210,9 @@ def register_default_tools() -> None:
     if registry.get('get_dashboard_summary') is not None:
         return
 
-    register_tool(Tool('get_dashboard_summary', 'Get dashboard summary data by module.', execute_fn=get_dashboard_summary))
-    register_tool(Tool('query_tickets', 'Query tickets by status.', required_permission='manage_tickets', execute_fn=query_tickets))
-    register_tool(Tool('query_employees', 'Query employees.', required_permission='manage_employees', execute_fn=query_employees))
-    register_tool(Tool('create_ticket', 'Create a support ticket.', execute_fn=create_ticket))
-    register_tool(Tool('create_leave_request', 'Create a leave request.', required_permission='process_leave_requests', execute_fn=create_leave_request))
-    register_tool(Tool('generate_report', 'Generate a report from an existing report definition.', required_permission='view_financial_reports', execute_fn=generate_report))
+    register_tool(Tool.from_callable(get_dashboard_summary))
+    register_tool(Tool.from_callable(query_tickets, required_permission='manage_tickets'))
+    register_tool(Tool.from_callable(query_employees, required_permission='manage_employees'))
+    register_tool(Tool.from_callable(create_ticket))
+    register_tool(Tool.from_callable(create_leave_request, required_permission='process_leave_requests'))
+    register_tool(Tool.from_callable(generate_report, required_permission='view_financial_reports'))
