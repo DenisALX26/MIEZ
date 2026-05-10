@@ -151,8 +151,13 @@ class ERPModelsTestCase(TestCase):
 		self.assertEqual(ticket.comments.count(), 1)
 
 	def test_workflow_and_log(self):
-		workflow = Workflow.objects.create(name='Auto-assign IT tickets', trigger_type='ticket.created')
-		WorkflowLog.objects.create(workflow=workflow, trigger_input={'ticket': 'T-1'}, trigger_result={'ok': True})
+		workflow = Workflow.objects.create(name='Auto-assign IT tickets', trigger_type='NEW_IT_TICKET')
+		WorkflowLog.objects.create(
+			workflow=workflow,
+			trigger_type='NEW_IT_TICKET',
+			actions_log=[{'action': 'NOTIFY_MANAGER', 'success': True, 'message': 'ok'}],
+			success=True,
+		)
 		self.assertEqual(workflow.logs.count(), 1)
 
 	def test_system_statistic_unique_name(self):
