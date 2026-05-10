@@ -254,7 +254,7 @@ function App() {
             <Route
               path="/sales/dashboard"
               element={
-                <ProtectedRoute requiredRole="SALES">
+                <ProtectedRoute requiredRoles={['CEO', 'SALES']}>
                   <SalesDashboard />
                 </ProtectedRoute>
               }
@@ -262,7 +262,7 @@ function App() {
             <Route
               path="/sales/orders"
               element={
-                <ProtectedRoute requiredRole="SALES">
+                <ProtectedRoute requiredRoles={['CEO', 'SALES']}>
                   <SalesOrdersPage />
                 </ProtectedRoute>
               }
@@ -270,7 +270,7 @@ function App() {
             <Route
               path="/sales/customers"
               element={
-                <ProtectedRoute requiredRole="SALES">
+                <ProtectedRoute requiredRoles={['CEO', 'SALES']}>
                   <SalesCustomersPage />
                 </ProtectedRoute>
               }
@@ -278,7 +278,7 @@ function App() {
             <Route
               path="/sales/products"
               element={
-                <ProtectedRoute requiredRole="SALES">
+                <ProtectedRoute requiredRoles={['CEO', 'SALES']}>
                   <SalesProductsPage />
                 </ProtectedRoute>
               }
@@ -286,7 +286,7 @@ function App() {
             <Route
               path="/sales/invoices"
               element={
-                <ProtectedRoute requiredRole="SALES">
+                <ProtectedRoute requiredRoles={['CEO', 'SALES']}>
                   <SalesInvoicesPage />
                 </ProtectedRoute>
               }
