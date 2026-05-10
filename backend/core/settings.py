@@ -48,7 +48,13 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt', # <--- Adaugă această linie
     'corsheaders',
     'django_filters',
+    'django_crontab',
     'api',
+]
+
+CRONJOBS = [
+    # Swap 'generate_hr_report' ↔ 'run_hr_agent' to toggle DB-only vs AI mode
+    ('0 6 * * 1', 'django.core.management.call_command', ['generate_hr_report']),
 ]
 
 MIDDLEWARE = [
