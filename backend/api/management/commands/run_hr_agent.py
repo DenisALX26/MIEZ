@@ -88,7 +88,7 @@ class Command(BaseCommand):
             workflow = Workflow.objects.create(
                 name=WORKFLOW_NAME,
                 trigger_type='WEEKLY_AT_TIME',
-                trigger_config={'day_of_week': 'monday', 'time': '06:00'},
+                trigger_config={'day_of_week': 'monday', 'time': '06:00', 'managed_by': 'run_hr_agent'},
                 is_active=True,
             )
 
@@ -128,7 +128,7 @@ class Command(BaseCommand):
         # 5. Run the agent
         log_entry = WorkflowLog(
             workflow=workflow,
-            trigger_input={'week': iso_week, 'dry_run': dry_run},
+            trigger_type='WEEKLY_AT_TIME',
         )
 
         try:
@@ -139,10 +139,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS('\n=== HR Agent Digest ===\n'))
             self.stdout.write(digest_text)
 
+            slug = f'hr-agent-{week_start.strftime("%Y%m%d")}'
+
             if not dry_run:
                 # 6. Save Report
                 report_name = f'HR Agent Digest — {iso_week}'
-                slug = f'hr-agent-{week_start.strftime("%Y%m%d")}'
 
                 report, created = Report.objects.get_or_create(
                     slug=slug,
@@ -176,18 +177,19 @@ class Command(BaseCommand):
 
                 self.stdout.write(self.style.SUCCESS(f'\nReport saved: {report_name} (id={report.id})'))
 
-            log_entry.trigger_result = {
-                'status': 'success',
-                'report_slug': slug if not dry_run else None,
-                'tool_calls': len(tool_calls),
-            }
+            log_entry.actions_log = [{
+                'action': 'GENERATE_REPORT',
+                'success': True,
+                'message': f'Report slug: {slug if not dry_run else "dry-run"}, tool_calls: {len(tool_calls)}',
+            }]
+            log_entry.success = True
             log_entry.save()
 
         except Exception as exc:
             error_msg = str(exc)
             logger.exception('HR agent failed: %s', error_msg)
-            log_entry.error_message = error_msg
-            log_entry.trigger_result = {'status': 'error'}
+            log_entry.actions_log = [{'action': 'GENERATE_REPORT', 'success': False, 'message': error_msg}]
+            log_entry.success = False
             log_entry.save()
 
             if not dry_run:

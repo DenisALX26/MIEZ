@@ -20,13 +20,9 @@ class WorkflowAdmin(admin.ModelAdmin):
 
 @admin.register(WorkflowLog)
 class WorkflowLogAdmin(admin.ModelAdmin):
-    list_display = ('workflow', 'triggered_at', 'status_display', 'error_message')
-    list_filter = ('workflow',)
-    readonly_fields = ('workflow', 'triggered_at', 'trigger_input', 'trigger_result', 'error_message')
-
-    def status_display(self, obj):
-        return obj.trigger_result.get('status', '—') if obj.trigger_result else '—'
-    status_display.short_description = 'Status'
+    list_display = ('workflow', 'triggered_at', 'trigger_type', 'success')
+    list_filter = ('workflow', 'success', 'trigger_type')
+    readonly_fields = ('workflow', 'triggered_at', 'trigger_type', 'actions_log', 'success')
 
     def has_add_permission(self, request):
         return False
