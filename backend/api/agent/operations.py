@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+import datetime
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Avg, Count, F, Q, Sum
 from django.utils import timezone
 
-from api.models import Department, LeaveRequest, Order, Product, Report, Ticket, User
+from api.models import Attendance, Contract, Department, LeaveRequest, Order, PayrollEntry, Product, Report, Ticket, User
 from api.report_utils import generate_report_file
 
 from .tools import Tool, agent_tool, get_registry, register_tool
+
+
+def _parse_iso_week(week: str) -> tuple[datetime.date, datetime.date]:
+    """Parse ISO week string '2026-W18' to (monday, sunday)."""
+    year_str, week_str = week.split('-W')
+    monday = datetime.date.fromisocalendar(int(year_str), int(week_str), 1)
+    return monday, monday + timedelta(days=6)
 
 
 def _permission_error(message: str) -> PermissionError:
@@ -397,6 +405,161 @@ def generate_report(user: User, slug: str) -> Report:
     return report
 
 
+@agent_tool(name='query_leave_requests', description='Query leave requests, optionally filtered by ISO week (e.g. 2026-W18), status, or department.')
+def query_leave_requests(
+    user: User,
+    week: str | None = None,
+    status: str | None = None,
+    department: int | str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can query leave requests.')
+
+    queryset = LeaveRequest.objects.select_related('employee', 'department').all()
+
+    if week:
+        week_start, week_end = _parse_iso_week(week)
+        queryset = queryset.filter(from_date__lte=week_end, to_date__gte=week_start)
+
+    if status:
+        status_name = status.strip().upper()
+        valid_statuses = {choice[0] for choice in LeaveRequest.Status.choices}
+        if status_name not in valid_statuses:
+            raise ValueError(f'Unsupported leave request status: {status}')
+        queryset = queryset.filter(status=status_name)
+
+    if department is not None:
+        if isinstance(department, int) or (isinstance(department, str) and department.isdigit()):
+            queryset = queryset.filter(department_id=int(department))
+        elif isinstance(department, str):
+            queryset = queryset.filter(Q(department__slug=department) | Q(department__name__iexact=department))
+
+    leave_requests = queryset.order_by('-created_at')[:_normalized_limit(limit)]
+    return [
+        {
+            'id': lr.id,
+            'employee_id': lr.employee_id,
+            'employee_username': lr.employee.username if lr.employee else None,
+            'department': _serialize_department(lr.department),
+            'type': lr.type,
+            'from_date': lr.from_date.isoformat() if lr.from_date else None,
+            'to_date': lr.to_date.isoformat() if lr.to_date else None,
+            'status': lr.status,
+            'reason': lr.reason,
+        }
+        for lr in leave_requests
+    ]
+
+
+@agent_tool(name='query_attendance', description='Get attendance summary by department for an ISO week (e.g. 2026-W18). Defaults to the current week.')
+def query_attendance(
+    user: User,
+    week: str | None = None,
+    department: int | str | None = None,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can query attendance.')
+
+    if week:
+        week_start, week_end = _parse_iso_week(week)
+    else:
+        today = timezone.localdate()
+        week_start = today - timedelta(days=today.weekday())
+        week_end = week_start + timedelta(days=6)
+
+    queryset = Attendance.objects.filter(date__gte=week_start, date__lte=week_end)
+
+    if department is not None:
+        if isinstance(department, int) or (isinstance(department, str) and department.isdigit()):
+            queryset = queryset.filter(employee__department_id=int(department))
+        elif isinstance(department, str):
+            queryset = queryset.filter(
+                Q(employee__department__slug=department) | Q(employee__department__name__iexact=department)
+            )
+
+    rows = (
+        queryset
+        .values('employee__department__name')
+        .annotate(
+            total=Count('id'),
+            present=Count('id', filter=Q(status__in=[Attendance.Status.PRESENT, Attendance.Status.REMOTE])),
+        )
+        .order_by('employee__department__name')
+    )
+
+    return [
+        {
+            'department': row['employee__department__name'] or 'Unassigned',
+            'total_records': row['total'],
+            'present_or_remote': row['present'],
+            'attendance_rate_pct': round((row['present'] / row['total']) * 100, 1) if row['total'] else 0.0,
+            'week': week_start.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+@agent_tool(name='query_contracts', description='Query employee contracts expiring within a number of days (default 30).')
+def query_contracts(
+    user: User,
+    expiring_within_days: int | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can query contracts.')
+
+    queryset = Contract.objects.select_related('employee', 'department').exclude(end_date__isnull=True)
+    today = timezone.localdate()
+    days = int(expiring_within_days) if expiring_within_days is not None else 30
+    queryset = queryset.filter(end_date__gte=today, end_date__lte=today + timedelta(days=days))
+
+    contracts = queryset.order_by('end_date')[:_normalized_limit(limit)]
+    return [
+        {
+            'id': c.id,
+            'contract_number': c.contract_number,
+            'employee_id': c.employee_id,
+            'employee_username': c.employee.username if c.employee else None,
+            'department': _serialize_department(c.department),
+            'type': c.type,
+            'end_date': c.end_date.isoformat() if c.end_date else None,
+            'salary_ron': f'{Decimal(str(c.salary_ron or 0)).quantize(Decimal("0.01")):.2f}',
+        }
+        for c in contracts
+    ]
+
+
+@agent_tool(name='query_payroll', description='Get payroll summary for a month (format: YYYY-MM, defaults to current month).')
+def query_payroll(
+    user: User,
+    month: str | None = None,
+) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can query payroll.')
+
+    if month:
+        year_str, month_str = month.split('-')
+        month_date = datetime.date(int(year_str), int(month_str), 1)
+    else:
+        today = timezone.localdate()
+        month_date = today.replace(day=1)
+
+    next_month = (month_date.replace(day=28) + timedelta(days=4)).replace(day=1)
+    entries = PayrollEntry.objects.filter(month__gte=month_date, month__lt=next_month)
+
+    agg = entries.aggregate(
+        total_entries=Count('id'),
+        total_gross=Sum('gross_salary_ron'),
+        total_net=Sum('net_salary_ron'),
+        unpaid_count=Count('id', filter=Q(paid=False)),
+    )
+
+    return {
+        'month': month_date.strftime('%Y-%m'),
+        'total_entries': agg['total_entries'] or 0,
+        'total_gross_ron': f'{Decimal(str(agg["total_gross"] or 0)).quantize(Decimal("0.01")):.2f}',
+        'total_net_ron': f'{Decimal(str(agg["total_net"] or 0)).quantize(Decimal("0.01")):.2f}',
+        'unpaid_count': agg['unpaid_count'] or 0,
+    }
+
+
 def register_default_tools() -> None:
     registry = get_registry()
     if registry.get('get_dashboard_summary') is not None:
@@ -410,3 +573,7 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(create_ticket))
     register_tool(Tool.from_callable(create_leave_request, required_permission='process_leave_requests'))
     register_tool(Tool.from_callable(generate_report, required_permission='view_financial_reports'))
+    register_tool(Tool.from_callable(query_leave_requests, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(query_attendance, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
+    register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))

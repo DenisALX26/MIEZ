@@ -470,7 +470,7 @@ class ReportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Report
-        fields = ['id', 'name', 'slug', 'category', 'period', 'file_size_kb', 'generated_at', 'file_available']
+        fields = ['id', 'name', 'slug', 'category', 'period', 'file_size_kb', 'generated_at', 'file_available', 'digest_data']
 
     def get_file_available(self, obj):
         return bool(obj.file_path)

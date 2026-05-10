@@ -25,7 +25,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import (
     Department, Report, Supplier, User, Product, StockMovement, Ticket,
     Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract,
-    PayrollEntry, SystemStatus, Notification, ConversationSession, ConversationMessage
+    PayrollEntry, SystemStatus, Notification, ConversationSession, ConversationMessage,
+    Workflow, WorkflowLog,
 )
 from .management.commands.generate_hr_digest import DigestGenerator
 from .serializers import (
@@ -1776,3 +1777,39 @@ class ConversationSessionDetailView(APIView):
         session = get_object_or_404(ConversationSession, id=session_id, user=request.user)
         session.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class WorkflowListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in ('CEO', 'HR'):
+            return Response({'detail': 'Forbidden.'}, status=403)
+        workflows = Workflow.objects.all().order_by('name')
+        data = [
+            {
+                'id': w.id,
+                'name': w.name,
+                'trigger_type': w.trigger_type,
+                'trigger_config': w.trigger_config,
+                'is_active': w.is_active,
+                'updated_at': w.updated_at,
+            }
+            for w in workflows
+        ]
+        return Response(data)
+
+
+class WorkflowToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        if request.user.role not in ('CEO', 'HR'):
+            return Response({'detail': 'Forbidden.'}, status=403)
+        workflow = get_object_or_404(Workflow, id=id)
+        is_active = request.data.get('is_active')
+        if is_active is None:
+            return Response({'detail': 'is_active required.'}, status=400)
+        workflow.is_active = bool(is_active)
+        workflow.save(update_fields=['is_active', 'updated_at'])
+        return Response({'id': workflow.id, 'is_active': workflow.is_active})

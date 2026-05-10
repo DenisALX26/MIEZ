@@ -25,6 +25,7 @@ import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
+import WorkflowsPage from './components/workflows/WorkflowsPage'
 
 type ModulePageProps = {
   title: string
@@ -372,10 +373,9 @@ function App() {
             <Route
               path="/workflows"
               element={
-                <ModulePage
-                  title="Workflows"
-                  description="Configure automations and approval flows for your team."
-                />
+                <ProtectedRoute requiredRoles={['CEO', 'HR']}>
+                  <WorkflowsPage />
+                </ProtectedRoute>
               }
             />
             <Route
