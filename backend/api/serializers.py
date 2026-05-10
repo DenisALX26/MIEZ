@@ -8,6 +8,7 @@ from .models import Report
 from .models import Supplier, StockMovement
 from .models import Ticket, Order, OrderItem, Customer, Invoice
 from .models import SystemStatus
+from .models import ConversationSession, ConversationMessage
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -511,3 +512,33 @@ class AssistantChatResponseSerializer(serializers.Serializer):
     """Serializer for the assistant chat endpoint response."""
     response = serializers.CharField()
     tool_calls_made = ToolCallSerializer(many=True, allow_empty=True)
+
+
+class ConversationMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConversationMessage
+        fields = ['id', 'role', 'content', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class ConversationSessionSerializer(serializers.ModelSerializer):
+    messages = ConversationMessageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ConversationSession
+        fields = ['id', 'created_at', 'updated_at', 'messages']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ConversationSessionListSerializer(serializers.ModelSerializer):
+    message_count = serializers.IntegerField(source='messages.count', read_only=True)
+    preview = serializers.SerializerMethodField()
+
+    def get_preview(self, obj):
+        first = obj.messages.filter(role='user').first()
+        return first.content[:80] if first else ''
+
+    class Meta:
+        model = ConversationSession
+        fields = ['id', 'created_at', 'updated_at', 'message_count', 'preview']
+        read_only_fields = fields

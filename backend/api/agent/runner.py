@@ -50,7 +50,7 @@ You should:
 
 Available tools will be provided in the conversation context."""
 
-    MODEL_NAME = 'claude-3-5-sonnet-latest'
+    MODEL_NAME = 'claude-haiku-4-5-20251001'
     MAX_ITERATIONS = 5
     
     # Role-to-permissions mapping
@@ -61,6 +61,10 @@ Available tools will be provided in the conversation context."""
             'manage_employees',
             'view_all_departments',
             'access_system_settings',
+            'view_sales_reports',
+            'manage_tickets',
+            'manage_stock',
+            'process_leave_requests',
         ],
         User.Role.HR: [
             'manage_employees',

@@ -324,7 +324,21 @@ def query_inventory(
     return [_serialize_inventory(product) for product in products[:_normalized_limit(limit)]]
 
 
-@agent_tool(name='create_ticket', description='Create a support ticket.')
+@agent_tool(
+    name='create_ticket',
+    description='Create a support ticket.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'title': {'type': 'string', 'description': 'Short ticket title'},
+            'description': {'type': 'string', 'description': 'Detailed description of the issue'},
+            'priority': {'type': 'string', 'enum': ['LOW', 'MEDIUM', 'HIGH', 'URGENT']},
+            'department_id': {'type': 'integer', 'description': 'ID of the responsible department'},
+            'location': {'type': 'string', 'description': 'Physical location of the issue'},
+        },
+        'required': ['title'],
+    },
+)
 def create_ticket(user: User, **payload: Any) -> Ticket:
     return Ticket.objects.create(
         title=payload['title'],
@@ -340,7 +354,21 @@ def create_ticket(user: User, **payload: Any) -> Ticket:
     )
 
 
-@agent_tool(name='create_leave_request', description='Create a leave request.')
+@agent_tool(
+    name='create_leave_request',
+    description='Create a leave request for an employee.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'employee': {'type': 'integer', 'description': 'Employee ID'},
+            'type': {'type': 'string', 'enum': ['VACATION', 'SICK', 'UNPAID']},
+            'from_date': {'type': 'string', 'description': 'Start date (YYYY-MM-DD)'},
+            'to_date': {'type': 'string', 'description': 'End date (YYYY-MM-DD)'},
+            'reason': {'type': 'string', 'description': 'Reason for the leave'},
+        },
+        'required': ['employee', 'from_date', 'to_date'],
+    },
+)
 def create_leave_request(user: User, **payload: Any) -> LeaveRequest:
     _require_roles(user, [User.Role.HR], 'Only HR can create leave requests through the assistant.')
 

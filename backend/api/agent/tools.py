@@ -8,27 +8,43 @@ registration, validation, and access control based on user roles.
 from __future__ import annotations
 
 import inspect
-from typing import List, Dict, Optional, Callable, Any, get_args, get_origin
+import types
+import typing
+from typing import List, Dict, Optional, Callable, Any, Union, get_args, get_origin
 
 
 def _annotation_to_json_schema(annotation: Any) -> Dict[str, Any]:
     origin = get_origin(annotation)
-    if annotation in (int,):
+    args = get_args(annotation)
+
+    # Handle X | None and Union[X, Y, None]
+    is_union = origin is Union or isinstance(annotation, types.UnionType)
+    if is_union:
+        non_none = [a for a in args if a is not type(None)]
+        if len(non_none) == 1:
+            return _annotation_to_json_schema(non_none[0])
+        return {'type': 'string'}
+
+    if annotation is int:
         return {'type': 'integer'}
-    if annotation in (float,):
+    if annotation is float:
         return {'type': 'number'}
-    if annotation in (bool,):
+    if annotation is bool:
         return {'type': 'boolean'}
-    if annotation in (list,) or origin in (list, List):
-        item_annotation = get_args(annotation)[0] if get_args(annotation) else Any
+    if annotation is list or origin is list:
+        item_annotation = args[0] if args else Any
         return {'type': 'array', 'items': _annotation_to_json_schema(item_annotation)}
-    if annotation in (dict,) or origin in (dict, Dict):
+    if annotation is dict or origin is dict:
         return {'type': 'object'}
     return {'type': 'string'}
 
 
 def build_schema_from_callable(func: Callable) -> Dict[str, Any]:
     signature = inspect.signature(func)
+    try:
+        hints = typing.get_type_hints(func)
+    except Exception:
+        hints = {}
     properties: Dict[str, Any] = {}
     required: List[str] = []
 
@@ -37,7 +53,7 @@ def build_schema_from_callable(func: Callable) -> Dict[str, Any]:
             continue
         if parameter_name == 'user':
             continue
-        annotation = parameter.annotation if parameter.annotation is not inspect._empty else Any
+        annotation = hints.get(parameter_name, Any)
         properties[parameter_name] = _annotation_to_json_schema(annotation)
         if parameter.default is inspect._empty:
             required.append(parameter_name)
@@ -46,7 +62,6 @@ def build_schema_from_callable(func: Callable) -> Dict[str, Any]:
         'type': 'object',
         'properties': properties,
         'required': required,
-        'additionalProperties': False,
     }
 
 
@@ -158,7 +173,6 @@ class Tool:
         return {
             'name': self.name,
             'description': self.description,
-            'required_permission': self.required_permission,
             'input_schema': self.schema,
         }
 
