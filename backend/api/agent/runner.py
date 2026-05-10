@@ -61,6 +61,10 @@ Available tools will be provided in the conversation context."""
             'manage_employees',
             'view_all_departments',
             'access_system_settings',
+            'view_sales_reports',
+            'manage_tickets',
+            'manage_stock',
+            'process_leave_requests',
         ],
         User.Role.HR: [
             'manage_employees',

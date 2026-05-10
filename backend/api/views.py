@@ -23,14 +23,16 @@ from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
-    Department, Report, Supplier, User, Product, StockMovement, Ticket, 
-    Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract, 
-    PayrollEntry, SystemStatus, Notification
+    Department, Report, Supplier, User, Product, StockMovement, Ticket,
+    Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract,
+    PayrollEntry, SystemStatus, Notification, ConversationSession, ConversationMessage
 )
 from .management.commands.generate_hr_digest import DigestGenerator
 from .serializers import (
     AssistantChatRequestSerializer,
     AssistantChatResponseSerializer,
+    ConversationSessionSerializer,
+    ConversationSessionListSerializer,
     CustomerDetailSerializer,
     CustomerSalesSummarySerializer,
     DepartmentSerializer,
@@ -143,6 +145,7 @@ class UserMeView(APIView):
     def get(self, request):
         return JsonResponse(
             {
+                "id": request.user.id,
                 "username": request.user.username,
                 "email": request.user.email,
                 "role": request.user.role,
@@ -1607,30 +1610,47 @@ class AssistantChatView(APIView):
         serializer = AssistantChatRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
         message = serializer.validated_data['message']
-        history = serializer.validated_data.get('history', [])
-        
+        session_id = request.data.get('session_id')
+
         try:
-            # Initialize agent runner with user context
+            # Resolve or create session
+            if session_id:
+                session = get_object_or_404(ConversationSession, id=session_id, user=request.user)
+            else:
+                session = ConversationSession.objects.create(user=request.user)
+
+            # Build history from DB
+            db_messages = session.messages.values('role', 'content')
+            history = [{'role': m['role'], 'content': m['content']} for m in db_messages]
+
+            # Persist user message
+            ConversationMessage.objects.create(session=session, role='user', content=message)
+
+            # Run agent
             agent = AgentRunner(user=request.user)
             agent.register_tools(get_registry().get_all())
-            
-            # Run the agent
             result = agent.run(message=message, history=history)
-            
-            # Validate response format
+
+            reply = result.get('response', '')
+
+            # Persist assistant response
+            ConversationMessage.objects.create(session=session, role='assistant', content=reply)
+            session.save()  # bump updated_at
+
             response_serializer = AssistantChatResponseSerializer(data=result)
             if not response_serializer.is_valid():
                 return Response(
                     {'detail': 'Invalid agent response format'},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-            
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        
+
+            data = response_serializer.data
+            data['session_id'] = session.id
+            return Response(data, status=status.HTTP_200_OK)
+
         except Exception as e:
-            # Log the error (implement logging as needed)
             return Response(
                 {'detail': f'Error processing chat: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1728,3 +1748,31 @@ class HrDigestGenerateView(APIView):
                 body=summary,
                 link='/reports?category=HR',
             )
+
+
+class ConversationSessionListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        sessions = ConversationSession.objects.filter(user=request.user).prefetch_related('messages')
+        serializer = ConversationSessionListSerializer(sessions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        session = ConversationSession.objects.create(user=request.user)
+        serializer = ConversationSessionSerializer(session)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class ConversationSessionDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, session_id):
+        session = get_object_or_404(ConversationSession, id=session_id, user=request.user)
+        serializer = ConversationSessionSerializer(session)
+        return Response(serializer.data)
+
+    def delete(self, request, session_id):
+        session = get_object_or_404(ConversationSession, id=session_id, user=request.user)
+        session.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

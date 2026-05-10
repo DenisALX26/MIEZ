@@ -5,6 +5,7 @@ import { loginUser } from '../api/auth';
 //Shared state for all application regarding auth related data
 
 interface User {
+  id: number;
   username: string;
   email: string;
   role: string;
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const data = await response.json();
         setIsAuthenticated(true);
         setUser({
+          id: data.id,
           username: data.username,
           email: data.email,
           role: data.role,

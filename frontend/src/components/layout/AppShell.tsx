@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import AppSidebar from '../sidebar/AppSidebar'
 import { useAuth } from '../../context/AuthContext'
+import MiezAssistant from '../assistant/MiezAssistant'
 
 const roleLabels: Record<string, string> = {
   CEO: 'CEO',
@@ -43,6 +44,7 @@ const AppShell = () => {
           <Outlet />
         </main>
       </div>
+      <MiezAssistant />
     </div>
   )
 }

@@ -46,5 +46,7 @@ urlpatterns = [
   path('reports/<int:id>/download/', views.ReportDownloadView.as_view(), name='report_download'),
   path('reports/generate/<slug:slug>/', views.ReportGenerateView.as_view(), name='report_generate'),
   path('assistant/chat/', views.AssistantChatView.as_view(), name='assistant_chat'),
+  path('assistant/sessions/', views.ConversationSessionListCreateView.as_view(), name='assistant_sessions'),
+  path('assistant/sessions/<int:session_id>/', views.ConversationSessionDetailView.as_view(), name='assistant_session_detail'),
   path('hr/digest/generate/', views.HrDigestGenerateView.as_view(), name='hr_digest_generate'),
 ]
