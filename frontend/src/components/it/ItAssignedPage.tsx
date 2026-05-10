@@ -42,7 +42,7 @@ const ItAssignedPage = () => {
 
             const items = Array.isArray(data.results) ? (data.results as unknown as TicketItem[]) : [];
             all.push(...items);
-          nextUrl = typeof data.next === 'string' ? data.next : null;
+          nextUrl = typeof data.next === "string" ? new URL(data.next).pathname + new URL(data.next).search : null;
         }
 
         setTickets(all);
