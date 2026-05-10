@@ -27,6 +27,8 @@ LOG_DIR.mkdir(exist_ok=True)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-mh!lib!q-lys9ksd16i!8-ne&crk4m=4cw4&^td*4c19ke=gzm')
 
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 

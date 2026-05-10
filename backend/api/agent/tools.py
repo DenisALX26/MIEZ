@@ -158,7 +158,6 @@ class Tool:
         return {
             'name': self.name,
             'description': self.description,
-            'required_permission': self.required_permission,
             'input_schema': self.schema,
         }
 

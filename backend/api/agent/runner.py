@@ -50,7 +50,7 @@ You should:
 
 Available tools will be provided in the conversation context."""
 
-    MODEL_NAME = 'claude-3-5-sonnet-latest'
+    MODEL_NAME = 'claude-haiku-4-5-20251001'
     MAX_ITERATIONS = 5
     
     # Role-to-permissions mapping
