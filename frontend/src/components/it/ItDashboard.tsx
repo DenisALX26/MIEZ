@@ -149,7 +149,7 @@ const ItDashboard = () => {
           const data = await response.json();
           const pageItems = Array.isArray(data.results) ? (data.results as TicketItem[]) : [];
           allTickets.push(...pageItems);
-          nextUrl = typeof data.next === "string" ? data.next : null;
+          nextUrl = typeof data.next === "string" ? new URL(data.next).pathname + new URL(data.next).search : null;
         }
 
         setTickets(allTickets);
@@ -183,7 +183,7 @@ const ItDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+        <div className={`${user?.role === "CEO" ? "lg:col-span-2" : "lg:col-span-3"} space-y-6`}>
           {user?.role === "CEO" && (
             <ItTicketTrendChart
               loading={loadingTrend}

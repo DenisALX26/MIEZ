@@ -155,7 +155,7 @@ const AppSidebar = () => {
             const data = await res.json()
             setLowStockCount(data.length)
           }
-        } catch (err) {}
+        } catch (err) { }
       }
       fetchAlerts()
     }
@@ -168,7 +168,7 @@ const AppSidebar = () => {
 
   return (
     <aside
-      className={`bg-[var(--sidebar)] text-[var(--sidebar-foreground)] flex flex-col transition-all duration-200 ${isCollapsed ? 'w-20' : 'w-[260px]'
+      className={`bg-[var(--sidebar)] text-[var(--sidebar-foreground)] flex flex-col transition-all duration-200 h-screen sticky top-0 shrink-0 ${isCollapsed ? 'w-20' : 'w-[260px]'
         }`}
     >
       <div className="px-2 pt-4 pb-2 gap-3 flex flex-row items-center">
@@ -186,7 +186,7 @@ const AppSidebar = () => {
         <div>M.I.E.Z</div>
       </div>
 
-      <nav className="flex-1 py-3 flex flex-col gap-1 px-2" aria-label="Main navigation">
+      <nav className="flex-1 py-3 flex flex-col gap-1 px-2 overflow-y-auto" aria-label="Main navigation">
         {navItems.map(item => {
           const Icon = item.icon
           return (
