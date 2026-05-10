@@ -675,40 +675,49 @@ class Command(BaseCommand):
         workflows = [
             Workflow(
                 name='Low Stock Alert',
-                trigger_type='stock_below_min',
-                trigger_config={'threshold': 'min_stock'},
-                actions=[{'type': 'notify', 'recipients': ['INVENTORY', 'CEO']}],
+                trigger_type=Workflow.TriggerType.STOCK_BELOW_MINIMUM,
+                trigger_config={},
+                actions=[Workflow.ActionType.NOTIFY_MANAGER, Workflow.ActionType.EMAIL_CEO],
                 is_active=True,
             ),
             Workflow(
                 name='New Order Notification',
-                trigger_type='order_created',
+                trigger_type=Workflow.TriggerType.NEW_ORDER_RECEIVED,
                 trigger_config={},
-                actions=[{'type': 'notify', 'recipients': ['SALES']}],
+                actions=[Workflow.ActionType.NOTIFY_MANAGER],
                 is_active=True,
             ),
             Workflow(
-                name='Leave Request Auto-Approve (< 3 days)',
-                trigger_type='leave_request_created',
-                trigger_config={'max_days': 3},
-                actions=[{'type': 'approve_leave'}, {'type': 'notify', 'recipients': ['HR']}],
-                is_active=False,
+                name='High-Value Order Alert',
+                trigger_type=Workflow.TriggerType.ORDER_EXCEEDS_THRESHOLD,
+                trigger_config={'threshold': 10000},
+                actions=[Workflow.ActionType.EMAIL_CEO, Workflow.ActionType.LOG_TO_AUDIT_TRAIL],
+                is_active=True,
             ),
             Workflow(
                 name='Ticket SLA Breach Alert',
-                trigger_type='ticket_sla_breach',
-                trigger_config={'priority': 'HIGH', 'hours': 24},
-                actions=[{'type': 'notify', 'recipients': ['IT', 'CEO']}],
+                trigger_type=Workflow.TriggerType.NEW_IT_TICKET,
+                trigger_config={},
+                actions=[Workflow.ActionType.NOTIFY_MANAGER, Workflow.ActionType.EMAIL_CEO],
+                is_active=True,
+            ),
+            Workflow(
+                name='Contract Expiry Warning',
+                trigger_type=Workflow.TriggerType.CONTRACT_EXPIRES,
+                trigger_config={'days_ahead': 30},
+                actions=[Workflow.ActionType.NOTIFY_MANAGER, Workflow.ActionType.EMAIL_CEO],
                 is_active=True,
             ),
         ]
         Workflow.objects.bulk_create(workflows)
         wf = Workflow.objects.first()
         WorkflowLog.objects.bulk_create([
-            WorkflowLog(workflow=wf, trigger_input={'product': 'CBL-001', 'stock': 4},
-                        trigger_result={'notified': True}),
-            WorkflowLog(workflow=wf, trigger_input={'product': 'UPS-001', 'stock': 2},
-                        trigger_result={'notified': True}),
+            WorkflowLog(workflow=wf, trigger_type=Workflow.TriggerType.STOCK_BELOW_MINIMUM,
+                        actions_log=[{'action': 'NOTIFY_MANAGER', 'success': True, 'message': 'Notified 2 manager(s)'}],
+                        success=True),
+            WorkflowLog(workflow=wf, trigger_type=Workflow.TriggerType.STOCK_BELOW_MINIMUM,
+                        actions_log=[{'action': 'NOTIFY_MANAGER', 'success': True, 'message': 'Notified 2 manager(s)'}],
+                        success=True),
         ])
 
     # ──────────────────────────────────────────────────────────────

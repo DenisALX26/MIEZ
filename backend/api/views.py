@@ -52,6 +52,9 @@ from .serializers import (
     TicketCreateSerializer,
     TicketSerializer,
     TicketUpdateSerializer,
+    WorkflowSerializer,
+    WorkflowWriteSerializer,
+    WorkflowLogSerializer,
 )
 from .agent import AgentRunner, get_registry
 from .rate_limiting import rate_limit
@@ -1782,22 +1785,52 @@ class ConversationSessionDetailView(APIView):
 class WorkflowListView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def _check_role(self, request):
         if request.user.role not in ('CEO', 'HR'):
             return Response({'detail': 'Forbidden.'}, status=403)
+        return None
+
+    def get(self, request):
+        if err := self._check_role(request):
+            return err
         workflows = Workflow.objects.all().order_by('name')
-        data = [
-            {
-                'id': w.id,
-                'name': w.name,
-                'trigger_type': w.trigger_type,
-                'trigger_config': w.trigger_config,
-                'is_active': w.is_active,
-                'updated_at': w.updated_at,
-            }
-            for w in workflows
-        ]
-        return Response(data)
+        return Response(WorkflowSerializer(workflows, many=True).data)
+
+    def post(self, request):
+        if err := self._check_role(request):
+            return err
+        ser = WorkflowWriteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        workflow = ser.save()
+        return Response(WorkflowSerializer(workflow).data, status=201)
+
+
+class WorkflowDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_workflow(self, id):
+        return get_object_or_404(Workflow, id=id)
+
+    def _check_role(self, request):
+        if request.user.role not in ('CEO', 'HR'):
+            return Response({'detail': 'Forbidden.'}, status=403)
+        return None
+
+    def patch(self, request, id):
+        if err := self._check_role(request):
+            return err
+        workflow = self._get_workflow(id)
+        ser = WorkflowWriteSerializer(workflow, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        workflow = ser.save()
+        return Response(WorkflowSerializer(workflow).data)
+
+    def delete(self, request, id):
+        if err := self._check_role(request):
+            return err
+        workflow = self._get_workflow(id)
+        workflow.delete()
+        return Response(status=204)
 
 
 class WorkflowToggleView(APIView):
@@ -1813,3 +1846,33 @@ class WorkflowToggleView(APIView):
         workflow.is_active = bool(is_active)
         workflow.save(update_fields=['is_active', 'updated_at'])
         return Response({'id': workflow.id, 'is_active': workflow.is_active})
+
+
+class WorkflowTriggersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response([
+            {'value': v, 'label': l}
+            for v, l in Workflow.TriggerType.choices
+        ])
+
+
+class WorkflowActionsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response([
+            {'value': v, 'label': l}
+            for v, l in Workflow.ActionType.choices
+        ])
+
+
+class WorkflowLogListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'CEO':
+            return Response({'detail': 'Forbidden.'}, status=403)
+        logs = WorkflowLog.objects.select_related('workflow').order_by('-triggered_at')[:100]
+        return Response(WorkflowLogSerializer(logs, many=True).data)
