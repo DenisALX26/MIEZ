@@ -29,7 +29,13 @@ export default function LowStockPage() {
           return
         }
         const data = await res.json()
-        setProducts(data)
+        if (data && data.results && Array.isArray(data.results)) {
+          setProducts(data.results)
+        } else if (Array.isArray(data)) {
+          setProducts(data)
+        } else {
+          setProducts([])
+        }
       } catch (err) {
         setProducts([])
       } finally {

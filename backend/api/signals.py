@@ -3,7 +3,7 @@ from datetime import timedelta
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import Invoice, Order, Ticket, StockMovement
+from .models import Invoice, Order, Ticket
 
 
 @receiver(post_save, sender=Order)
@@ -94,31 +94,3 @@ def trigger_new_ticket_workflows(sender, instance, created, **kwargs):
     _fire_workflows('NEW_IT_TICKET', context)
 
 
-@receiver(post_save, sender=StockMovement)
-def trigger_stock_below_minimum(sender, instance, created, **kwargs):
-    if not created:
-        return
-    # post_save fires before StockMovement.save() applies the stock delta to the
-    # product, so we project the new stock_count from the movement ourselves.
-    product = instance.product
-    current = int(product.stock_count or 0)
-    mt = instance.movement_type
-    if mt in ('OUTBOUND', 'WRITE_OFF'):
-        projected = max(0, current - int(instance.quantity))
-    elif mt == 'ADJUSTMENT':
-        projected = int(instance.quantity)
-    else:
-        projected = current + int(instance.quantity)  # INBOUND — stock goes up, never triggers
-
-    if projected < product.min_stock:
-        context = {
-            'product_id': product.id,
-            'product_name': product.name,
-            'sku': product.sku,
-            'stock_count': projected,
-            'min_stock': product.min_stock,
-            'supplier_name': instance.supplier.name if instance.supplier else 'N/A',
-            'message': f'Stock for {product.name} ({product.sku}) will be {projected}, below minimum {product.min_stock}.',
-            'link': '/inventory',
-        }
-        _fire_workflows('STOCK_BELOW_MINIMUM', context)

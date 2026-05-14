@@ -124,14 +124,14 @@ class InventoryBackendTests(APITestCase):
         
         # Test partial decrement
         self.client.post(self.movements_url, {
-            'product': product.id, 'movement_type': 'WRITE_OFF', 'quantity': 4
+            'product': product.id, 'movement_type': 'WRITE_OFF', 'quantity': 4, 'notes': 'partial'
         }, format='json')
         product.refresh_from_db()
         self.assertEqual(product.stock_count, 6)
         
         # Test decrement beyond zero
         self.client.post(self.movements_url, {
-            'product': product.id, 'movement_type': 'WRITE_OFF', 'quantity': 100
+            'product': product.id, 'movement_type': 'WRITE_OFF', 'quantity': 100, 'notes': 'full'
         }, format='json')
         product.refresh_from_db()
         self.assertEqual(product.stock_count, 0)
@@ -143,7 +143,8 @@ class InventoryBackendTests(APITestCase):
         payload = {
             'product': product.id,
             'movement_type': 'ADJUSTMENT',
-            'quantity': 55
+            'quantity': 55,
+            'notes': 'adjustment'
         }
         response = self.client.post(self.movements_url, payload, format='json')
         

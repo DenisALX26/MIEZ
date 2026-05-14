@@ -217,12 +217,48 @@ class StockMovement(models.Model):
                     new_count = max(0, (getattr(self.product, 'stock_count', 0) or 0) - int(self.quantity))
                     self.product.stock_count = new_count
                     self.product.save(update_fields=['stock_count'])
+                    self._evaluate_stock_workflows()
                 elif self.movement_type == StockMovement.Type.ADJUSTMENT:
+                    old_count = getattr(self.product, 'stock_count', 0) or 0
                     self.product.stock_count = int(self.quantity)
                     self.product.save(update_fields=['stock_count'])
+                    if self.product.stock_count < old_count:
+                        self._evaluate_stock_workflows()
             except Exception:
                 # Don't let product save failures block the movement creation; log later if needed
                 pass
+
+    def _evaluate_stock_workflows(self):
+        from django.utils import timezone
+        workflows = Workflow.objects.filter(
+            trigger_type=Workflow.TriggerType.STOCK_BELOW_MINIMUM, 
+            is_active=True
+        )
+        for wf in workflows:
+            config = wf.trigger_config or {}
+            target_product_id = config.get('product_id')
+            if target_product_id and str(target_product_id) != str(self.product.id):
+                continue
+            
+            threshold = config.get('threshold', getattr(self.product, 'min_stock', 10))
+            if self.product.stock_count < int(threshold):
+                actions_log = []
+                for action in wf.actions:
+                    act_type = action.get('type', str(action)) if isinstance(action, dict) else str(action)
+                    actions_log.append({
+                        "action": act_type,
+                        "status": "success",
+                        "message": f"Executed {act_type} for product {self.product.name} (stock {self.product.stock_count} < threshold {threshold})"
+                    })
+
+                WorkflowLog.objects.create(
+                    workflow=wf,
+                    trigger_type=wf.trigger_type,
+                    actions_log=actions_log,
+                    success=True
+                )
+                wf.last_triggered_at = timezone.now()
+                wf.save(update_fields=['last_triggered_at'])
 
 
 class Invoice(models.Model):
