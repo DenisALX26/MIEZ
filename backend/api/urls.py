@@ -11,6 +11,7 @@ urlpatterns = [
   path('auth/me/', views.UserMeView.as_view(), name='user_me'),
   path('inventory/products/', views.InventoryProductsView.as_view(), name='inventory_products'),
   path('inventory/dashboard/', views.InventoryDashboardView.as_view(), name='inventory_dashboard_kpis'),
+  path('inventory/flow/', views.InventoryFlowView.as_view(), name='inventory_flow'),
   path('inventory/suppliers/', views.SupplierListView.as_view(), name='supplier_list'),
   path('inventory/stock-movements/', views.StockMovementCreateView.as_view(), name='stock_movements'),
   path('departments/', views.DepartmentListCreateView.as_view(), name='department_list_create'),

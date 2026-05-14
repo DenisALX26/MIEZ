@@ -179,6 +179,73 @@ class DepartmentListCreateView(APIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
+class InventoryFlowView(APIView):
+    """Return nodes and links for a Sankey flow diagram of stock movements."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
+        days = int(request.query_params.get('days', 7))
+        start_date = timezone.now() - timedelta(days=days)
+
+        movements = StockMovement.objects.filter(
+            created_at__gte=start_date
+        ).select_related('product', 'supplier')
+
+        nodes = []
+        node_map = {}
+
+        def get_node(type_, name_):
+            key = (type_, name_)
+            if key not in node_map:
+                node_map[key] = len(nodes)
+                nodes.append({'name': name_, 'type': type_})
+            return node_map[key]
+
+        wh_idx = get_node('warehouse', 'Main Warehouse')
+
+        from collections import defaultdict
+        inbound_agg = defaultdict(int)
+        outbound_agg = defaultdict(int)
+
+        for m in movements:
+            val = int(m.quantity or 0)
+            if val <= 0:
+                continue
+            if m.movement_type == StockMovement.Type.INBOUND:
+                sup = m.supplier.name if m.supplier else 'Unknown Supplier'
+                prod = m.product.name if m.product else 'Unknown Product'
+                inbound_agg[(sup, prod)] += val
+            elif m.movement_type == StockMovement.Type.OUTBOUND:
+                outbound_agg['Sales Orders'] += val
+            elif m.movement_type == StockMovement.Type.ADJUSTMENT:
+                outbound_agg['Adjustments'] += val
+            elif m.movement_type == StockMovement.Type.WRITE_OFF:
+                outbound_agg['Returns'] += val
+
+        links = []
+        for (sup, prod), val in inbound_agg.items():
+            s_idx = get_node('supplier', sup)
+            p_idx = get_node('product', prod)
+            links.append({'source': s_idx, 'target': p_idx, 'value': val, 'items': f"{prod} × {val}"})
+            links.append({'source': p_idx, 'target': wh_idx, 'value': val, 'items': "Processing..."})
+
+        for dest, val in outbound_agg.items():
+            d_idx = get_node('out', dest)
+            links.append({'source': wh_idx, 'target': d_idx, 'value': val, 'items': dest})
+
+        return Response({
+            'nodes': nodes,
+            'links': links,
+            'date_range': {
+                'start': start_date.date().isoformat(),
+                'end': timezone.now().date().isoformat()
+            }
+        }, status=status.HTTP_200_OK)
+
+
 class DepartmentDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -698,33 +765,64 @@ class SupplierListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class InventoryProductsView(APIView):
-    """Return products with optional status filters (LOW/OUT).
+class InventoryProductPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
-    Example: /api/inventory/products/?status=LOW&status=OUT
-    """
-    # allow public for demo; change to IsAuthenticated in production
+class InventoryProductsView(APIView):
+    """Return products with search, category, and status filters. Supports conditional pagination."""
     permission_classes = [AllowAny]
 
     def get(self, request):
+        search = request.query_params.get('search', '').strip()
+        category = request.query_params.get('category', 'All').strip()
         statuses = request.query_params.getlist('status')
 
-        qs = Product.objects.all()
+        qs = Product.objects.all().order_by('name')
 
-        # build list
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(sku__icontains=search))
+        
+        if category and category.lower() != 'all':
+            qs = qs.filter(category__iexact=category)
+
+        if statuses:
+            statuses_up = [s.upper() for s in statuses if s.upper() != 'ALL']
+            if statuses_up:
+                # We need to build a Q object for the statuses
+                status_query = Q()
+                for s in statuses_up:
+                    if s == 'OUT':
+                        status_query |= Q(stock_count__lte=0)
+                    elif s == 'LOW':
+                        status_query |= Q(stock_count__lt=F('min_stock'), stock_count__gt=0)
+                    elif s == 'OK':
+                        status_query |= Q(stock_count__gte=F('min_stock'), stock_count__gt=0)
+                qs = qs.filter(status_query)
+
+        # Only paginate if 'page' is requested
+        if 'page' in request.query_params:
+            paginator = InventoryProductPagination()
+            page = paginator.paginate_queryset(qs, request)
+            iterable = page
+            is_paginated = True
+        else:
+            iterable = qs
+            is_paginated = False
+            paginator = None
+
         products = []
-        for p in qs:
-            stock = int(getattr(p, 'stock_count', 0) or 0)
-            # some deployments may have a Product model without min_stock yet
-            minimum = int(getattr(p, 'min_stock', 0) or 0)
+        for p in iterable:
+            stock = int(p.stock_count or 0)
+            minimum = int(p.min_stock or 0)
+            
             if stock <= 0:
                 status_val = 'OUT'
             elif stock < minimum:
                 status_val = 'LOW'
             else:
                 status_val = 'OK'
-
-            shortfall = minimum - stock
 
             products.append({
                 'id': p.id,
@@ -733,15 +831,13 @@ class InventoryProductsView(APIView):
                 'category': p.category,
                 'stock_count': stock,
                 'min_stock': minimum,
-                'unit_price_ron': p.unit_price_ron,
+                'unit_price_ron': float(p.unit_price_ron or 0),
                 'status': status_val,
-                'shortfall': shortfall,
+                'shortfall': max(0, minimum - stock),
             })
 
-        if statuses:
-            statuses_up = [s.upper() for s in statuses]
-            products = [pr for pr in products if pr['status'] in statuses_up]
-
+        if is_paginated:
+            return paginator.get_paginated_response(products)
         return Response(products, status=status.HTTP_200_OK)
 
 

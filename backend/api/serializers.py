@@ -183,10 +183,23 @@ class StockMovementSerializer(serializers.ModelSerializer):
         fields = ['id', 'movement_type', 'product', 'product_obj', 'product_name', 'product_sku', 'supplier', 'supplier_obj', 'supplier_name', 'quantity', 'expected_date', 'notes', 'created_by', 'created_by_username', 'created_at']
         read_only_fields = ['id', 'created_by', 'created_at', 'product_obj', 'supplier_obj', 'product_name', 'product_sku', 'supplier_name', 'created_by_username']
 
-    def validate_quantity(self, value):
-        if value <= 0:
-            raise serializers.ValidationError('Quantity must be greater than zero.')
-        return value
+    def validate(self, data):
+        movement_type = data.get('movement_type')
+        quantity = data.get('quantity', 0)
+        notes = data.get('notes', '').strip()
+
+        if movement_type in [StockMovement.Type.ADJUSTMENT, StockMovement.Type.WRITE_OFF]:
+            if not notes:
+                raise serializers.ValidationError({"notes": "Notes are required for adjustments and write-offs."})
+
+        if movement_type == StockMovement.Type.ADJUSTMENT:
+            if quantity < 0:
+                raise serializers.ValidationError({"quantity": "Quantity cannot be negative."})
+        else:
+            if quantity <= 0:
+                raise serializers.ValidationError({"quantity": "Quantity must be greater than zero."})
+
+        return data
 
     def create(self, validated_data):
         request = self.context.get('request')
