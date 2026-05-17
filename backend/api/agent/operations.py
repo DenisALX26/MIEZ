@@ -111,6 +111,17 @@ def _normalized_limit(limit: int | None, default_limit: int = 10) -> int:
     return max(1, min(int(limit), 10))
 
 
+def _month_start(value: datetime.date) -> datetime.date:
+    return value.replace(day=1)
+
+
+def _shift_month(value: datetime.date, months: int) -> datetime.date:
+    total_month = (value.year * 12 + value.month - 1) + months
+    year = total_month // 12
+    month = total_month % 12 + 1
+    return datetime.date(year, month, 1)
+
+
 @agent_tool(
     name='get_dashboard_summary',
     description='Get KPI summary for a business module. module must be one of: sales, hr, it, inventory.',
@@ -922,6 +933,55 @@ def query_contracts(
     ]
 
 
+@agent_tool(
+    name='get_expiring_contracts',
+    description='Get contracts expiring within a configurable number of days and indicate if the employee has open tickets.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'days': {'type': 'integer', 'minimum': 1, 'maximum': 365, 'default': 30},
+        },
+    },
+)
+def get_expiring_contracts(
+    user: User,
+    days: int = 30,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access expiring contracts.')
+
+    today = timezone.localdate()
+    max_days = max(1, min(int(days), 365))
+    queryset = (
+        Contract.objects
+        .select_related('employee', 'department')
+        .exclude(end_date__isnull=True)
+        .filter(end_date__gte=today, end_date__lte=today + timedelta(days=max_days))
+        .order_by('end_date', 'employee__id')
+    )
+
+    result: list[dict[str, Any]] = []
+    for contract in queryset:
+        employee = contract.employee
+        full_name = f'{employee.first_name} {employee.last_name}'.strip() or employee.username
+        has_open_tickets = Ticket.objects.filter(
+            Q(requested_by=employee) | Q(assigned_to=employee),
+            status__in=[Ticket.Status.OPEN, Ticket.Status.IN_PROGRESS],
+        ).exists()
+
+        result.append(
+            {
+                'contract_number': contract.contract_number,
+                'employee_name': full_name,
+                'department': contract.department.name if contract.department else None,
+                'end_date': contract.end_date.isoformat() if contract.end_date else None,
+                'days_until_end': (contract.end_date - today).days if contract.end_date else None,
+                'has_open_tickets': has_open_tickets,
+            }
+        )
+
+    return result
+
+
 @agent_tool(name='query_payroll', description='Get payroll summary for a month (format: YYYY-MM, defaults to current month).')
 def query_payroll(
     user: User,
@@ -955,6 +1015,87 @@ def query_payroll(
     }
 
 
+@agent_tool(
+    name='get_payroll_anomalies',
+    description='Detect payroll anomalies, including unusual bonus spikes and active employees missing from current payroll month.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'month': {'type': 'string', 'description': 'Payroll month in YYYY-MM format; defaults to current month.'},
+        },
+    },
+)
+def get_payroll_anomalies(
+    user: User,
+    month: str | None = None,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access payroll anomalies.')
+
+    if month:
+        year_str, month_str = month.split('-')
+        month_date = datetime.date(int(year_str), int(month_str), 1)
+    else:
+        month_date = _month_start(timezone.localdate())
+
+    next_month = _shift_month(month_date, 1)
+    history_start = _shift_month(month_date, -6)
+
+    current_entries = PayrollEntry.objects.select_related('employee').filter(month__gte=month_date, month__lt=next_month)
+    historical_entries = PayrollEntry.objects.select_related('employee').filter(month__gte=history_start, month__lt=month_date)
+
+    historical_bonus_by_employee: dict[int, list[Decimal]] = defaultdict(list)
+    for entry in historical_entries:
+        bonus_component = Decimal(str(entry.gross_salary_ron or 0)) - Decimal(str(entry.net_salary_ron or 0))
+        if bonus_component > 0:
+            historical_bonus_by_employee[entry.employee_id].append(bonus_component)
+
+    anomalies: list[dict[str, Any]] = []
+    current_employee_ids: set[int] = set()
+
+    for entry in current_entries:
+        employee = entry.employee
+        current_employee_ids.add(employee.id)
+        employee_name = f'{employee.first_name} {employee.last_name}'.strip() or employee.username
+
+        current_bonus = Decimal(str(entry.gross_salary_ron or 0)) - Decimal(str(entry.net_salary_ron or 0))
+        previous_bonus_values = historical_bonus_by_employee.get(employee.id, [])
+        if not previous_bonus_values:
+            continue
+
+        avg_bonus = sum(previous_bonus_values, Decimal('0.00')) / Decimal(len(previous_bonus_values))
+        if avg_bonus <= 0:
+            continue
+
+        if current_bonus > (avg_bonus * Decimal('2.00')):
+            anomalies.append(
+                {
+                    'anomaly_type': 'bonus_spike',
+                    'employee_name': employee_name,
+                    'description': (
+                        f'Observation: bonus component for {employee_name} is {current_bonus:.2f} RON, '
+                        f'which is more than 2x the historical average of {avg_bonus:.2f} RON.'
+                    ),
+                    'occurrences': 1,
+                }
+            )
+
+    active_employee_ids = set(User.objects.filter(is_active=True).values_list('id', flat=True))
+    missing_employee_ids = sorted(active_employee_ids - current_employee_ids)
+    for employee_id in missing_employee_ids:
+        employee = User.objects.get(id=employee_id)
+        employee_name = f'{employee.first_name} {employee.last_name}'.strip() or employee.username
+        anomalies.append(
+            {
+                'anomaly_type': 'missing_payroll_entry',
+                'employee_name': employee_name,
+                'description': f'Observation: no payroll entry found for active employee {employee_name} in {month_date.strftime("%Y-%m")}.',
+                'occurrences': 1,
+            }
+        )
+
+    return anomalies
+
+
 def register_default_tools() -> None:
     registry = get_registry()
     if registry.get('get_dashboard_summary') is not None:
@@ -973,5 +1114,7 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(get_leave_patterns, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(get_headcount_vs_workload, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(get_attendance_trend, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(get_expiring_contracts, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(get_payroll_anomalies, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
     register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))
