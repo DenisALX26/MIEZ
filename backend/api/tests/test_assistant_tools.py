@@ -16,7 +16,7 @@ from api.agent.operations import (
     query_employees,
     query_tickets,
 )
-from api.models import Customer, Department, LeaveRequest, Order, Product, Report, Ticket, User
+from api.models import Customer, Department, LeaveRequest, Order, Product, Report, StockMovement, Ticket, User
 
 
 class AssistantToolTests(TestCase):
@@ -36,10 +36,12 @@ class AssistantToolTests(TestCase):
         self.sales_user = User.objects.create_user(username='sales', email='sales@example.com', role=User.Role.SALES, department=self.department)
         self.it_user = User.objects.create_user(username='it', email='it@example.com', role=User.Role.IT)
 
-    def test_get_dashboard_summary_sales_returns_expected_keys(self):
+    def _kpi(self, summary, label):
+        return next(k['value'] for k in summary['kpis'] if k['label'] == label)
+
+    def test_get_dashboard_summary_sales_returns_standard_envelope(self):
         customer = Customer.objects.create(name='Acme Corp')
         today = timezone.localdate()
-        yesterday = today - timedelta(days=1)
 
         Order.objects.create(
             customer=customer,
@@ -48,26 +50,54 @@ class AssistantToolTests(TestCase):
             date=today,
             status=Order.Status.PENDING,
         )
-        Order.objects.create(
-            customer=customer,
-            created_by=self.sales_user,
-            value_ron='50.00',
-            date=yesterday,
-            status=Order.Status.RETURNED,
-        )
 
         summary = get_dashboard_summary(module='sales', user=self.sales_user)
 
-        self.assertEqual(
-            set(summary.keys()),
-            {'orders_today', 'revenue_today_ron', 'pending_orders', 'returns_this_week', 'pct_changes'},
-        )
-        self.assertEqual(summary['orders_today'], 1)
-        self.assertEqual(summary['revenue_today_ron'], '100.00')
+        self.assertEqual(set(summary.keys()), {'module', 'kpis', 'generated_at'})
+        self.assertEqual(summary['module'], 'sales')
+        self.assertIsInstance(summary['kpis'], list)
+        self.assertTrue(all('label' in k and 'value' in k for k in summary['kpis']))
+        self.assertEqual(self._kpi(summary, 'Orders Today'), 1)
+        self.assertEqual(self._kpi(summary, 'Revenue Today (RON)'), '100.00')
+
+    def test_get_dashboard_summary_hr_returns_standard_envelope(self):
+        summary = get_dashboard_summary(module='hr', user=self.hr_user)
+
+        self.assertEqual(set(summary.keys()), {'module', 'kpis', 'generated_at'})
+        self.assertEqual(summary['module'], 'hr')
+        self.assertIsInstance(summary['kpis'], list)
+
+    def test_get_dashboard_summary_it_returns_standard_envelope(self):
+        Ticket.objects.create(ticket_number='TKT-D-001', title='Open ticket', status=Ticket.Status.OPEN, requested_by=self.it_user)
+
+        summary = get_dashboard_summary(module='it', user=self.it_user)
+
+        self.assertEqual(set(summary.keys()), {'module', 'kpis', 'generated_at'})
+        self.assertEqual(summary['module'], 'it')
+        self.assertEqual(self._kpi(summary, 'Open Tickets'), 1)
+
+    def test_get_dashboard_summary_inventory_returns_standard_envelope(self):
+        inventory_user = User.objects.create_user(username='inv', email='inv@example.com', role=User.Role.INVENTORY)
+        Product.objects.create(name='Widget', sku='WGT-01', stock_count=0, min_stock=5, unit_price_ron='9.99')
+
+        summary = get_dashboard_summary(module='inventory', user=inventory_user)
+
+        self.assertEqual(set(summary.keys()), {'module', 'kpis', 'generated_at'})
+        self.assertEqual(summary['module'], 'inventory')
+        self.assertEqual(self._kpi(summary, 'Out of Stock'), 1)
+
+    def test_get_dashboard_summary_ceo_can_access_any_module(self):
+        for mod in ['sales', 'hr', 'it', 'inventory']:
+            summary = get_dashboard_summary(module=mod, user=self.ceo)
+            self.assertEqual(summary['module'], mod)
 
     def test_get_dashboard_summary_hr_denied_for_sales_role(self):
         with self.assertRaises(PermissionError):
             get_dashboard_summary(module='hr', user=self.sales_user)
+
+    def test_get_dashboard_summary_invalid_module_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            get_dashboard_summary(module='finance', user=self.ceo)
 
     def test_query_tickets_new_returns_only_open_tickets(self):
         ticket_one = Ticket.objects.create(ticket_number='TKT-00001', title='Printer issue', status=Ticket.Status.OPEN, requested_by=self.it_user)
