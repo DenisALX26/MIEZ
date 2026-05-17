@@ -23,6 +23,7 @@ import SalesProductsPage from './components/sales/SalesProductsPage'
 import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
+import HrAttendancePage from './components/hr/HrAttendancePage'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
 import WorkflowsPage from './components/workflows/WorkflowsPage'
@@ -210,10 +211,7 @@ function App() {
               path="/hr/attendance"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <ModulePage 
-                    title="Attendance Tracking" 
-                    description="View and manage daily attendance logs for all staff." 
-                  />
+                  <HrAttendancePage />
                 </ProtectedRoute>
               }
             />

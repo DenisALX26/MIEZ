@@ -28,42 +28,6 @@ interface FlowData {
   date_range?: { start: string; end: string };
 }
 
-const depositFlowData = {
-  nodes: [
-    { name: "TechSupply SRL", type: "supplier" },
-    { name: "GadgetWorld SRL", type: "supplier" },
-    { name: "FurnitureRO SRL", type: "supplier" },
-    { name: "LightHouse SRL", type: "supplier" },
-    { name: "Wireless Mouse", type: "product" },
-    { name: "Laptop Stand X2", type: "product" },
-    { name: "Desk Lamp LED", type: "product" },
-    { name: "Office Chair B", type: "product" },
-    { name: "USB-C Hub Pro", type: "product" },
-    { name: "Main Warehouse", type: "warehouse" },
-    { name: "Sales Orders", type: "out" },
-    { name: "Returns", type: "out" },
-    { name: "Adjustments", type: "out" },
-  ],
-  links: [
-    // Suppliers to Products
-    { source: 0, target: 4, value: 40, items: "Mouse × 40" },
-    { source: 0, target: 5, value: 50, items: "Stand × 50" },
-    { source: 1, target: 8, value: 20, items: "Hub × 20" },
-    { source: 2, target: 7, value: 8, items: "Chair × 8" },
-    { source: 3, target: 6, value: 30, items: "Lamp × 30" },
-    // Products to Warehouse
-    { source: 4, target: 9, value: 40, items: "Processing..." },
-    { source: 5, target: 9, value: 50, items: "Processing..." },
-    { source: 6, target: 9, value: 30, items: "Processing..." },
-    { source: 7, target: 9, value: 8, items: "Processing..." },
-    { source: 8, target: 9, value: 20, items: "Processing..." },
-    // Warehouse to Destinations
-    { source: 9, target: 10, value: 120, items: "Shipped Out" },
-    { source: 9, target: 11, value: 20, items: "Returned to Vendor" },
-    { source: 9, target: 12, value: 8, items: "Stock Adjustments" },
-  ],
-};
-
 function DepositsFlowNode(props: any) {
   const { x, y, width, height, payload } = props;
   const type = payload?.type;
