@@ -10,13 +10,14 @@ from api.agent.operations import (
     create_leave_request,
     create_ticket,
     generate_report,
+    get_attendance_trend,
     get_dashboard_summary,
     query_inventory,
     query_orders,
     query_employees,
     query_tickets,
 )
-from api.models import Customer, Department, LeaveRequest, Order, Product, Report, StockMovement, Ticket, User
+from api.models import Attendance, Customer, Department, LeaveRequest, Order, Product, Report, StockMovement, Ticket, User
 
 
 class AssistantToolTests(TestCase):
@@ -365,3 +366,75 @@ class AssistantToolTests(TestCase):
 
         mocked_generate.assert_called_once()
         self.assertEqual(result.id, report.id)
+
+    def test_get_attendance_trend_flags_low_department_attendance_and_repeated_absence(self):
+        today = timezone.localdate()
+        current_week_start = today - timedelta(days=today.weekday())
+
+        hr_employee = User.objects.create_user(
+            username='hr-employee',
+            email='hr-employee@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Popa',
+        )
+        hr_leave_employee = User.objects.create_user(
+            username='hr-leave',
+            email='hr-leave@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            first_name='Maria',
+            last_name='Ionescu',
+        )
+
+        # 4 unexcused absences in current week for repeated absence flag.
+        for offset in range(4):
+            Attendance.objects.create(
+                employee=hr_employee,
+                date=current_week_start + timedelta(days=offset),
+                status=Attendance.Status.ABSENT,
+            )
+
+        # Approved leave is tracked separately from unexcused absence.
+        Attendance.objects.create(
+            employee=hr_leave_employee,
+            date=current_week_start,
+            status=Attendance.Status.LEAVE,
+        )
+
+        # Add one present record so total is non-zero while attendance remains below threshold.
+        Attendance.objects.create(
+            employee=hr_employee,
+            date=current_week_start + timedelta(days=4),
+            status=Attendance.Status.PRESENT,
+        )
+
+        result = get_attendance_trend(user=self.hr_user, weeks=4)
+
+        self.assertIsInstance(result, list)
+        self.assertTrue(result)
+
+        hr_current_week = next(
+            row for row in result
+            if row['department'] == self.hr_department.name and row['week'] == current_week_start.isoformat()
+        )
+
+        self.assertLess(hr_current_week['attendance_pct'], 85.0)
+        self.assertTrue(hr_current_week['flag_low_attendance'])
+        self.assertEqual(hr_current_week['approved_leave_count'], 1)
+        self.assertEqual(hr_current_week['unexcused_absence_count'], 4)
+
+        unexcused_entry = next(item for item in hr_current_week['employees_absent'] if item['absence_type'] == 'unexcused')
+        approved_entry = next(item for item in hr_current_week['employees_absent'] if item['absence_type'] == 'approved_leave')
+
+        self.assertEqual(unexcused_entry['name'], 'Ana Popa')
+        self.assertEqual(unexcused_entry['count'], 4)
+        self.assertTrue(unexcused_entry['flag_repeated_absence'])
+        self.assertEqual(approved_entry['name'], 'Maria Ionescu')
+        self.assertEqual(approved_entry['count'], 1)
+        self.assertFalse(approved_entry['flag_repeated_absence'])
+
+    def test_get_attendance_trend_denied_for_sales_role(self):
+        with self.assertRaises(PermissionError):
+            get_attendance_trend(user=self.sales_user, weeks=4)
