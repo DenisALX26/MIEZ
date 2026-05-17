@@ -7,10 +7,10 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
-from django.db.models import Avg, Count, F, Q, Sum
+from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Q, Sum
 from django.utils import timezone
 
-from api.models import Attendance, Contract, Department, LeaveRequest, Order, PayrollEntry, Product, Report, Ticket, User
+from api.models import Attendance, Contract, Department, Invoice, LeaveRequest, Order, PayrollEntry, Product, Report, StockMovement, Ticket, User
 from api.report_utils import generate_report_file
 
 from .tools import Tool, agent_tool, get_registry, register_tool
@@ -108,52 +108,63 @@ def _normalized_limit(limit: int | None, default_limit: int = 10) -> int:
     return max(1, min(int(limit), 10))
 
 
-@agent_tool(name='get_dashboard_summary', description='Get dashboard summary data by module.')
+@agent_tool(
+    name='get_dashboard_summary',
+    description='Get KPI summary for a business module. module must be one of: sales, hr, it, inventory.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'module': {'type': 'string', 'enum': ['sales', 'hr', 'it', 'inventory']},
+        },
+        'required': ['module'],
+    },
+)
 def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
     module_name = (module or '').strip().lower()
+
+    def _result(kpis: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            'module': module_name,
+            'kpis': kpis,
+            'generated_at': timezone.now().isoformat(),
+        }
+
     if module_name == 'sales':
         _require_roles(user, [User.Role.CEO, User.Role.SALES], 'Only CEO and Sales can access the sales dashboard summary.')
 
         today = timezone.localdate()
         yesterday = today - timedelta(days=1)
         start_of_week = today - timedelta(days=today.weekday())
+        base_qs = Order.objects.all()
 
-        base_queryset = Order.objects.all()
-        today_stats = base_queryset.filter(date=today).aggregate(
+        today_stats = base_qs.filter(date=today).aggregate(
             orders_today=Count('id'),
             revenue_today_ron=Sum('value_ron'),
         )
-        yesterday_stats = base_queryset.filter(date=yesterday).aggregate(
+        yesterday_stats = base_qs.filter(date=yesterday).aggregate(
             orders_yesterday=Count('id'),
             revenue_yesterday_ron=Sum('value_ron'),
         )
 
-        def pct_change(current_value: Any, previous_value: Any) -> float:
-            current_numeric = float(current_value or 0)
-            previous_numeric = float(previous_value or 0)
-            if previous_numeric == 0:
-                return 100.0 if current_numeric > 0 else 0.0
-            return round(((current_numeric - previous_numeric) / previous_numeric) * 100, 2)
+        def _pct(current: Any, previous: Any) -> float:
+            c, p = float(current or 0), float(previous or 0)
+            if p == 0:
+                return 100.0 if c > 0 else 0.0
+            return round(((c - p) / p) * 100, 2)
 
         orders_today = today_stats['orders_today'] or 0
-        revenue_today_ron = Decimal(str(today_stats['revenue_today_ron'] or 0)).quantize(Decimal('0.01'))
+        revenue_today = Decimal(str(today_stats['revenue_today_ron'] or 0)).quantize(Decimal('0.01'))
         orders_yesterday = yesterday_stats['orders_yesterday'] or 0
-        revenue_yesterday_ron = yesterday_stats['revenue_yesterday_ron'] or 0
+        revenue_yesterday = yesterday_stats['revenue_yesterday_ron'] or 0
 
-        return {
-            'orders_today': orders_today,
-            'revenue_today_ron': f'{revenue_today_ron:.2f}',
-            'pending_orders': base_queryset.filter(status=Order.Status.PENDING).count(),
-            'returns_this_week': base_queryset.filter(
-                status=Order.Status.RETURNED,
-                date__gte=start_of_week,
-                date__lte=today,
-            ).count(),
-            'pct_changes': {
-                'orders': pct_change(orders_today, orders_yesterday),
-                'revenue': pct_change(revenue_today_ron, revenue_yesterday_ron),
-            },
-        }
+        return _result([
+            {'label': 'Orders Today', 'value': orders_today},
+            {'label': 'Revenue Today (RON)', 'value': f'{revenue_today:.2f}'},
+            {'label': 'Pending Orders', 'value': base_qs.filter(status=Order.Status.PENDING).count()},
+            {'label': 'Returns This Week', 'value': base_qs.filter(status=Order.Status.RETURNED, date__gte=start_of_week, date__lte=today).count()},
+            {'label': 'Orders Change vs Yesterday (%)', 'value': _pct(orders_today, orders_yesterday)},
+            {'label': 'Revenue Change vs Yesterday (%)', 'value': _pct(revenue_today, revenue_yesterday)},
+        ])
 
     if module_name == 'hr':
         _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access the HR dashboard summary.')
@@ -161,25 +172,64 @@ def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
         today = timezone.localdate()
         month_start = today.replace(day=1)
         employees = User.objects.all()
-        total_employees = employees.count()
-        active_employees = employees.filter(is_active=True).count()
-        full_time_employees = employees.filter(full_time=True).count()
+        total = employees.count()
+        active = employees.filter(is_active=True).count()
+        full_time = employees.filter(full_time=True).count()
 
-        return {
-            'total_employees': total_employees,
-            'new_hires_this_month': employees.filter(start_date__gte=month_start, start_date__lte=today).count(),
-            'leave_requests_this_month': LeaveRequest.objects.filter(
-                created_at__date__gte=month_start,
-                created_at__date__lte=today,
-            ).count(),
-            'pending_leave_requests': LeaveRequest.objects.filter(status=LeaveRequest.Status.PENDING).count(),
-            'full_time_employees': full_time_employees,
-            'non_full_time_employees': max(total_employees - full_time_employees, 0),
-            'retention_rate': round((active_employees / total_employees) * 100, 1) if total_employees else 0.0,
-            'active_employees': active_employees,
-        }
+        return _result([
+            {'label': 'Total Employees', 'value': total},
+            {'label': 'Active Employees', 'value': active},
+            {'label': 'New Hires This Month', 'value': employees.filter(start_date__gte=month_start, start_date__lte=today).count()},
+            {'label': 'Pending Leave Requests', 'value': LeaveRequest.objects.filter(status=LeaveRequest.Status.PENDING).count()},
+            {'label': 'Full-Time Employees', 'value': full_time},
+            {'label': 'Retention Rate (%)', 'value': round((active / total) * 100, 1) if total else 0.0},
+        ])
 
-    raise ValueError(f'Unsupported module: {module}')
+    if module_name == 'it':
+        _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can access the IT dashboard summary.')
+
+        now = timezone.now()
+        week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        stats = Ticket.objects.aggregate(
+            open_tickets=Count('id', filter=Q(status=Ticket.Status.OPEN)),
+            in_progress=Count('id', filter=Q(status=Ticket.Status.IN_PROGRESS)),
+            resolved_this_week=Count('id', filter=Q(status=Ticket.Status.RESOLVED, resolved_at__gte=week_start)),
+            critical_open=Count('id', filter=Q(status=Ticket.Status.OPEN, priority__in=[Ticket.Priority.HIGH, Ticket.Priority.URGENT])),
+        )
+
+        resolved_qs = Ticket.objects.filter(status=Ticket.Status.RESOLVED, resolved_at__gte=week_start).annotate(
+            duration=ExpressionWrapper(F('resolved_at') - F('created_at'), output_field=DurationField())
+        )
+        perf = resolved_qs.aggregate(avg_res_time=Avg('duration'), sla_met=Count('id', filter=Q(duration__lte=timedelta(hours=4))))
+
+        avg_hrs = round(perf['avg_res_time'].total_seconds() / 3600, 2) if perf['avg_res_time'] else 0.0
+        total_resolved = stats['resolved_this_week'] or 0
+        sla_pct = round((perf['sla_met'] / total_resolved) * 100, 2) if total_resolved else 0.0
+
+        return _result([
+            {'label': 'Open Tickets', 'value': stats['open_tickets']},
+            {'label': 'In Progress', 'value': stats['in_progress']},
+            {'label': 'Resolved This Week', 'value': total_resolved},
+            {'label': 'Critical Open', 'value': stats['critical_open']},
+            {'label': 'Avg Resolution Time (hrs)', 'value': avg_hrs},
+            {'label': 'SLA Met (%)', 'value': sla_pct},
+        ])
+
+    if module_name == 'inventory':
+        _require_roles(user, [User.Role.CEO, User.Role.INVENTORY], 'Only CEO and Inventory can access the inventory dashboard summary.')
+
+        import datetime as _dt
+        today = _dt.date.today()
+
+        return _result([
+            {'label': 'Total Products', 'value': Product.objects.count()},
+            {'label': 'Low Stock', 'value': Product.objects.filter(stock_count__lt=F('min_stock'), stock_count__gt=0).count()},
+            {'label': 'Out of Stock', 'value': Product.objects.filter(stock_count=0).count()},
+            {'label': 'Deliveries Today', 'value': StockMovement.objects.filter(movement_type=StockMovement.Type.INBOUND, expected_date=today).count()},
+        ])
+
+    raise ValueError(f'Unsupported module: {module}. Must be one of: sales, hr, it, inventory.')
 
 
 @agent_tool(name='query_tickets', description='Query tickets by status.')
