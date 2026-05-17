@@ -105,6 +105,66 @@ class TestHrAttendanceEndpoint(HrEndpointsTestCase):
 
 
 class TestHrLeaveRequestsEndpoint(HrEndpointsTestCase):
+    def test_get_leave_requests_returns_expected_rows(self):
+        employee = baker.make(
+            User,
+            role=User.Role.SALES,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Pop',
+            username='ana.pop',
+        )
+        pending_request = baker.make(
+            LeaveRequest,
+            employee=employee,
+            department=self.hr_department,
+            type=LeaveRequest.Type.VACATION,
+            from_date='2026-05-04',
+            to_date='2026-05-06',
+            status=LeaveRequest.Status.PENDING,
+        )
+        approved_request = baker.make(
+            LeaveRequest,
+            employee=employee,
+            department=self.hr_department,
+            type=LeaveRequest.Type.SICK,
+            from_date='2026-05-07',
+            to_date='2026-05-08',
+            status=LeaveRequest.Status.APPROVED,
+            approved_by=self.hr_user,
+        )
+
+        response = self.hr_client.get('/api/leave-requests/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 2)
+
+        by_id = {item['id']: item for item in response.data}
+        self.assertEqual(by_id[pending_request.id]['type'], LeaveRequest.Type.VACATION)
+        self.assertEqual(by_id[pending_request.id]['days'], 3)
+        self.assertEqual(by_id[approved_request.id]['status'], LeaveRequest.Status.APPROVED)
+        self.assertEqual(by_id[approved_request.id]['approved_by']['id'], self.hr_user.id)
+
+    def test_get_leave_requests_status_filter_returns_only_matching_rows(self):
+        employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
+        baker.make(
+            LeaveRequest,
+            employee=employee,
+            department=self.hr_department,
+            status=LeaveRequest.Status.PENDING,
+        )
+        baker.make(
+            LeaveRequest,
+            employee=employee,
+            department=self.hr_department,
+            status=LeaveRequest.Status.REJECTED,
+        )
+
+        response = self.hr_client.get('/api/leave-requests/?status=approved')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
     def test_post_leave_requests_creates_pending_status(self):
         employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
 

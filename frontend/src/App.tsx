@@ -24,6 +24,7 @@ import RouteErrorBoundary from './components/common/RouteErrorBoundary'
 import NetworkBanner from './components/common/NetworkBanner'
 import HrDashboard from './components/hr/HrDashboard'
 import HrAttendancePage from './components/hr/HrAttendancePage'
+import LeaveRequestsPage from './components/hr/LeaveRequestsPage'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
 import WorkflowsPage from './components/workflows/WorkflowsPage'
@@ -219,10 +220,7 @@ function App() {
               path="/hr/leave-requests"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <ModulePage 
-                    title="Leave Requests" 
-                    description="Manage vacation, medical, and other leave applications." 
-                  />
+                  <LeaveRequestsPage />
                 </ProtectedRoute>
               }
             />
