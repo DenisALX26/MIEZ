@@ -581,6 +581,61 @@ class HrAttendanceView(APIView):
 class LeaveRequestListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view leave requests."}, status=status.HTTP_403_FORBIDDEN)
+
+        status_filter = (request.query_params.get('status') or '').strip().upper()
+
+        leave_requests = (
+            LeaveRequest.objects.select_related('employee', 'employee__department', 'department', 'approved_by')
+            .all()
+            .order_by('-created_at', '-id')
+        )
+
+        if status_filter and status_filter != 'ALL':
+            leave_requests = leave_requests.filter(status=status_filter)
+
+        rows = []
+        for leave_request in leave_requests:
+            employee_name = f'{leave_request.employee.first_name} {leave_request.employee.last_name}'.strip() or leave_request.employee.username
+            department = leave_request.department or leave_request.employee.department
+            days = (leave_request.to_date - leave_request.from_date).days + 1
+
+            rows.append(
+                {
+                    'id': leave_request.id,
+                    'employee': {
+                        'id': leave_request.employee_id,
+                        'name': employee_name,
+                        'username': leave_request.employee.username,
+                    },
+                    'department': None
+                    if department is None
+                    else {
+                        'id': department.id,
+                        'name': department.name,
+                        'slug': department.slug,
+                    },
+                    'type': leave_request.type,
+                    'from_date': leave_request.from_date.isoformat(),
+                    'to_date': leave_request.to_date.isoformat(),
+                    'days': max(1, days),
+                    'status': leave_request.status,
+                    'reason': leave_request.reason,
+                    'approved_by': None
+                    if leave_request.approved_by is None
+                    else {
+                        'id': leave_request.approved_by_id,
+                        'name': f'{leave_request.approved_by.first_name} {leave_request.approved_by.last_name}'.strip() or leave_request.approved_by.username,
+                        'username': leave_request.approved_by.username,
+                    },
+                    'created_at': leave_request.created_at.isoformat(),
+                }
+            )
+
+        return Response(rows, status=status.HTTP_200_OK)
+
     def post(self, request):
         if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({"detail": "Only CEO and HR can create leave requests."}, status=status.HTTP_403_FORBIDDEN)
