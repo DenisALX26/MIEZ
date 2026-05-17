@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
 
 interface CreateTicketFormData {
   title: string
@@ -14,7 +13,6 @@ interface CreateTicketFormData {
 
 const CreateTicketPage = () => {
   const navigate = useNavigate()
-  const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<CreateTicketFormData>({
