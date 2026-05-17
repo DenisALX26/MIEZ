@@ -97,6 +97,63 @@ class AgentRunnerLoopTests(TestCase):
         self.assertIn('Available report slugs:', prompt)
         self.assertIn('hr-headcount-runner (HR Headcount)', prompt)
 
+    def test_get_system_prompt_includes_user_full_name(self):
+        user = User.objects.create_user(
+            username='ana-mihai',
+            email='ana@example.com',
+            role=User.Role.HR,
+            first_name='Ana',
+            last_name='Mihai',
+        )
+        runner = AgentRunner(user)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('Ana Mihai', prompt)
+
+    def test_get_system_prompt_falls_back_to_username_when_no_name(self):
+        runner = AgentRunner(self.ceo)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('ceo-loop', prompt)
+
+    def test_get_system_prompt_includes_current_page(self):
+        runner = AgentRunner(self.ceo, current_page='/sales/orders')
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('/sales/orders', prompt)
+
+    def test_get_system_prompt_omits_page_line_when_not_provided(self):
+        runner = AgentRunner(self.ceo)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertNotIn('Current page:', prompt)
+
+    def test_get_system_prompt_includes_position_when_set(self):
+        runner = AgentRunner(self.hr_manager)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('HR Manager', prompt)
+
+    def test_get_system_prompt_includes_department_when_set(self):
+        from api.models import Department
+        dept = Department.objects.create(name='Human Resources', slug='hr-dept')
+        user = User.objects.create_user(
+            username='hr-dept-user',
+            email='hr-dept@example.com',
+            role=User.Role.HR,
+            department=dept,
+        )
+        runner = AgentRunner(user)
+
+        prompt = runner.get_system_prompt()
+
+        self.assertIn('Human Resources', prompt)
+
     def test_get_tools_for_user_includes_generate_report_for_manager(self):
         runner = AgentRunner(self.hr_manager, tools=get_registry().get_all())
 

@@ -1784,7 +1784,8 @@ class AssistantChatView(APIView):
             ConversationMessage.objects.create(session=session, role='user', content=message)
 
             # Run agent
-            agent = AgentRunner(user=request.user)
+            current_page = serializer.validated_data.get('current_page', '')
+            agent = AgentRunner(user=request.user, current_page=current_page)
             agent.register_tools(get_registry().get_all())
             result = agent.run(message=message, history=history)
 

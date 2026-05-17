@@ -191,6 +191,7 @@ const MiezAssistant = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
+          current_page: window.location.pathname,
           ...(sessionId ? { session_id: sessionId } : {}),
         }),
       });

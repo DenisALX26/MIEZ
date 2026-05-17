@@ -33,22 +33,20 @@ class AgentRunner:
     - Response generation with tool call tracking
     """
     
-    # System prompt template - to be replaced with actual agent system prompt
-    SYSTEM_PROMPT_TEMPLATE = """You are the MIEZ Assistant, an intelligent agent for the MIEZ business system.
-You have access to various tools to help users with their tasks across different departments.
+    SYSTEM_PROMPT_TEMPLATE = """You are MIEZ Assistant, an AI assistant embedded in the MIEZ business management system.
 
-User Role: {role}
-User Permissions: {permissions}
+Current user: {display_name}{position_line}{department_line}
+Role: {role}
+{page_line}
 Available report slugs: {report_catalog}
 
-You should:
-1. Help users with their specific departmental tasks
-2. Use available tools appropriately when needed
-3. Provide clear and actionable responses
-4. Respect role-based permissions
-5. When you queue a report with generate_report(slug), reply exactly: The {{report_name}} report has been queued. It will be available in Reports shortly.
+Tone and behaviour:
+- Be professional, concise, and helpful.
+- Answer only within your tool set. If asked something you cannot do, say so clearly and suggest what you can help with instead.
+- Respond in the same language the user writes in (Romanian or English).
+- When you queue a report with generate_report(slug), reply exactly: The {{report_name}} report has been queued. It will be available in Reports shortly.
 
-Available tools will be provided in the conversation context."""
+You have access to tools scoped to this user's role. Do not attempt actions outside the provided tools."""
 
     MODEL_NAME = 'claude-haiku-4-5-20251001'
     MAX_ITERATIONS = 5
@@ -95,37 +93,38 @@ Available tools will be provided in the conversation context."""
         ],
     }
     
-    def __init__(self, user: User, tools: Optional[list] = None):
-        """
-        Initialize the agent runner.
-        
-        Args:
-            user: The Django User object making the request
-            tools: Optional list of available tools for the agent
-        """
+    def __init__(self, user: User, tools: Optional[list] = None, current_page: str = ''):
         self.user = user
         self.tools = tools or []
+        self.current_page = current_page
         self._system_prompt = None
-    
+
     def get_system_prompt(self) -> str:
-        """
-        Generate the system prompt with role-specific information.
-        
-        Returns:
-            The system prompt string with user role and permissions injected.
-        """
         if self._system_prompt is None:
-            permissions = self.ROLE_PERMISSIONS.get(self.user.role, [])
-            permissions_str = ', '.join(permissions) if permissions else 'none'
-            report_catalog = self._build_report_catalog()
-            
-            self._system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(
-                role=self.user.get_role_display(),
-                permissions=permissions_str,
-                report_catalog=report_catalog,
-            )
-        
+            self._system_prompt = self._build_system_prompt()
         return self._system_prompt
+
+    def _build_system_prompt(self) -> str:
+        full_name = self.user.get_full_name().strip() or self.user.username
+        position = getattr(self.user, 'position', '') or ''
+        position_line = f', {position}' if position else ''
+
+        department = getattr(self.user, 'department', None)
+        department_name = department.name if department else ''
+        department_line = f'\nDepartment: {department_name}' if department_name else ''
+
+        page_line = f'Current page: {self.current_page}' if self.current_page else ''
+
+        report_catalog = self._build_report_catalog()
+
+        return self.SYSTEM_PROMPT_TEMPLATE.format(
+            display_name=full_name,
+            position_line=position_line,
+            department_line=department_line,
+            role=self.user.get_role_display(),
+            page_line=page_line,
+            report_catalog=report_catalog,
+        )
     
     def register_tools(self, tools: list) -> None:
         """
