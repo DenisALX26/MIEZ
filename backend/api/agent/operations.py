@@ -681,6 +681,154 @@ def get_attendance_trend(
     return results
 
 
+@agent_tool(
+    name='get_leave_patterns',
+    description='Get leave pattern observations for the last N weeks (default 8). Returns observations only, not conclusions.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'weeks': {'type': 'integer', 'minimum': 1, 'maximum': 12, 'default': 8},
+        },
+    },
+)
+def get_leave_patterns(
+    user: User,
+    weeks: int = 8,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access leave patterns.')
+
+    total_weeks = max(1, min(int(weeks), 12))
+    today = timezone.localdate()
+    window_start = today - timedelta(weeks=total_weeks)
+
+    queryset = LeaveRequest.objects.select_related('employee', 'employee__department', 'department').filter(
+        created_at__date__gte=window_start,
+        created_at__date__lte=today,
+    )
+
+    observations: list[dict[str, Any]] = []
+
+    monday_friday_counts: dict[int, dict[str, Any]] = defaultdict(lambda: {'employee_name': '', 'occurrences': 0})
+    for request in queryset.order_by('employee_id', 'created_at', 'id'):
+        request_date = request.created_at.date()
+        if request_date.weekday() not in (0, 4):
+            continue
+
+        employee_name = f'{request.employee.first_name} {request.employee.last_name}'.strip() or request.employee.username
+        bucket = monday_friday_counts[request.employee_id]
+        bucket['employee_name'] = employee_name
+        bucket['occurrences'] += 1
+
+    for bucket in monday_friday_counts.values():
+        if bucket['occurrences'] >= 3:
+            observations.append(
+                {
+                    'pattern_type': 'monday_friday_leave_requests',
+                    'employee_name': bucket['employee_name'],
+                    'description': (
+                        f"Observation: {bucket['employee_name']} submitted leave requests starting on Monday or Friday "
+                        f"{bucket['occurrences']} times in the last {total_weeks} weeks."
+                    ),
+                    'occurrences': bucket['occurrences'],
+                }
+            )
+
+    medical_rows = list(
+        queryset.filter(type=LeaveRequest.Type.SICK)
+        .values('department_id', 'department__name', 'created_at')
+        .order_by('department_id', 'created_at', 'id')
+    )
+    medical_by_department: dict[str, list[datetime.date]] = defaultdict(list)
+    for row in medical_rows:
+        department_name = row['department__name'] or 'Unassigned'
+        created_at = row['created_at']
+        request_date = created_at.date() if hasattr(created_at, 'date') else created_at
+        medical_by_department[department_name].append(request_date)
+
+    for department_name, request_dates in medical_by_department.items():
+        if len(request_dates) < 3:
+            continue
+
+        best_start_index = 0
+        best_end_index = 0
+        left = 0
+        for right, right_date in enumerate(request_dates):
+            while request_dates[left] < right_date - timedelta(days=13):
+                left += 1
+            if right - left > best_end_index - best_start_index:
+                best_start_index = left
+                best_end_index = right
+
+        occurrences = best_end_index - best_start_index + 1
+        if occurrences > 2:
+            window_start_date = request_dates[best_start_index]
+            window_end_date = request_dates[best_end_index]
+            observations.append(
+                {
+                    'pattern_type': 'medical_leave_cluster',
+                    'department': department_name,
+                    'description': (
+                        f"Observation: {department_name} logged {occurrences} medical leave requests between "
+                        f"{window_start_date.isoformat()} and {window_end_date.isoformat()}."
+                    ),
+                    'occurrences': occurrences,
+                }
+            )
+
+    for employee_id, employee_requests in _group_leave_requests_by_employee(queryset).items():
+        previous_rejected = False
+        consecutive_after_rejection = 0
+        employee_name = employee_requests[0]['employee_name'] if employee_requests else ''
+
+        for request in employee_requests:
+            if previous_rejected:
+                consecutive_after_rejection += 1
+                observations.append(
+                    {
+                        'pattern_type': 'leave_after_rejection',
+                        'employee_name': employee_name,
+                        'description': (
+                            f"Observation: {employee_name} submitted a new leave request after a rejected request on "
+                            f"{request['created_at'].date().isoformat()}."
+                        ),
+                        'occurrences': consecutive_after_rejection,
+                    }
+                )
+            previous_rejected = request['status'] == LeaveRequest.Status.REJECTED
+
+    observations.sort(key=lambda item: (item['pattern_type'], item.get('employee_name') or item.get('department') or ''))
+    return observations
+
+
+def _group_leave_requests_by_employee(queryset) -> dict[int, list[dict[str, Any]]]:
+    grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    rows = (
+        queryset
+        .values(
+            'employee_id',
+            'employee__first_name',
+            'employee__last_name',
+            'employee__username',
+            'status',
+            'created_at',
+            'id',
+        )
+        .order_by('employee_id', 'created_at', 'id')
+    )
+
+    for row in rows:
+        employee_name = f"{row['employee__first_name']} {row['employee__last_name']}".strip() or row['employee__username']
+        grouped[row['employee_id']].append(
+            {
+                'employee_name': employee_name,
+                'status': row['status'],
+                'created_at': row['created_at'],
+            }
+        )
+
+    return grouped
+
+
 @agent_tool(name='query_contracts', description='Query employee contracts expiring within a number of days (default 30).')
 def query_contracts(
     user: User,
@@ -758,6 +906,7 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(generate_report, required_permission='view_financial_reports'))
     register_tool(Tool.from_callable(query_leave_requests, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_attendance, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(get_leave_patterns, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(get_attendance_trend, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
     register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))

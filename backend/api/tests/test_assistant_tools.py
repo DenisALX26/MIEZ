@@ -11,6 +11,7 @@ from api.agent.operations import (
     create_ticket,
     generate_report,
     get_attendance_trend,
+    get_leave_patterns,
     get_dashboard_summary,
     query_inventory,
     query_orders,
@@ -438,3 +439,101 @@ class AssistantToolTests(TestCase):
     def test_get_attendance_trend_denied_for_sales_role(self):
         with self.assertRaises(PermissionError):
             get_attendance_trend(user=self.sales_user, weeks=4)
+
+    def test_get_leave_patterns_detects_monday_friday_medical_and_rejection_follow_up(self):
+        today = timezone.localdate()
+        now = timezone.now()
+
+        hr_employee = User.objects.create_user(
+            username='pattern-employee',
+            email='pattern-employee@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Popescu',
+        )
+        medical_employee = User.objects.create_user(
+            username='medical-employee',
+            email='medical-employee@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            first_name='Maria',
+            last_name='Ionescu',
+        )
+        rejected_employee = User.objects.create_user(
+            username='rejected-employee',
+            email='rejected-employee@example.com',
+            role=User.Role.HR,
+            department=self.hr_department,
+            first_name='Elena',
+            last_name='Marin',
+        )
+
+        monday_dates = [today - timedelta(days=today.weekday() + 7 * index) for index in range(3)]
+        for index, request_date in enumerate(monday_dates):
+            request = LeaveRequest.objects.create(
+                employee=hr_employee,
+                department=self.hr_department,
+                type=LeaveRequest.Type.VACATION,
+                from_date=request_date,
+                to_date=request_date + timedelta(days=1),
+                reason=f'Monday leave {index}',
+            )
+            LeaveRequest.objects.filter(pk=request.pk).update(created_at=now - timedelta(weeks=index, days=today.weekday()))
+
+        medical_dates = [today - timedelta(days=1), today - timedelta(days=4), today - timedelta(days=10)]
+        for index, request_date in enumerate(medical_dates):
+            request = LeaveRequest.objects.create(
+                employee=medical_employee,
+                department=self.hr_department,
+                type=LeaveRequest.Type.SICK,
+                from_date=request_date,
+                to_date=request_date + timedelta(days=1),
+                reason=f'Medical leave {index}',
+            )
+            LeaveRequest.objects.filter(pk=request.pk).update(created_at=now - timedelta(days=index * 3))
+
+        rejected_request = LeaveRequest.objects.create(
+            employee=rejected_employee,
+            department=self.hr_department,
+            type=LeaveRequest.Type.VACATION,
+            from_date=today - timedelta(days=14),
+            to_date=today - timedelta(days=12),
+            reason='First request',
+            status=LeaveRequest.Status.REJECTED,
+        )
+        follow_up_request = LeaveRequest.objects.create(
+            employee=rejected_employee,
+            department=self.hr_department,
+            type=LeaveRequest.Type.VACATION,
+            from_date=today - timedelta(days=7),
+            to_date=today - timedelta(days=5),
+            reason='Follow up request',
+            status=LeaveRequest.Status.PENDING,
+        )
+        LeaveRequest.objects.filter(pk=rejected_request.pk).update(created_at=now - timedelta(days=10))
+        LeaveRequest.objects.filter(pk=follow_up_request.pk).update(created_at=now - timedelta(days=2))
+
+        observations = get_leave_patterns(user=self.hr_user, weeks=8)
+
+        self.assertIsInstance(observations, list)
+        self.assertTrue(observations)
+
+        monday_pattern = next(item for item in observations if item['pattern_type'] == 'monday_friday_leave_requests')
+        medical_pattern = next(item for item in observations if item['pattern_type'] == 'medical_leave_cluster')
+        rejection_pattern = next(item for item in observations if item['pattern_type'] == 'leave_after_rejection')
+
+        self.assertEqual(monday_pattern['employee_name'], 'Ana Popescu')
+        self.assertEqual(monday_pattern['occurrences'], 3)
+        self.assertIn('Observation:', monday_pattern['description'])
+
+        self.assertEqual(medical_pattern['department'], self.hr_department.name)
+        self.assertEqual(medical_pattern['occurrences'], 3)
+        self.assertIn('Observation:', medical_pattern['description'])
+
+        self.assertEqual(rejection_pattern['employee_name'], 'Elena Marin')
+        self.assertIn('Observation:', rejection_pattern['description'])
+
+    def test_get_leave_patterns_denied_for_sales_role(self):
+        with self.assertRaises(PermissionError):
+            get_leave_patterns(user=self.sales_user, weeks=8)
