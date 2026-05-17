@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import datetime
+from collections import defaultdict
 from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
 from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Q, Sum
+from django.db.models.functions import TruncWeek
 from django.utils import timezone
 
 from api.models import Attendance, Contract, Department, Invoice, LeaveRequest, Order, PayrollEntry, Product, Report, StockMovement, Ticket, User
@@ -565,6 +567,120 @@ def query_attendance(
     ]
 
 
+@agent_tool(
+    name='get_attendance_trend',
+    description='Get attendance trend by department for the last N weeks (default 4). Flags low department attendance and repeated unexcused absences.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'weeks': {'type': 'integer', 'minimum': 1, 'maximum': 12, 'default': 4},
+        },
+    },
+)
+def get_attendance_trend(
+    user: User,
+    weeks: int = 4,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access attendance trends.')
+
+    total_weeks = max(1, min(int(weeks), 12))
+    today = timezone.localdate()
+    current_week_start = today - timedelta(days=today.weekday())
+    first_week_start = current_week_start - timedelta(weeks=total_weeks - 1)
+    last_week_end = current_week_start + timedelta(days=6)
+    repeated_absence_window_start = current_week_start - timedelta(weeks=3)
+
+    base_queryset = Attendance.objects.filter(date__gte=first_week_start, date__lte=last_week_end)
+
+    weekly_department_rows = (
+        base_queryset
+        .annotate(week=TruncWeek('date'))
+        .values('week', 'employee__department__name')
+        .annotate(
+            total=Count('id'),
+            attended=Count('id', filter=Q(status__in=[Attendance.Status.PRESENT, Attendance.Status.REMOTE])),
+            approved_leave=Count('id', filter=Q(status=Attendance.Status.LEAVE)),
+            unexcused_absence=Count('id', filter=Q(status=Attendance.Status.ABSENT)),
+        )
+        .order_by('week', 'employee__department__name')
+    )
+
+    repeated_absence_rows = (
+        Attendance.objects.filter(
+            date__gte=repeated_absence_window_start,
+            date__lte=last_week_end,
+        )
+        .filter(status=Attendance.Status.ABSENT)
+        .values('employee_id')
+        .annotate(total_unexcused_absences=Count('id'))
+    )
+    repeated_absence_map = {
+        row['employee_id']: row['total_unexcused_absences']
+        for row in repeated_absence_rows
+        if (row['total_unexcused_absences'] or 0) >= 3
+    }
+
+    absent_employee_rows = (
+        base_queryset
+        .filter(status__in=[Attendance.Status.ABSENT, Attendance.Status.LEAVE])
+        .annotate(week=TruncWeek('date'))
+        .values(
+            'week',
+            'employee__department__name',
+            'employee_id',
+            'employee__first_name',
+            'employee__last_name',
+            'employee__username',
+            'status',
+        )
+        .annotate(count=Count('id'))
+        .order_by('week', 'employee__department__name', 'employee_id', 'status')
+    )
+
+    employees_absent_by_bucket: dict[tuple[datetime.date, str], list[dict[str, Any]]] = defaultdict(list)
+    for row in absent_employee_rows:
+        week_value = row['week']
+        week_date = week_value.date() if hasattr(week_value, 'date') else week_value
+        department_name = row['employee__department__name'] or 'Unassigned'
+
+        full_name = f"{row['employee__first_name']} {row['employee__last_name']}".strip() or row['employee__username']
+        is_unexcused = row['status'] == Attendance.Status.ABSENT
+        employee_id = row['employee_id']
+
+        employees_absent_by_bucket[(week_date, department_name)].append(
+            {
+                'name': full_name,
+                'count': row['count'] or 0,
+                'absence_type': 'unexcused' if is_unexcused else 'approved_leave',
+                'flag_repeated_absence': bool(is_unexcused and repeated_absence_map.get(employee_id, 0) >= 3),
+            }
+        )
+
+    results: list[dict[str, Any]] = []
+    for row in weekly_department_rows:
+        week_value = row['week']
+        week_date = week_value.date() if hasattr(week_value, 'date') else week_value
+        department_name = row['employee__department__name'] or 'Unassigned'
+
+        total_records = row['total'] or 0
+        attended_records = row['attended'] or 0
+        attendance_pct = round((attended_records / total_records) * 100, 1) if total_records else 0.0
+
+        results.append(
+            {
+                'week': week_date.isoformat(),
+                'department': department_name,
+                'attendance_pct': attendance_pct,
+                'employees_absent': employees_absent_by_bucket.get((week_date, department_name), []),
+                'flag_low_attendance': attendance_pct < 85.0,
+                'approved_leave_count': row['approved_leave'] or 0,
+                'unexcused_absence_count': row['unexcused_absence'] or 0,
+            }
+        )
+
+    return results
+
+
 @agent_tool(name='query_contracts', description='Query employee contracts expiring within a number of days (default 30).')
 def query_contracts(
     user: User,
@@ -642,5 +758,6 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(generate_report, required_permission='view_financial_reports'))
     register_tool(Tool.from_callable(query_leave_requests, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_attendance, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(get_attendance_trend, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
     register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))
