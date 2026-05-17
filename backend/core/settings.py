@@ -28,6 +28,8 @@ LOG_DIR.mkdir(exist_ok=True)
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-mh!lib!q-lys9ksd16i!8-ne&crk4m=4cw4&^td*4c19ke=gzm')
 
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
+HR_HEADCOUNT_WORKLOAD_WARNING_THRESHOLD = int(os.environ.get('HR_HEADCOUNT_WORKLOAD_WARNING_THRESHOLD', '5'))
+HR_HEADCOUNT_WORKLOAD_CRITICAL_THRESHOLD = int(os.environ.get('HR_HEADCOUNT_WORKLOAD_CRITICAL_THRESHOLD', '10'))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'

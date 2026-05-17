@@ -8,6 +8,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 
+from django.conf import settings
 from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Q, Sum
 from django.db.models.functions import TruncWeek
 from django.utils import timezone
@@ -800,6 +801,69 @@ def get_leave_patterns(
     return observations
 
 
+@agent_tool(
+    name='get_headcount_vs_workload',
+    description='Compare active headcount with workload per department. Returns observations for Sales, IT and Inventory.',
+)
+def get_headcount_vs_workload(user: User) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can access headcount vs workload.')
+
+    warning_threshold = int(getattr(settings, 'HR_HEADCOUNT_WORKLOAD_WARNING_THRESHOLD', 5))
+    critical_threshold = int(getattr(settings, 'HR_HEADCOUNT_WORKLOAD_CRITICAL_THRESHOLD', 10))
+    today = timezone.localdate()
+
+    def _status_for_ratio(ratio: float) -> str:
+        if ratio >= critical_threshold:
+            return 'critical'
+        if ratio >= warning_threshold:
+            return 'warning'
+        return 'ok'
+
+    departments = [
+        {
+            'department': 'Sales',
+            'active_headcount': User.objects.filter(role=User.Role.SALES, is_active=True).count(),
+            'workload_items': Order.objects.filter(status=Order.Status.PENDING).count(),
+        },
+        {
+            'department': 'IT',
+            'active_headcount': User.objects.filter(role=User.Role.IT, is_active=True).count(),
+            'workload_items': Ticket.objects.filter(status=Ticket.Status.OPEN).count(),
+        },
+        {
+            'department': 'Inventory',
+            'active_headcount': User.objects.filter(role=User.Role.INVENTORY, is_active=True).count(),
+            'workload_items': StockMovement.objects.filter(
+                movement_type=StockMovement.Type.INBOUND,
+                expected_date__gte=today,
+            ).count(),
+        },
+    ]
+
+    results: list[dict[str, Any]] = []
+    for row in departments:
+        active_headcount = row['active_headcount']
+        workload_items = row['workload_items']
+        if active_headcount:
+            ratio = round(workload_items / active_headcount, 2)
+            status = _status_for_ratio(ratio)
+        else:
+            ratio = float(workload_items)
+            status = 'critical' if workload_items > 0 else 'ok'
+
+        results.append(
+            {
+                'department': row['department'],
+                'active_headcount': active_headcount,
+                'workload_items': workload_items,
+                'ratio': ratio,
+                'status': status,
+            }
+        )
+
+    return results
+
+
 def _group_leave_requests_by_employee(queryset) -> dict[int, list[dict[str, Any]]]:
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
     rows = (
@@ -907,6 +971,7 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(query_leave_requests, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_attendance, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(get_leave_patterns, required_permission='view_hr_dashboard'))
+    register_tool(Tool.from_callable(get_headcount_vs_workload, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(get_attendance_trend, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
     register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))

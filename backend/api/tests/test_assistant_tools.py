@@ -11,6 +11,7 @@ from api.agent.operations import (
     create_ticket,
     generate_report,
     get_attendance_trend,
+    get_headcount_vs_workload,
     get_leave_patterns,
     get_dashboard_summary,
     query_inventory,
@@ -537,3 +538,80 @@ class AssistantToolTests(TestCase):
     def test_get_leave_patterns_denied_for_sales_role(self):
         with self.assertRaises(PermissionError):
             get_leave_patterns(user=self.sales_user, weeks=8)
+
+    def test_get_headcount_vs_workload_returns_ratios_and_threshold_statuses(self):
+        today = timezone.localdate()
+
+        for index in range(1):
+            User.objects.create_user(
+                username=f'sales-active-{index}',
+                email=f'sales-active-{index}@example.com',
+                role=User.Role.SALES,
+                department=self.department,
+                is_active=True,
+            )
+
+        for index in range(4):
+            User.objects.create_user(
+                username=f'inventory-active-{index}',
+                email=f'inventory-active-{index}@example.com',
+                role=User.Role.INVENTORY,
+                is_active=True,
+            )
+
+        customer = Customer.objects.create(name='Acme Corp')
+        for _ in range(11):
+            Order.objects.create(
+                customer=customer,
+                created_by=self.sales_user,
+                value_ron='100.00',
+                status=Order.Status.PENDING,
+            )
+
+        for index in range(12):
+            Ticket.objects.create(
+                ticket_number=f'TKT-WL-{index:04d}',
+                title=f'Open ticket {index}',
+                status=Ticket.Status.OPEN,
+                requested_by=self.it_user,
+            )
+
+        from api.models import Product, StockMovement, Supplier
+        product = Product.objects.create(name='Keyboard', sku='KB-001', unit_price_ron='20.00')
+        supplier = Supplier.objects.create(name='Default Supplier')
+        for index in range(8):
+            StockMovement.objects.create(
+                movement_type=StockMovement.Type.INBOUND,
+                product=product,
+                supplier=supplier,
+                quantity=1,
+                expected_date=today + timedelta(days=index + 1),
+                created_by=self.ceo,
+            )
+
+        results = get_headcount_vs_workload(user=self.hr_user)
+
+        self.assertEqual([item['department'] for item in results], ['Sales', 'IT', 'Inventory'])
+
+        sales_row = next(item for item in results if item['department'] == 'Sales')
+        it_row = next(item for item in results if item['department'] == 'IT')
+        inventory_row = next(item for item in results if item['department'] == 'Inventory')
+
+        self.assertEqual(sales_row['active_headcount'], 2)
+        self.assertEqual(sales_row['workload_items'], 11)
+        self.assertEqual(sales_row['ratio'], 5.5)
+        self.assertEqual(sales_row['status'], 'warning')
+
+        self.assertEqual(it_row['active_headcount'], 1)
+        self.assertEqual(it_row['workload_items'], 12)
+        self.assertEqual(it_row['ratio'], 12.0)
+        self.assertEqual(it_row['status'], 'critical')
+
+        self.assertEqual(inventory_row['active_headcount'], 4)
+        self.assertEqual(inventory_row['workload_items'], 8)
+        self.assertEqual(inventory_row['ratio'], 2.0)
+        self.assertEqual(inventory_row['status'], 'ok')
+
+    def test_get_headcount_vs_workload_denied_for_sales_role(self):
+        with self.assertRaises(PermissionError):
+            get_headcount_vs_workload(user=self.sales_user)
