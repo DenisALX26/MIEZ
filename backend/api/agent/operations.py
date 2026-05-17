@@ -384,65 +384,82 @@ def query_inventory(
 
 @agent_tool(
     name='create_ticket',
-    description='Create a support ticket.',
+    description='Create a support ticket. Available to all roles.',
     schema={
         'type': 'object',
         'properties': {
             'title': {'type': 'string', 'description': 'Short ticket title'},
             'description': {'type': 'string', 'description': 'Detailed description of the issue'},
+            'category': {'type': 'string', 'description': 'Ticket category (e.g. Hardware, Software, Network)'},
             'priority': {'type': 'string', 'enum': ['LOW', 'MEDIUM', 'HIGH', 'URGENT']},
-            'department_id': {'type': 'integer', 'description': 'ID of the responsible department'},
             'location': {'type': 'string', 'description': 'Physical location of the issue'},
         },
         'required': ['title'],
     },
 )
-def create_ticket(user: User, **payload: Any) -> Ticket:
-    return Ticket.objects.create(
-        title=payload['title'],
-        description=payload.get('description', ''),
-        category=payload.get('category', ''),
-        priority=payload.get('priority', Ticket.Priority.MEDIUM),
-        department_id=payload.get('department_id'),
-        requested_for_id=payload.get('requested_for_id'),
-        assigned_to_id=payload.get('assigned_to_id'),
-        location=payload.get('location', ''),
+def create_ticket(
+    user: User,
+    title: str,
+    description: str = '',
+    category: str = '',
+    priority: str = Ticket.Priority.MEDIUM,
+    location: str = '',
+) -> dict[str, Any]:
+    ticket = Ticket.objects.create(
+        title=title,
+        description=description,
+        category=category,
+        priority=priority,
+        location=location,
         requested_by=user,
         status=Ticket.Status.OPEN,
     )
+    return {'ticket_number': ticket.ticket_number, 'status': ticket.status}
 
 
 @agent_tool(
     name='create_leave_request',
-    description='Create a leave request for an employee.',
+    description='Create a leave request. Not available to CEO.',
     schema={
         'type': 'object',
         'properties': {
-            'employee': {'type': 'integer', 'description': 'Employee ID'},
+            'employee': {'type': 'integer', 'description': 'Employee ID (HR only; defaults to the requesting user)'},
             'type': {'type': 'string', 'enum': ['VACATION', 'SICK', 'UNPAID']},
             'from_date': {'type': 'string', 'description': 'Start date (YYYY-MM-DD)'},
             'to_date': {'type': 'string', 'description': 'End date (YYYY-MM-DD)'},
             'reason': {'type': 'string', 'description': 'Reason for the leave'},
         },
-        'required': ['employee', 'from_date', 'to_date'],
+        'required': ['from_date', 'to_date'],
     },
 )
-def create_leave_request(user: User, **payload: Any) -> LeaveRequest:
-    _require_roles(user, [User.Role.HR], 'Only HR can create leave requests through the assistant.')
+def create_leave_request(
+    user: User,
+    from_date: Any,
+    to_date: Any,
+    employee: Any = None,
+    type: str = LeaveRequest.Type.VACATION,
+    reason: str = '',
+) -> dict[str, Any]:
+    if user.role == User.Role.CEO:
+        raise _permission_error('CEO cannot create leave requests through the assistant.')
 
-    employee = payload['employee']
-    if isinstance(employee, int):
-        employee = User.objects.select_related('department').get(id=employee)
+    if employee is None:
+        target_employee = user
+    elif isinstance(employee, int):
+        target_employee = User.objects.select_related('department').get(id=employee)
+    else:
+        target_employee = employee
 
-    return LeaveRequest.objects.create(
-        employee=employee,
-        department=employee.department,
-        type=payload.get('type', LeaveRequest.Type.VACATION),
-        from_date=payload['from_date'],
-        to_date=payload['to_date'],
-        reason=payload.get('reason', ''),
+    lr = LeaveRequest.objects.create(
+        employee=target_employee,
+        department=target_employee.department,
+        type=type,
+        from_date=from_date,
+        to_date=to_date,
+        reason=reason,
         status=LeaveRequest.Status.PENDING,
     )
+    return {'id': lr.id, 'status': lr.status}
 
 
 @agent_tool(name='generate_report', description='Generate a report from an existing report definition.')

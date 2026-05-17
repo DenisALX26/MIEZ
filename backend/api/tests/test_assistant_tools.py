@@ -270,8 +270,8 @@ class AssistantToolTests(TestCase):
         self.assertTrue(all(item['status'] == 'Low Stock' for item in results))
         self.assertTrue(all(item['category'] == Product.Category.ELECTRONICS for item in results))
 
-    def test_create_ticket_sets_requested_by_to_request_user(self):
-        ticket = create_ticket(
+    def test_create_ticket_returns_ticket_number_and_status(self):
+        result = create_ticket(
             user=self.sales_user,
             title='Laptop replacement',
             description='Battery no longer holds charge',
@@ -279,10 +279,17 @@ class AssistantToolTests(TestCase):
             location='HQ',
         )
 
+        self.assertIn('ticket_number', result)
+        self.assertEqual(result['status'], Ticket.Status.OPEN)
+        ticket = Ticket.objects.get(ticket_number=result['ticket_number'])
         self.assertEqual(ticket.requested_by, self.sales_user)
-        self.assertEqual(ticket.status, Ticket.Status.OPEN)
 
-    def test_create_leave_request_sets_pending_status(self):
+    def test_create_ticket_available_to_all_roles(self):
+        for user in [self.ceo, self.hr_user, self.sales_user, self.it_user]:
+            result = create_ticket(user=user, title=f'Ticket by {user.username}')
+            self.assertIn('ticket_number', result)
+
+    def test_create_leave_request_returns_id_and_pending_status(self):
         employee = User.objects.create_user(
             username='employee',
             email='employee@example.com',
@@ -290,32 +297,34 @@ class AssistantToolTests(TestCase):
             department=self.department,
         )
 
-        leave_request = create_leave_request(
+        result = create_leave_request(
             user=self.hr_user,
-            employee=employee,
+            employee=employee.id,
             from_date=timezone.localdate() + timedelta(days=1),
             to_date=timezone.localdate() + timedelta(days=3),
             reason='Vacation',
         )
 
-        self.assertEqual(leave_request.status, LeaveRequest.Status.PENDING)
-        self.assertEqual(leave_request.employee_id, employee.id)
+        self.assertIn('id', result)
+        self.assertEqual(result['status'], LeaveRequest.Status.PENDING)
+        self.assertEqual(LeaveRequest.objects.get(id=result['id']).employee_id, employee.id)
 
-    def test_create_leave_request_denied_for_ceo(self):
-        employee = User.objects.create_user(
-            username='employee2',
-            email='employee2@example.com',
-            role=User.Role.SALES,
-            department=self.department,
+    def test_create_leave_request_defaults_employee_to_requesting_user(self):
+        result = create_leave_request(
+            user=self.sales_user,
+            from_date=timezone.localdate() + timedelta(days=1),
+            to_date=timezone.localdate() + timedelta(days=3),
         )
 
+        self.assertEqual(result['status'], LeaveRequest.Status.PENDING)
+        self.assertEqual(LeaveRequest.objects.get(id=result['id']).employee, self.sales_user)
+
+    def test_create_leave_request_denied_for_ceo(self):
         with self.assertRaises(PermissionError):
             create_leave_request(
                 user=self.ceo,
-                employee=employee,
                 from_date=timezone.localdate() + timedelta(days=1),
                 to_date=timezone.localdate() + timedelta(days=3),
-                reason='Vacation',
             )
 
     def test_generate_report_denied_for_non_manager_role(self):
