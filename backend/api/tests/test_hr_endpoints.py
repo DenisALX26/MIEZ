@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
@@ -275,6 +275,77 @@ class TestHrContractsEndpoint(HrEndpointsTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['contracts']), 1)
         self.assertEqual(response.data['contracts'][0]['status'], 'EXPIRING')
+
+
+class TestHrUpcomingEventsEndpoint(HrEndpointsTestCase):
+    def test_get_upcoming_events_returns_chronological_db_driven_rows(self):
+        today = timezone.localdate()
+        near_contract_end = today + timedelta(days=3)
+        onboarding_day = today + timedelta(days=5)
+        payroll_month = date(today.year, today.month, 1)
+
+        contract_employee = baker.make(
+            User,
+            role=User.Role.SALES,
+            department=self.hr_department,
+            first_name='Andrei',
+            last_name='Popa',
+            username='andrei.popa',
+        )
+        baker.make(
+            Contract,
+            contract_number='CTR-301',
+            employee=contract_employee,
+            department=self.hr_department,
+            end_date=near_contract_end,
+        )
+
+        baker.make(
+            User,
+            role=User.Role.IT,
+            department=self.hr_department,
+            first_name='Maria',
+            last_name='Ionescu',
+            username='maria.ionescu',
+            start_date=onboarding_day,
+        )
+
+        payroll_employee = baker.make(User, role=User.Role.HR, department=self.hr_department)
+        baker.make(
+            PayrollEntry,
+            employee=payroll_employee,
+            month=payroll_month,
+            gross_salary_ron=Decimal('4200.00'),
+            net_salary_ron=Decimal('4000.00'),
+            paid=False,
+        )
+
+        response = self.hr_client.get('/api/hr/upcoming-events/?days=30')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        events = response.data['events']
+        self.assertGreaterEqual(len(events), 3)
+        self.assertEqual([event['date'] for event in events], sorted(event['date'] for event in events))
+
+        contract_event = next(event for event in events if event['type'] == 'CONTRACT_EXPIRY')
+        onboarding_event = next(event for event in events if event['type'] == 'ONBOARDING')
+        payroll_event = next(event for event in events if event['type'] == 'PAYROLL_PROCESSING')
+
+        self.assertTrue(contract_event['is_warning'])
+        self.assertEqual(contract_event['link'], '/hr/contracts')
+        self.assertEqual(contract_event['dot_color'], 'red')
+        self.assertEqual(onboarding_event['dot_color'], 'blue')
+        self.assertEqual(payroll_event['dot_color'], 'blue')
+        self.assertIn('unpaid payroll', payroll_event['description'])
+
+    def test_get_upcoming_events_requires_hr_or_ceo(self):
+        employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
+        client = APITestCase.client_class()
+        client.force_authenticate(user=employee)
+
+        response = client.get('/api/hr/upcoming-events/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class TestHrPayrollEndpoint(HrEndpointsTestCase):

@@ -25,6 +25,7 @@ urlpatterns = [
   path('leave-requests/<int:id>/reject/', views.LeaveRequestRejectView.as_view(), name='leave_request_reject'),
   path('contracts/', views.ContractListView.as_view(), name='contract_list'),
   path('payroll/', views.PayrollListView.as_view(), name='payroll_list'),
+  path('hr/upcoming-events/', views.HrUpcomingEventsView.as_view(), name='hr_upcoming_events'),
   path('hr/dashboard/', views.HrDashboardView.as_view(), name='hr_dashboard_kpis'),
   path('hr/ceo-summary/', views.CeoHrSummaryView.as_view(), name='ceo_hr_summary'),
   path('sales/dashboard/', views.SalesDashboardView.as_view(), name='sales_dashboard_kpis'),

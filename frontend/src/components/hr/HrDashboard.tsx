@@ -1,5 +1,6 @@
 import React from 'react'
 import { useAuth } from '../../context/AuthContext'
+import UpcomingEventsWidget from './UpcomingEventsWidget'
 
 type HrKpiResponse = {
   total_employees: number
@@ -253,6 +254,8 @@ const HrDashboard = () => {
           </div>
         )}
       </section>
+
+      <UpcomingEventsWidget />
 
       {/* CEO-only: Department Headcount + Attendance Trend */}
       {isCeo && (
