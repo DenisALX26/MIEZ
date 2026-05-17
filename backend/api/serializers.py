@@ -507,6 +507,7 @@ class AssistantChatRequestSerializer(serializers.Serializer):
     """Serializer for the assistant chat endpoint request."""
     message = serializers.CharField(required=True)
     history = ChatMessageHistorySerializer(many=True, required=False, allow_empty=True)
+    current_page = serializers.CharField(required=False, allow_blank=True, default='')
 
     def validate_message(self, value):
         if not value.strip():
