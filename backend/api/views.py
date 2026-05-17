@@ -6,7 +6,7 @@ from django.http import FileResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
 from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField
-from django.db.models.functions import TruncDay, TruncWeek, Coalesce
+from django.db.models.functions import TruncDay, TruncWeek, TruncMonth, Coalesce
 from django.utils import timezone
 from django.core.cache import cache
 
@@ -517,6 +517,115 @@ class CeoHrSummaryView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class HrUpcomingEventsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _month_end(value_date):
+        next_month = (value_date.replace(day=28) + timedelta(days=4)).replace(day=1)
+        return next_month - timedelta(days=1)
+
+    @staticmethod
+    def _days_until(today, target_date):
+        return (target_date - today).days
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view upcoming events."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        horizon_days = max(7, min(int(request.query_params.get('days', 30) or 30), 90))
+        cutoff = today + timedelta(days=horizon_days)
+
+        events = []
+
+        upcoming_contracts = (
+            Contract.objects.select_related('employee', 'department')
+            .filter(end_date__isnull=False, end_date__gte=today, end_date__lte=cutoff)
+            .order_by('end_date', 'employee__first_name', 'employee__last_name', 'id')
+        )
+        for contract in upcoming_contracts:
+            event_date = contract.end_date
+            days_until = self._days_until(today, event_date)
+            employee_name = (f'{contract.employee.first_name} {contract.employee.last_name}'.strip() or contract.employee.username)
+            events.append(
+                {
+                    'id': f'contract-{contract.id}',
+                    'type': 'CONTRACT_EXPIRY',
+                    'date': event_date.isoformat(),
+                    'days_until': days_until,
+                    'is_warning': days_until <= 7,
+                    'title': f'Contract expiry: {employee_name}',
+                    'description': f'{contract.department.name if contract.department else "No department"} · {contract.contract_number}',
+                    'dot_color': 'red',
+                    'link': '/hr/contracts',
+                }
+            )
+
+        upcoming_new_hires = (
+            User.objects.select_related('department')
+            .filter(start_date__gte=today, start_date__lte=cutoff)
+            .order_by('start_date', 'first_name', 'last_name', 'id')
+        )
+        for employee in upcoming_new_hires:
+            event_date = employee.start_date
+            days_until = self._days_until(today, event_date)
+            full_name = (f'{employee.first_name} {employee.last_name}'.strip() or employee.username)
+            department = employee.department.name if employee.department else 'No department'
+            events.append(
+                {
+                    'id': f'onboarding-{employee.id}',
+                    'type': 'ONBOARDING',
+                    'date': event_date.isoformat(),
+                    'days_until': days_until,
+                    'is_warning': days_until <= 7,
+                    'title': f'New employee onboarding: {full_name}',
+                    'description': department,
+                    'dot_color': 'blue',
+                    'link': None,
+                }
+            )
+
+        month_start = date(today.year, today.month, 1)
+        unpaid_payrolls = (
+            PayrollEntry.objects.filter(paid=False, month__gte=month_start, month__lte=cutoff)
+            .annotate(month_bucket=TruncMonth('month'))
+            .values('month_bucket')
+            .annotate(unpaid_count=Count('id'))
+            .order_by('month_bucket')
+        )
+        for row in unpaid_payrolls:
+            month_bucket = row['month_bucket']
+            if month_bucket is None:
+                continue
+
+            bucket_date = month_bucket.date() if hasattr(month_bucket, 'date') else month_bucket
+            event_date = self._month_end(bucket_date)
+            if event_date < today or event_date > cutoff:
+                continue
+
+            days_until = self._days_until(today, event_date)
+            month_label = event_date.strftime('%B %Y')
+            unpaid_count = row['unpaid_count']
+            events.append(
+                {
+                    'id': f'payroll-{bucket_date.strftime("%Y-%m")}',
+                    'type': 'PAYROLL_PROCESSING',
+                    'date': event_date.isoformat(),
+                    'days_until': days_until,
+                    'is_warning': days_until <= 7,
+                    'title': f'Payroll processing: {month_label}',
+                    'description': f'{unpaid_count} unpaid payroll entr{"y" if unpaid_count == 1 else "ies"}',
+                    'dot_color': 'blue',
+                    'link': None,
+                }
+            )
+
+        events.sort(key=lambda item: (item['date'], item['type'], item['title']))
+
+        return Response({'events': events, 'window_days': horizon_days}, status=status.HTTP_200_OK)
 
 
 class HrAttendanceView(APIView):

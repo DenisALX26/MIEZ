@@ -10,6 +10,7 @@ import {
 } from 'react-icons/fi'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
+import UpcomingEventsWidget from '../hr/UpcomingEventsWidget'
 
 type Department = {
   id: number
@@ -303,6 +304,12 @@ const CeoDashboard = () => {
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+        )}
+
+        {!hrSummaryLoading && !hrSummaryError && (
+          <div className="mt-5">
+            <UpcomingEventsWidget />
           </div>
         )}
       </section>
