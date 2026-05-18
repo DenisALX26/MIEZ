@@ -715,7 +715,6 @@ def get_leave_patterns(
 
     queryset = LeaveRequest.objects.select_related('employee', 'employee__department', 'department').filter(
         created_at__date__gte=window_start,
-        created_at__date__lte=today,
     )
 
     observations: list[dict[str, Any]] = []

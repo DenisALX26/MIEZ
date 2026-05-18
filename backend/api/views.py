@@ -880,6 +880,10 @@ class ContractListView(APIView):
 class PayrollListView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _format_money(value):
+        return str(Decimal(str(value or 0)).quantize(Decimal('0.01')))
+
     def get(self, request):
         if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({"detail": "Only CEO and HR can view payroll."}, status=status.HTTP_403_FORBIDDEN)
@@ -893,38 +897,77 @@ class PayrollListView(APIView):
         except ValueError:
             return Response({'detail': 'Invalid month format. Use YYYY-MM.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        bonus_raw = request.query_params.get('bonus', '0')
-        deductions_raw = request.query_params.get('deductions', '0')
-        try:
-            bonus_value = Decimal(str(bonus_raw))
-            deductions_value = Decimal(str(deductions_raw))
-        except (InvalidOperation, TypeError):
-            return Response({'detail': 'bonus and deductions must be numeric values.'}, status=status.HTTP_400_BAD_REQUEST)
+        bonus_override = None
+        deductions_override = None
+        if 'bonus' in request.query_params or 'deductions' in request.query_params:
+            bonus_raw = request.query_params.get('bonus', '0')
+            deductions_raw = request.query_params.get('deductions', '0')
+            try:
+                bonus_override = Decimal(str(bonus_raw))
+                deductions_override = Decimal(str(deductions_raw))
+            except (InvalidOperation, TypeError):
+                return Response({'detail': 'bonus and deductions must be numeric values.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        entries = PayrollEntry.objects.select_related('employee').filter(
+        entries = PayrollEntry.objects.select_related('employee', 'employee__department').filter(
             month__year=month_start.year,
             month__month=month_start.month,
         ).order_by('id')
 
         rows = []
+        total_base = Decimal('0.00')
+        total_bonus = Decimal('0.00')
+        total_deductions = Decimal('0.00')
+        total_net = Decimal('0.00')
+        processed_count = 0
+
         for entry in entries:
             base = Decimal(entry.gross_salary_ron or 0)
-            net = base + bonus_value - deductions_value
+            recorded_net = Decimal(entry.net_salary_ron or 0)
+
+            if bonus_override is not None and deductions_override is not None:
+                bonus_value = bonus_override
+                deductions_value = deductions_override
+                net = base + bonus_value - deductions_value
+            else:
+                bonus_value = Decimal('0.00')
+                deductions_value = max(Decimal('0.00'), base - recorded_net)
+                net = recorded_net
+
+            total_base += base
+            total_bonus += bonus_value
+            total_deductions += deductions_value
+            total_net += net
+            if entry.paid:
+                processed_count += 1
 
             rows.append(
                 {
                     'id': entry.id,
                     'employee': entry.employee_id,
                     'employee_name': (f'{entry.employee.first_name} {entry.employee.last_name}'.strip() or entry.employee.username),
+                    'department': entry.employee.department.name if entry.employee.department else None,
                     'month': month_start.isoformat(),
-                    'base_salary_ron': str(base),
-                    'bonus_ron': str(bonus_value),
-                    'deductions_ron': str(deductions_value),
-                    'net_salary_ron': str(net),
+                    'base_salary_ron': self._format_money(base),
+                    'bonus_ron': self._format_money(bonus_value),
+                    'deductions_ron': self._format_money(deductions_value),
+                    'net_salary_ron': self._format_money(net),
+                    'recorded_net_salary_ron': self._format_money(recorded_net),
+                    'status': 'PROCESSED' if entry.paid else 'PENDING',
+                    'is_paid': bool(entry.paid),
                 }
             )
 
-        return Response({'month': month_raw, 'payroll': rows}, status=status.HTTP_200_OK)
+        summary = {
+            'total_employees': len(rows),
+            'processed_count': processed_count,
+            'pending_count': len(rows) - processed_count,
+            'total_base_ron': self._format_money(total_base),
+            'total_bonus_ron': self._format_money(total_bonus),
+            'total_deductions_ron': self._format_money(total_deductions),
+            'total_net_ron': self._format_money(total_net),
+        }
+
+        return Response({'month': month_raw, 'summary': summary, 'payroll': rows}, status=status.HTTP_200_OK)
 
 
 class SupplierListView(APIView):

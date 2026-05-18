@@ -27,6 +27,7 @@ import HrAttendancePage from './components/hr/HrAttendancePage'
 import LeaveRequestsPage from './components/hr/LeaveRequestsPage'
 import ContractsPage from './components/hr/ContractsPage'
 import ContractDetailPage from './components/hr/ContractDetailPage'
+import PayrollSummaryPage from './components/hr/PayrollSummaryPage'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
 import WorkflowsPage from './components/workflows/WorkflowsPage'
@@ -246,10 +247,7 @@ function App() {
               path="/hr/payroll"
               element={
                 <ProtectedRoute requiredRole="HR">
-                  <ModulePage 
-                    title="Payroll" 
-                    description="Process salaries, bonuses, and tax deductions." 
-                  />
+                  <PayrollSummaryPage />
                 </ProtectedRoute>
               }
             />
