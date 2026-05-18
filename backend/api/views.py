@@ -399,6 +399,7 @@ class HrDashboardView(APIView):
                 'non_full_time_employees': non_full_time,
                 'retention_rate': retention_rate,
                 'active_employees': active_employees,
+                'latest_digest': (lambda: (lambda r: {'report_id': r.id, 'summary': (r.digest_data.get('summary_line') if r.digest_data else None)} if r else None)(Report.objects.filter(category=Report.Category.HR).order_by('-generated_at').first()))(),
             },
             status=status.HTTP_200_OK,
         )
@@ -514,9 +515,20 @@ class CeoHrSummaryView(APIView):
             {
                 'department_headcount': department_headcount,
                 'attendance_rate_weeks': attendance_rate_weeks,
+                'latest_digest': self._latest_digest_summary(),
             },
             status=status.HTTP_200_OK,
         )
+
+    def _latest_digest_summary(self):
+        try:
+            report = Report.objects.filter(category=Report.Category.HR).order_by('-generated_at').first()
+            if not report or not report.digest_data:
+                return None
+            summary = report.digest_data.get('summary_line') or report.digest_data.get('summary') or report.digest_data.get('period')
+            return {'report_id': report.id, 'summary': summary}
+        except Exception:
+            return None
 
 
 class HrUpcomingEventsView(APIView):
@@ -1337,6 +1349,21 @@ class TicketDetailView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TicketUpdateSerializer
     http_method_names = ['patch']
+
+
+class LatestHrDigestView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
+
+        report = Report.objects.filter(category=Report.Category.HR).order_by('-generated_at').first()
+        if not report:
+            return Response({'detail': 'No digests found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ReportSerializer(report)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     lookup_field = 'id'
 
     def get_queryset(self):

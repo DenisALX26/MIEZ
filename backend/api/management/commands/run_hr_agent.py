@@ -9,6 +9,7 @@ notifies HR managers on error.
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 from datetime import timedelta
 
@@ -176,6 +177,7 @@ class Command(BaseCommand):
                     report.save(update_fields=['digest_data', 'generated_at'])
 
                 self.stdout.write(self.style.SUCCESS(f'\nReport saved: {report_name} (id={report.id})'))
+                self._notify_hr_managers_digest(report_id=report.id, digest_text=digest_text)
 
             log_entry.actions_log = [{
                 'action': 'GENERATE_REPORT',
@@ -210,3 +212,43 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(
                 f'Error notifications sent to {hr_managers.count()} HR manager(s).'
             ))
+
+    @staticmethod
+    def _extract_digest_summary(digest_text: str) -> str:
+        if not digest_text:
+            return 'Weekly HR digest generated.'
+
+        summary = ''
+        try:
+            payload = json.loads(digest_text)
+            if isinstance(payload, dict):
+                summary = (
+                    str(payload.get('summary_line') or '').strip()
+                    or str(payload.get('executive_summary') or '').strip()
+                )
+        except Exception:
+            summary = ''
+
+        if summary:
+            return summary[:300]
+
+        single_line = ' '.join(digest_text.split())
+        return single_line[:300] if single_line else 'Weekly HR digest generated.'
+
+    def _notify_hr_managers_digest(self, report_id: int, digest_text: str) -> None:
+        hr_managers = User.objects.filter(role=User.Role.HR, is_active=True).exclude(username=SERVICE_USERNAME)
+        if not hr_managers.exists():
+            return
+
+        summary = self._extract_digest_summary(digest_text)
+        for manager in hr_managers:
+            Notification.objects.create(
+                recipient=manager,
+                title='HR Agent Digest Ready',
+                body=summary,
+                link=f'/reports/{report_id}',
+            )
+
+        self.stdout.write(self.style.SUCCESS(
+            f'Digest notifications sent to {hr_managers.count()} HR manager(s).'
+        ))
