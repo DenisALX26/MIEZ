@@ -112,10 +112,11 @@ def test_get_customers_sorted_by_total_value_desc_with_annotation():
     response = client.get('/api/customers/')
 
     assert response.status_code == 200
-    assert response.data[0]['name'] == 'Alpha'
-    assert Decimal(response.data[0]['total_value_ron']) == Decimal('150.00')
-    assert response.data[1]['name'] == 'Beta'
-    assert Decimal(response.data[1]['total_value_ron']) == Decimal('40.00')
+    results = response.data['results']
+    assert results[0]['name'] == 'Alpha'
+    assert Decimal(results[0]['total_value_ron']) == Decimal('150.00')
+    assert results[1]['name'] == 'Beta'
+    assert Decimal(results[1]['total_value_ron']) == Decimal('40.00')
 
 
 def test_get_invoices_computes_overdue_status_correctly():
