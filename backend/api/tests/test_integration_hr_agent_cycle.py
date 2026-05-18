@@ -122,3 +122,70 @@ class HrAgentIntegrationTest(TestCase):
         ld = resp2.json()['latest_digest']
         self.assertIsNotNone(ld)
         self.assertIn('summary', ld)
+
+    @patch('api.management.commands.run_hr_agent.AgentRunner.run')
+    def test_management_command_run_hr_agent_dry_run_no_notification(self, mocked_run):
+        Notification.objects.all().delete()
+        digest = {
+            'critical': [{'title': 'Test'}],
+            'warning': [],
+            'summary_line': 'test'
+        }
+        mocked_run.return_value = {'response': json.dumps(digest), 'tool_calls_made': []}
+        
+        call_command('run_hr_agent', dry_run=True)
+        
+        notifications = Notification.objects.filter(recipient=self.hr_manager)
+        self.assertFalse(notifications.exists())
+        
+        log = WorkflowLog.objects.order_by('-triggered_at').first()
+        self.assertTrue(log.success)
+
+    @patch('api.management.commands.run_hr_agent.AgentRunner.run')
+    def test_run_hr_agent_zero_insights_no_notification_sent(self, mocked_run):
+        Notification.objects.all().delete()
+        digest = {
+            'critical': [],
+            'warning': [],
+            'summary_line': 'No issues detected'
+        }
+        mocked_run.return_value = {'response': json.dumps(digest), 'tool_calls_made': []}
+        
+        call_command('run_hr_agent')
+        
+        notifications = Notification.objects.filter(recipient=self.hr_manager)
+        self.assertFalse(notifications.exists())
+
+    @patch('api.management.commands.run_hr_agent.AgentRunner.run')
+    def test_run_hr_agent_critical_insight_creates_notification_type_warning(self, mocked_run):
+        Notification.objects.all().delete()
+        digest = {
+            'critical': [{'title': 'CRITICAL!'}],
+            'warning': [],
+            'summary_line': 'Has critical'
+        }
+        mocked_run.return_value = {'response': json.dumps(digest), 'tool_calls_made': []}
+        
+        call_command('run_hr_agent')
+        
+        notifications = Notification.objects.filter(recipient=self.hr_manager)
+        self.assertTrue(notifications.exists())
+        self.assertEqual(notifications.first().type, 'WARNING')
+
+    def test_post_run_insights_agent_non_hr_role_forbidden(self):
+        non_hr = self.employees[0] # SALES
+        self.client.force_authenticate(user=non_hr)
+        resp = self.client.post('/api/hr/run-insights-agent/')
+        self.assertEqual(resp.status_code, 403)
+
+    def test_post_run_insights_agent_rate_limit_enforced(self):
+        self.client.force_authenticate(user=self.hr_manager)
+        from django.core.cache import cache
+        cache.clear()
+        
+        for _ in range(3):
+            resp = self.client.post('/api/hr/run-insights-agent/')
+            self.assertEqual(resp.status_code, 200)
+            
+        resp_rate_limit = self.client.post('/api/hr/run-insights-agent/')
+        self.assertEqual(resp_rate_limit.status_code, 429)

@@ -2208,3 +2208,36 @@ class WorkflowLogListView(APIView):
             return Response({'detail': 'Forbidden.'}, status=403)
         logs = WorkflowLog.objects.select_related('workflow').order_by('-triggered_at')[:100]
         return Response(WorkflowLogSerializer(logs, many=True).data)
+
+
+class RunInsightsAgentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import threading
+        from django.core.management import call_command
+        from django.core.cache import cache
+        from datetime import date
+        
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({'detail': 'Forbidden. Only CEO and HR Manager can run insights.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        cache_key = f'run_insights_agent_{request.user.id}_{date.today().isoformat()}'
+        count = cache.get(cache_key, 0)
+        
+        if count >= 3:
+            return Response({'detail': 'Rate limit exceeded: max 3 manual triggers per day.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            
+        cache.set(cache_key, count + 1, timeout=86400)
+        
+        def run_agent():
+            call_command('run_hr_agent')
+            
+        thread = threading.Thread(target=run_agent)
+        thread.daemon = True
+        thread.start()
+        
+        return Response({
+            'status': 'running',
+            'estimated_time': '~15 seconds'
+        }, status=status.HTTP_200_OK)

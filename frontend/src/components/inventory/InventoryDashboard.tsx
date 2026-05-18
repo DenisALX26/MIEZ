@@ -28,31 +28,72 @@ interface FlowData {
   date_range?: { start: string; end: string };
 }
 
+const styleSheet = `
+@keyframes energyFlow {
+  from { stroke-dashoffset: 1000; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+`;
+
 function DepositsFlowNode(props: any) {
   const { x, y, width, height, payload } = props;
   const type = payload?.type;
 
-  const strokeColor = type === "warehouse" ? "#3b82f6" : type === "supplier" ? "#10b981" : type === "product" ? "#8b5cf6" : "#f43f5e";
-  const bgColor = type === "warehouse" ? "#eff6ff" : type === "supplier" ? "#ecfdf5" : type === "product" ? "#f5f3ff" : "#fff1f2";
+  const baseColor = type === "warehouse" ? "#3b82f6" : type === "supplier" ? "#10b981" : type === "product" ? "#8b5cf6" : "#f43f5e";
 
-  const visualHeight = Math.max(height, 24);
+  const visualHeight = Math.max(height, 36);
   const visualY = y - (visualHeight - height) / 2;
+  const safeName = payload.name ? payload.name.replace(/\W+/g, '') : Math.random().toString();
 
   return (
     <g>
+      <defs>
+        <filter id={`glow-${safeName}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
+        <linearGradient id={`grad-${safeName}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={baseColor} stopOpacity={0.15} />
+          <stop offset="100%" stopColor={baseColor} stopOpacity={0.02} />
+        </linearGradient>
+      </defs>
+      
       <rect
         x={x} y={visualY}
         width={width} height={visualHeight}
-        rx={6}
-        fill={bgColor}
-        stroke={strokeColor}
+        rx={8}
+        fill={baseColor}
+        opacity={0.15}
+        filter={`url(#glow-${safeName})`}
+        className="animate-[pulseGlow_4s_ease-in-out_infinite]"
+      />
+      <rect
+        x={x} y={visualY}
+        width={width} height={visualHeight}
+        rx={8}
+        fill={`url(#grad-${safeName})`}
+        stroke={baseColor}
         strokeWidth={1.5}
-        className="transition-all hover:brightness-95"
+        style={{ backdropFilter: 'blur(8px)' }}
+        className="transition-all duration-300 hover:brightness-150 cursor-pointer hover:stroke-[2px]"
+      />
+      <rect
+        x={x} y={visualY}
+        width={4} height={visualHeight}
+        rx={2}
+        fill={baseColor}
+        style={{ filter: `drop-shadow(0 0 6px ${baseColor})` }}
       />
       <text
         x={x + width / 2} y={visualY + visualHeight / 2}
         textAnchor="middle" dominantBaseline="middle"
-        fontSize={11} fontWeight={700} fill={strokeColor}
+        fontSize={12} fontWeight={700} fill="#ffffff"
+        style={{ textShadow: `0 2px 10px ${baseColor}` }}
+        className="pointer-events-none tracking-wide"
       >
         {payload.name}
       </text>
@@ -68,23 +109,38 @@ function DepositsFlowLink(props: any) {
   const isOutbound = payload?.source?.type === "warehouse" || payload?.source === 9;
   const isSupplierToProduct = payload?.source?.type === "supplier" || payload?.source < 4;
 
-  const strokeColor = isOutbound ? "#fb7185" : isSupplierToProduct ? "#34d399" : "#a78bfa";
+  const color = isOutbound ? "#f43f5e" : isSupplierToProduct ? "#10b981" : "#8b5cf6";
 
   return (
-    <g className="group animate-[fadeIn_0.5s_ease-out]">
+    <g className="group">
       <path
         d={path}
         fill="none"
-        stroke="#f8fafc"
-        strokeWidth={Math.max(linkWidth, 8)}
+        stroke={color}
+        strokeWidth={Math.max(linkWidth, 2)}
+        opacity={0.1}
+        className="transition-opacity duration-300 group-hover:opacity-20"
       />
       <path
         d={path}
         fill="none"
-        stroke={strokeColor}
-        strokeWidth={3}
-        strokeDasharray="6 8"
-        className="animate-flow group-hover:stroke-[4px] transition-all"
+        stroke={color}
+        strokeWidth={Math.max(linkWidth * 0.4, 1)}
+        opacity={0.4}
+        style={{ filter: `drop-shadow(0 0 8px ${color})` }}
+        className="transition-opacity duration-300 group-hover:opacity-80"
+      />
+      <path
+        d={path}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth={Math.max(linkWidth * 0.1, 1.5)}
+        strokeDasharray="6 18"
+        style={{
+          animation: 'energyFlow 30s linear infinite',
+          filter: `drop-shadow(0 0 4px ${color})`
+        }}
+        className="opacity-70 group-hover:opacity-100"
       />
       <title>{payload?.items || ''}</title>
     </g>
@@ -296,39 +352,56 @@ export default function InventoryDashboard() {
       </div>
 
       {/* THE ULTIMATE SUPPLY MAP */}
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <div className="flex items-center gap-2">
-            <FiRepeat className="text-gray-400" />
-            <h2 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Stock Movement Flow</h2>
+      <style>{styleSheet}</style>
+      <div className="w-full mt-8">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 px-2 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gray-900 rounded-xl shadow-lg border border-gray-800">
+              <FiRepeat className="text-indigo-400" size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 tracking-tight">Stock Movement Flow</h2>
+              <p className="text-[13px] text-gray-500 font-medium">Real-time supply chain mapping</p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Inbound</div>
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400"></span> Outbound</div>
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-4 text-[11px] font-extrabold uppercase tracking-widest text-gray-500">
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span> Inbound</div>
+              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></span> Outbound</div>
             </div>
             {flowData?.date_range ? (
-              <span className="text-[10px] font-bold tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 shadow-sm uppercase shadow-indigo-100">
-                Last 7 Days • {new Date(flowData.date_range.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}–{new Date(flowData.date_range.end).toLocaleDateString('en-US', { day: 'numeric' })}
+              <span className="text-[11px] font-black tracking-widest text-indigo-100 bg-indigo-600/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 uppercase border border-indigo-400/30">
+                Last 7 Days
               </span>
             ) : (
-              <span className="text-[10px] font-bold tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 shadow-sm uppercase shadow-indigo-100">Live End-to-End View</span>
+              <span className="text-[11px] font-black tracking-widest text-indigo-100 bg-indigo-600/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 uppercase border border-indigo-400/30">Live End-to-End View</span>
             )}
           </div>
         </div>
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 p-4 sm:p-8 min-h-[500px]">
-          <ResponsiveContainer width="100%" height={500}>
+        <div className="relative rounded-[2.5rem] bg-[#0B0F19] overflow-hidden border border-white/5 shadow-2xl p-4 sm:p-8 min-h-[550px] flex items-center">
+          
+          {/* Animated Background Mesh */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute -top-[40%] -right-[10%] w-[70%] h-[70%] rounded-full bg-indigo-600/10 blur-[100px] animate-[pulse_8s_ease-in-out_infinite]" />
+            <div className="absolute -bottom-[30%] -left-[10%] w-[60%] h-[60%] rounded-full bg-emerald-600/10 blur-[100px] animate-[pulse_10s_ease-in-out_infinite_reverse]" />
+            <div className="absolute top-[20%] left-[30%] w-[40%] h-[40%] rounded-full bg-rose-600/10 blur-[120px]" />
+          </div>
+
+          <ResponsiveContainer width="100%" height={500} className="relative z-10">
             {flowData && flowData.nodes && flowData.nodes.length > 0 ? (
               <Sankey
                 data={flowData}
                 node={(p: any) => <DepositsFlowNode {...p} />}
                 link={(p: any) => <DepositsFlowLink {...p} />}
-                margin={{ top: 30, right: 100, bottom: 30, left: 100 }}
-                nodePadding={24}
-                nodeWidth={130}
+                margin={{ top: 40, right: 120, bottom: 40, left: 120 }}
+                nodePadding={36}
+                nodeWidth={140}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-gray-400 font-medium animate-pulse">Loading logistics...</div>
+              <div className="flex flex-col items-center justify-center h-full text-indigo-200/60 font-medium">
+                <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-400 rounded-full animate-spin mb-4" />
+                <p className="tracking-widest uppercase text-xs font-bold">Mapping Logistics Network...</p>
+              </div>
             )}
           </ResponsiveContainer>
         </div>
@@ -409,11 +482,11 @@ export default function InventoryDashboard() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {products.length === 0 ? (
-                   <tr>
-                     <td colSpan={5} className="px-6 py-8 text-center text-gray-400 font-medium">
-                       No products found matching the criteria.
-                     </td>
-                   </tr>
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400 font-medium">
+                      No products found matching the criteria.
+                    </td>
+                  </tr>
                 ) : (
                   products.map((p) => (
                     <tr
@@ -453,14 +526,14 @@ export default function InventoryDashboard() {
               Showing {(page - 1) * 10 + 1} to {Math.min(page * 10, totalProducts || 0)} of {totalProducts || 0} items
             </span>
             <div className="flex gap-2">
-              <button 
+              <button
                 disabled={page === 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 className="px-3 py-1.5 text-sm font-medium border border-gray-200 rounded-lg bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors shadow-sm text-gray-700"
               >
                 Previous
               </button>
-              <button 
+              <button
                 disabled={page * 10 >= (totalProducts || 0)}
                 onClick={() => setPage(p => p + 1)}
                 className="px-3 py-1.5 text-sm font-medium border border-gray-200 rounded-lg bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors shadow-sm text-gray-700"
