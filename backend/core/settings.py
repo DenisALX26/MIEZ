@@ -159,6 +159,8 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH': '/',
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', 'miez-jwt-key-min-32-bytes-long-very-secure'),
 }
 
 AUTH_USER_MODEL = 'api.User'
