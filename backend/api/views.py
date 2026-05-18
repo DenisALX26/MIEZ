@@ -214,27 +214,29 @@ class InventoryFlowView(APIView):
             val = int(m.quantity or 0)
             if val <= 0:
                 continue
+                
+            prod = m.product.name if m.product else 'Unknown Product'
+            
             if m.movement_type == StockMovement.Type.INBOUND:
                 sup = m.supplier.name if m.supplier else 'Unknown Supplier'
-                prod = m.product.name if m.product else 'Unknown Product'
                 inbound_agg[(sup, prod)] += val
             elif m.movement_type == StockMovement.Type.OUTBOUND:
-                outbound_agg['Sales Orders'] += val
+                outbound_agg[(prod, 'Sales Orders')] += val
             elif m.movement_type == StockMovement.Type.ADJUSTMENT:
-                outbound_agg['Adjustments'] += val
+                outbound_agg[(prod, 'Adjustments')] += val
             elif m.movement_type == StockMovement.Type.WRITE_OFF:
-                outbound_agg['Returns'] += val
+                outbound_agg[(prod, 'Returns')] += val
 
         links = []
         for (sup, prod), val in inbound_agg.items():
             s_idx = get_node('supplier', sup)
             p_idx = get_node('product', prod)
-            links.append({'source': s_idx, 'target': p_idx, 'value': val, 'items': f"{prod} × {val}"})
+            links.append({'source': s_idx, 'target': p_idx, 'value': val, 'items': f"{prod} × {val}", 'product_name': prod})
             links.append({'source': p_idx, 'target': wh_idx, 'value': val, 'items': "Processing..."})
 
-        for dest, val in outbound_agg.items():
+        for (prod, dest), val in outbound_agg.items():
             d_idx = get_node('out', dest)
-            links.append({'source': wh_idx, 'target': d_idx, 'value': val, 'items': dest})
+            links.append({'source': wh_idx, 'target': d_idx, 'value': val, 'items': f"{prod} × {val}", 'product_name': prod})
 
         return Response({
             'nodes': nodes,

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { FiX, FiPackage, FiBox, FiAlertTriangle, FiXCircle, FiTruck, FiRepeat, FiCheck, FiSearch, FiFilter } from "react-icons/fi";
-import { ResponsiveContainer, Sankey } from "recharts";
+import { FiX, FiPackage, FiBox, FiAlertTriangle, FiXCircle, FiTruck, FiRepeat, FiCheck, FiSearch, FiFilter, FiArrowRight } from "react-icons/fi";
 
 // --- API DATA TYPES ---
 interface DashboardKpis {
@@ -28,122 +27,156 @@ interface FlowData {
   date_range?: { start: string; end: string };
 }
 
-const styleSheet = `
-@keyframes energyFlow {
-  from { stroke-dashoffset: 1000; }
-  to { stroke-dashoffset: 0; }
-}
-@keyframes pulseGlow {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.8; }
-}
-`;
+// --- LOGISTICS TRACE OVERVIEW ---
+// --- LOGISTICS TRACE OVERVIEW ---
+// --- LOGISTICS TRACE OVERVIEW ---
+function LogisticsOverview({ data }: { data: FlowData }) {
+  const inboundMap: Record<number, { supplier: string; volume: number; details: string[] }> = {};
+  const outboundMap: Record<number, { destination: string; volume: number; details: string[] }> = {};
+  const productMap: Record<string, { inbound: { s: string; v: number }[]; outbound: { d: string; v: number }[]; totalIn: number; totalOut: number }> = {};
 
-function DepositsFlowNode(props: any) {
-  const { x, y, width, height, payload } = props;
-  const type = payload?.type;
+  // Initialize product map from nodes
+  data.nodes.filter(n => n.type === 'product').forEach(p => {
+    productMap[p.name] = { inbound: [], outbound: [], totalIn: 0, totalOut: 0 };
+  });
 
-  const baseColor = type === "warehouse" ? "#3b82f6" : type === "supplier" ? "#10b981" : type === "product" ? "#8b5cf6" : "#f43f5e";
+  data.links.forEach(l => {
+    const sourceNode = data.nodes[l.source];
+    const targetNode = data.nodes[l.target];
+    const pName = (l as any).product_name;
 
-  const visualHeight = Math.max(height, 36);
-  const visualY = y - (visualHeight - height) / 2;
-  const safeName = payload.name ? payload.name.replace(/\W+/g, '') : Math.random().toString();
-
-  return (
-    <g>
-      <defs>
-        <filter id={`glow-${safeName}`} x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="8" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
-        <linearGradient id={`grad-${safeName}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={baseColor} stopOpacity={0.15} />
-          <stop offset="100%" stopColor={baseColor} stopOpacity={0.02} />
-        </linearGradient>
-      </defs>
+    // Supplier -> Product
+    if (sourceNode?.type === 'supplier') {
+      if (!inboundMap[l.source]) inboundMap[l.source] = { supplier: sourceNode.name, volume: 0, details: [] };
+      inboundMap[l.source].volume += l.value;
+      inboundMap[l.source].details.push(l.items ? l.items : `${targetNode?.name || 'Items'} (${l.value})`);
       
-      <rect
-        x={x} y={visualY}
-        width={width} height={visualHeight}
-        rx={8}
-        fill={baseColor}
-        opacity={0.15}
-        filter={`url(#glow-${safeName})`}
-        className="animate-[pulseGlow_4s_ease-in-out_infinite]"
-      />
-      <rect
-        x={x} y={visualY}
-        width={width} height={visualHeight}
-        rx={8}
-        fill={`url(#grad-${safeName})`}
-        stroke={baseColor}
-        strokeWidth={1.5}
-        style={{ backdropFilter: 'blur(8px)' }}
-        className="transition-all duration-300 hover:brightness-150 cursor-pointer hover:stroke-[2px]"
-      />
-      <rect
-        x={x} y={visualY}
-        width={4} height={visualHeight}
-        rx={2}
-        fill={baseColor}
-        style={{ filter: `drop-shadow(0 0 6px ${baseColor})` }}
-      />
-      <text
-        x={x + width / 2} y={visualY + visualHeight / 2}
-        textAnchor="middle" dominantBaseline="middle"
-        fontSize={12} fontWeight={700} fill="#ffffff"
-        style={{ textShadow: `0 2px 10px ${baseColor}` }}
-        className="pointer-events-none tracking-wide"
-      >
-        {payload.name}
-      </text>
-    </g>
-  );
-}
+      if (pName && productMap[pName]) {
+        productMap[pName].inbound.push({ s: sourceNode.name, v: l.value });
+        productMap[pName].totalIn += l.value;
+      }
+    }
 
-function DepositsFlowLink(props: any) {
-  const { sourceX, sourceY, targetX, targetY, sourceControlX, targetControlX, linkWidth, payload } = props;
+    // Warehouse -> Outbound
+    if (targetNode?.type === 'out') {
+      if (!outboundMap[l.target]) outboundMap[l.target] = { destination: targetNode.name, volume: 0, details: [] };
+      outboundMap[l.target].volume += l.value;
+      outboundMap[l.target].details.push(l.items ? l.items : `Items (${l.value})`);
 
-  const path = `M${sourceX},${sourceY} C${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`;
+      if (pName && productMap[pName]) {
+        productMap[pName].outbound.push({ d: targetNode.name, v: l.value });
+        productMap[pName].totalOut += l.value;
+      }
+    }
+  });
 
-  const isOutbound = payload?.source?.type === "warehouse" || payload?.source === 9;
-  const isSupplierToProduct = payload?.source?.type === "supplier" || payload?.source < 4;
+  const inboundList = Object.values(inboundMap).sort((a, b) => b.volume - a.volume);
+  const outboundList = Object.values(outboundMap).sort((a, b) => b.volume - a.volume);
+  const productList = Object.entries(productMap)
+    .filter(([_, pd]) => pd.totalIn > 0 || pd.totalOut > 0)
+    .map(([name, pd]) => ({ name, ...pd }))
+    .sort((a, b) => (b.totalIn + b.totalOut) - (a.totalIn + a.totalOut));
 
-  const color = isOutbound ? "#f43f5e" : isSupplierToProduct ? "#10b981" : "#8b5cf6";
+  const renderTraceCard = (title: string, icon: any, list: any[], colorClass: string, bgClass: string, mode: 'in' | 'out' | 'prod') => {
+    const Icon = icon;
+    return (
+      <div className="flex-1 bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col max-h-[600px]">
+        <div className={`px-5 py-4 border-b border-gray-100 flex items-center gap-3 shrink-0 ${bgClass}`}>
+          <div className={`p-2 rounded-lg bg-white shadow-sm ${colorClass}`}>
+            <Icon size={18} />
+          </div>
+          <div>
+            <h3 className={`text-sm font-bold uppercase tracking-widest ${colorClass}`}>{title}</h3>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">{list.length} active records</p>
+          </div>
+        </div>
+        
+        <div className="divide-y divide-gray-100 overflow-y-auto flex-1 slim-scroll">
+          {list.length > 0 ? list.map((item, i) => (
+            <div key={i} className="p-5 hover:bg-gray-50 transition-colors">
+              {mode !== 'prod' ? (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="text-sm font-bold text-gray-800">{mode === 'out' ? item.destination : item.supplier}</h4>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${bgClass} ${colorClass}`}>
+                      {item.volume.toLocaleString()} units
+                    </span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      {mode === 'out' ? 'Items Sent' : 'Items Received'}
+                    </p>
+                    <ul className="space-y-1.5">
+                      {item.details.map((detail: string, j: number) => (
+                        <li key={j} className="text-xs text-gray-600 font-medium flex items-start gap-2">
+                          <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${mode === 'out' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                          {detail}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Product Mode */}
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="text-sm font-bold text-gray-800">{item.name}</h4>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${bgClass} ${colorClass}`}>
+                      {(item.totalIn + item.totalOut).toLocaleString()} total moved
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-emerald-50/50 rounded-lg p-2 border border-emerald-100/50">
+                      <p className="text-[9px] font-bold text-emerald-600 uppercase mb-1">In ({item.totalIn})</p>
+                      {item.inbound.length > 0 ? item.inbound.map((inc: any, j: number) => (
+                        <p key={j} className="text-[10px] text-gray-600 truncate" title={inc.s}>• {inc.s} ({inc.v})</p>
+                      )) : <p className="text-[10px] text-gray-400 italic">None</p>}
+                    </div>
+                    <div className="bg-rose-50/50 rounded-lg p-2 border border-rose-100/50">
+                      <p className="text-[9px] font-bold text-rose-600 uppercase mb-1">Out ({item.totalOut})</p>
+                      {item.outbound.length > 0 ? item.outbound.map((outc: any, j: number) => (
+                        <p key={j} className="text-[10px] text-gray-600 truncate" title={outc.d}>• {outc.d} ({outc.v})</p>
+                      )) : <p className="text-[10px] text-gray-400 italic">None</p>}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )) : (
+            <div className="text-sm text-gray-400 py-8 text-center italic">No movement data available</div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <g className="group">
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth={Math.max(linkWidth, 2)}
-        opacity={0.1}
-        className="transition-opacity duration-300 group-hover:opacity-20"
-      />
-      <path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth={Math.max(linkWidth * 0.4, 1)}
-        opacity={0.4}
-        style={{ filter: `drop-shadow(0 0 8px ${color})` }}
-        className="transition-opacity duration-300 group-hover:opacity-80"
-      />
-      <path
-        d={path}
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth={Math.max(linkWidth * 0.1, 1.5)}
-        strokeDasharray="6 18"
-        style={{
-          animation: 'energyFlow 30s linear infinite',
-          filter: `drop-shadow(0 0 4px ${color})`
-        }}
-        className="opacity-70 group-hover:opacity-100"
-      />
-      <title>{payload?.items || ''}</title>
-    </g>
+    <div className="relative">
+      <style>{`
+        .slim-scroll::-webkit-scrollbar {
+          width: 6px;
+        }
+        .slim-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .slim-scroll::-webkit-scrollbar-thumb {
+          background-color: #e2e8f0;
+          border-radius: 20px;
+        }
+        .slim-scroll:hover::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+        }
+        .slim-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: #e2e8f0 transparent;
+        }
+      `}</style>
+      <div className="flex flex-col lg:flex-row gap-4 h-[600px]">
+        {renderTraceCard('Suppliers Trace', FiTruck, inboundList, 'text-emerald-600', 'bg-emerald-50', 'in')}
+        {renderTraceCard('Product Trace', FiPackage, productList, 'text-violet-600', 'bg-violet-50', 'prod')}
+        {renderTraceCard('Destinations Trace', FiArrowRight, outboundList, 'text-rose-600', 'bg-rose-50', 'out')}
+      </div>
+    </div>
   );
 }
 
@@ -299,14 +332,6 @@ export default function InventoryDashboard() {
 
   return (
     <div className="max-w-[1400px] mx-auto space-y-8 pb-10">
-      <style>{`
-        @keyframes flow {
-          to { stroke-dashoffset: -16px; }
-        }
-        .animate-flow {
-          animation: flow 1s linear infinite;
-        }
-      `}</style>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
@@ -351,59 +376,25 @@ export default function InventoryDashboard() {
         />
       </div>
 
-      {/* THE ULTIMATE SUPPLY MAP */}
-      <style>{styleSheet}</style>
-      <div className="w-full mt-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 px-2 gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gray-900 rounded-xl shadow-lg border border-gray-800">
-              <FiRepeat className="text-indigo-400" size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-600 tracking-tight">Stock Movement Flow</h2>
-              <p className="text-[13px] text-gray-500 font-medium">Real-time supply chain mapping</p>
-            </div>
+      {/* STOCK MOVEMENT FLOW */}
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-4 px-1">
+          <div className="flex items-center gap-2">
+            <FiRepeat className="text-gray-400" />
+            <h2 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Stock Movement Flow</h2>
           </div>
-          <div className="flex items-center gap-5">
-            <div className="flex items-center gap-4 text-[11px] font-extrabold uppercase tracking-widest text-gray-500">
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span> Inbound</div>
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]"></span> Outbound</div>
-            </div>
-            {flowData?.date_range ? (
-              <span className="text-[11px] font-black tracking-widest text-indigo-100 bg-indigo-600/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 uppercase border border-indigo-400/30">
-                Last 7 Days
-              </span>
-            ) : (
-              <span className="text-[11px] font-black tracking-widest text-indigo-100 bg-indigo-600/90 backdrop-blur px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/30 uppercase border border-indigo-400/30">Live End-to-End View</span>
-            )}
-          </div>
+          {flowData?.date_range && (
+            <span className="text-[10px] font-bold tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 uppercase">
+              {new Date(flowData.date_range.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(flowData.date_range.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
+          )}
         </div>
-        <div className="relative rounded-[2.5rem] bg-[#0B0F19] overflow-hidden border border-white/5 shadow-2xl p-4 sm:p-8 min-h-[550px] flex items-center">
-          
-          {/* Animated Background Mesh */}
-          <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-[40%] -right-[10%] w-[70%] h-[70%] rounded-full bg-indigo-600/10 blur-[100px] animate-[pulse_8s_ease-in-out_infinite]" />
-            <div className="absolute -bottom-[30%] -left-[10%] w-[60%] h-[60%] rounded-full bg-emerald-600/10 blur-[100px] animate-[pulse_10s_ease-in-out_infinite_reverse]" />
-            <div className="absolute top-[20%] left-[30%] w-[40%] h-[40%] rounded-full bg-rose-600/10 blur-[120px]" />
-          </div>
-
-          <ResponsiveContainer width="100%" height={500} className="relative z-10">
-            {flowData && flowData.nodes && flowData.nodes.length > 0 ? (
-              <Sankey
-                data={flowData}
-                node={(p: any) => <DepositsFlowNode {...p} />}
-                link={(p: any) => <DepositsFlowLink {...p} />}
-                margin={{ top: 40, right: 120, bottom: 40, left: 120 }}
-                nodePadding={36}
-                nodeWidth={140}
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-indigo-200/60 font-medium">
-                <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-400 rounded-full animate-spin mb-4" />
-                <p className="tracking-widest uppercase text-xs font-bold">Mapping Logistics Network...</p>
-              </div>
-            )}
-          </ResponsiveContainer>
+        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+          {flowData && flowData.nodes && flowData.nodes.length > 0 ? (
+            <LogisticsOverview data={flowData} />
+          ) : (
+            <div className="flex items-center justify-center h-40 text-gray-400 font-medium animate-pulse">Loading logistics...</div>
+          )}
         </div>
       </div>
 
