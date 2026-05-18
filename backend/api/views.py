@@ -1349,6 +1349,16 @@ class TicketDetailView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TicketUpdateSerializer
     http_method_names = ['patch']
+    lookup_field = 'id'
+    queryset = Ticket.objects.select_related('department', 'requested_by', 'assigned_to').all()
+
+    def get_queryset(self):
+        return Ticket.objects.select_related('department', 'requested_by', 'assigned_to').all()
+
+    def patch(self, request, *args, **kwargs):
+        if request.user.role not in [User.Role.IT, User.Role.CEO]:
+            raise PermissionDenied('Only IT technicians and CEO can update tickets.')
+        return self.partial_update(request, *args, **kwargs)
 
 
 class LatestHrDigestView(APIView):
@@ -1364,15 +1374,6 @@ class LatestHrDigestView(APIView):
 
         serializer = ReportSerializer(report)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    lookup_field = 'id'
-
-    def get_queryset(self):
-        return Ticket.objects.select_related('department', 'requested_by', 'assigned_to').all()
-
-    def patch(self, request, *args, **kwargs):
-        if request.user.role not in [User.Role.IT, User.Role.CEO]:
-            raise PermissionDenied('Only IT technicians and CEO can update tickets.')
-        return self.partial_update(request, *args, **kwargs)
       
       
 class OrderListView(APIView):

@@ -228,7 +228,7 @@ class WorkflowEngineTests(TestCase):
         """An action that throws must not stop subsequent actions."""
         from unittest.mock import patch
 
-        def boom(workflow, context):
+        def boom(*args, **kwargs):
             raise ValueError('simulated failure')
 
         with patch('api.workflow_engine._notify_manager', side_effect=boom):
