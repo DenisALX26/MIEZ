@@ -46,7 +46,7 @@ def _build_agent_prompt(week_start: datetime.date, week_end: datetime.date) -> s
         'Please perform the following analysis using the available tools:\n'
         '1. Query leave requests for this week and summarize by status (pending/approved/rejected).\n'
         '2. Get attendance rates by department for this week and flag any department below 80%.\n'
-        '3. Check contracts expiring within the next 30 days and list them.\n'
+        '3. Check contracts expiring within the next 60 days and list them. Escalation severity rule: if an employee has an expiring contract AND holds a key role AND has open dependencies (has_open_tickets or has_pending_leave), flag as CRITICAL. If purely expiring with no open dependencies, flag as WARNING.\n'
         '4. Get payroll summary for the current month and report any unpaid entries.\n\n'
         'Produce a structured weekly HR digest with:\n'
         '- Executive summary (2-3 sentences)\n'
@@ -240,10 +240,22 @@ class Command(BaseCommand):
         if not hr_managers.exists():
             return
 
+        try:
+            payload = json.loads(digest_text)
+            critical = payload.get('critical', [])
+            warning = payload.get('warning', [])
+            if not critical and not warning:
+                # No Notification sent if zero insights
+                return
+            notif_type = 'WARNING' if critical else 'INFO'
+        except Exception:
+            notif_type = 'INFO'
+
         summary = self._extract_digest_summary(digest_text)
         for manager in hr_managers:
             Notification.objects.create(
                 recipient=manager,
+                type=notif_type,
                 title='HR Agent Digest Ready',
                 body=summary,
                 link=f'/reports/{report_id}',

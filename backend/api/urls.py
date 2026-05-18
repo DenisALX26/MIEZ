@@ -52,6 +52,7 @@ urlpatterns = [
   path('assistant/sessions/<int:session_id>/', views.ConversationSessionDetailView.as_view(), name='assistant_session_detail'),
   path('hr/digest/generate/', views.HrDigestGenerateView.as_view(), name='hr_digest_generate'),
   path('hr/latest-digest/', views.LatestHrDigestView.as_view(), name='hr_latest_digest'),
+  path('hr/run-insights-agent/', views.RunInsightsAgentView.as_view(), name='run_insights_agent'),
   path('workflows/', views.WorkflowListView.as_view(), name='workflow_list'),
   path('workflows/triggers/', views.WorkflowTriggersView.as_view(), name='workflow_triggers'),
   path('workflows/actions/', views.WorkflowActionsView.as_view(), name='workflow_actions'),
