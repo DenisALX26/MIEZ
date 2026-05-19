@@ -78,7 +78,7 @@ INSTALLED_APPS = [
 
 CRONJOBS = [
     # Swap 'generate_hr_report' ↔ 'run_hr_agent' to toggle DB-only vs AI mode
-    ('0 6 * * 1', 'django.core.management.call_command', ['generate_hr_report']),
+    ('0 6 * * 1', 'django.core.management.call_command', ['run_hr_agent']),
 ]
 
 MIDDLEWARE = [
