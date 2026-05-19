@@ -374,8 +374,8 @@ const HrDashboard = () => {
                 }
 
                 const itemsToShow = [
-                  ...critical.map(c => ({...c, level: 'CRITICAL'})), 
-                  ...warning.map(w => ({...w, level: 'WARNING'}))
+                  ...critical.map((c: any) => ({...c, level: 'CRITICAL'})), 
+                  ...warning.map((w: any) => ({...w, level: 'WARNING'}))
                 ].slice(0, 2);
 
                 return (

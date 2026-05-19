@@ -290,7 +290,7 @@ const CeoDashboard = () => {
                     <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} unit="%" />
                     <Tooltip
                       formatter={(value: number) => [`${Number(value).toFixed(1)}%`, 'Attendance Rate']}
-                      labelFormatter={value => `Week of ${String(value)}`}
+                      labelFormatter={(value: any) => `Week of ${String(value)}`}
                     />
                     <Line
                       type="monotone"
