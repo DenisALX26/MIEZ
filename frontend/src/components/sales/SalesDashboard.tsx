@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { FiShoppingCart, FiDollarSign, FiClock, FiRotateCcw, FiList, FiPackage } from 'react-icons/fi'
 
 type OrderRow = {
   id: number
@@ -95,17 +97,17 @@ const channelOptions: Array<{ label: string; value: string }> = [
 ]
 
 const statusBadgeClass: Record<string, string> = {
-  PROCESSING: 'bg-blue-50 text-blue-800 border border-blue-200',
-  SHIPPED: 'bg-indigo-50 text-indigo-800 border border-indigo-200',
-  DELIVERED: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
-  PENDING: 'bg-amber-50 text-amber-800 border border-amber-200',
-  RETURNED: 'bg-rose-50 text-rose-800 border border-rose-200',
+  PROCESSING: 'bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]',
+  SHIPPED: 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20',
+  DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+  PENDING: 'bg-amber-50 text-amber-700 border border-amber-200',
+  RETURNED: 'bg-rose-50 text-rose-700 border border-rose-200',
 }
 
 const channelBadgeClass: Record<string, string> = {
-  EMAG: 'bg-fuchsia-50 text-fuchsia-800 border border-fuchsia-200',
-  WEBSITE: 'bg-cyan-50 text-cyan-800 border border-cyan-200',
-  DIRECT: 'bg-slate-100 text-slate-700 border border-slate-300',
+  EMAG: 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20',
+  WEBSITE: 'bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]',
+  DIRECT: 'bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]',
 }
 
 const formatCurrencyRon = (value: string | number) => {
@@ -314,11 +316,11 @@ const SalesDashboard = () => {
     setDetailError('')
   }
 
-  const maxDailyOrders = useMemo(() => {
-    if (!dailyOrders.length) {
-      return 1
-    }
-    return Math.max(...dailyOrders.map((entry) => entry.orders_count), 1)
+  const dailyChartData = useMemo(() => {
+    return dailyOrders.map(point => ({
+      label: formatShortDay(point.date),
+      orders: point.orders_count,
+    }))
   }, [dailyOrders])
 
   const averageOrderValue = useMemo(() => {
@@ -328,40 +330,46 @@ const SalesDashboard = () => {
     return Number(totalRonSum) / totalCount
   }, [totalCount, totalRonSum])
 
+  const kpiCards = kpis
+    ? [
+        { title: 'Orders Today', value: kpis.orders_today, sub: `${kpis.pct_changes.orders}% vs yesterday`, Icon: FiShoppingCart },
+        { title: 'Revenue Today', value: formatCurrencyRon(kpis.revenue_today_ron), sub: `${kpis.pct_changes.revenue}% vs yesterday`, Icon: FiDollarSign },
+        { title: 'Pending Orders', value: kpis.pending_orders, sub: 'awaiting fulfilment', Icon: FiClock },
+        { title: 'Returns This Week', value: kpis.returns_this_week, sub: 'last 7 days', Icon: FiRotateCcw },
+        { title: 'Orders In View', value: totalCount, sub: 'after filters', Icon: FiList },
+      ]
+    : []
+
   return (
     <div className="space-y-6">
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-        <h2 className="text-lg font-semibold">Sales Dashboard</h2>
-        <p className="text-sm text-black/60 mt-1">Today KPI snapshot with order operations.</p>
+        <h2 className="text-[1.05rem] font-semibold tracking-tight">Sales Dashboard</h2>
+        <p className="text-sm text-[var(--muted-foreground)] mt-1">Today's KPI snapshot with order operations.</p>
 
         {loadingKpis ? (
-          <p className="text-sm text-black/60 mt-3">Loading KPI cards...</p>
+          <p className="text-sm text-[var(--muted-foreground)] mt-3">Loading KPI cards...</p>
         ) : kpisError ? (
-          <p className="text-sm text-red-600 mt-3">{kpisError}</p>
+          <p className="text-sm text-[var(--destructive)] mt-3">{kpisError}</p>
         ) : kpis ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mt-4">
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50">Orders Today</p>
-              <p className="text-2xl font-semibold mt-1">{kpis.orders_today}</p>
-              <p className="text-xs mt-1 text-black/60">{kpis.pct_changes.orders}% vs yesterday</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50">Revenue Today</p>
-              <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(kpis.revenue_today_ron)}</p>
-              <p className="text-xs mt-1 text-black/60">{kpis.pct_changes.revenue}% vs yesterday</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50">Pending Orders</p>
-              <p className="text-2xl font-semibold mt-1">{kpis.pending_orders}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50">Returns This Week</p>
-              <p className="text-2xl font-semibold mt-1">{kpis.returns_this_week}</p>
-            </div>
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50">Orders In View</p>
-              <p className="text-2xl font-semibold mt-1">{totalCount}</p>
-            </div>
+            {kpiCards.map(card => {
+              const Icon = card.Icon
+              return (
+                <article
+                  key={card.title}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-start justify-between gap-3"
+                >
+                  <div className="flex flex-col">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{card.title}</p>
+                    <p className="text-2xl font-semibold mt-1 tracking-tight">{card.value}</p>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1">{card.sub}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                    <Icon size={18} />
+                  </div>
+                </article>
+              )
+            })}
           </div>
         ) : null}
 
@@ -370,58 +378,55 @@ const SalesDashboard = () => {
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold">Weekly Orders Trend</h3>
-            <p className="text-sm text-black/60 mt-1">Last 7 days and top products for current ISO week.</p>
+            <h3 className="text-[1.05rem] font-semibold tracking-tight">Weekly Orders Trend</h3>
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">Last 7 days and top products for current ISO week.</p>
           </div>
           {analyticsWeek && (
-            <p className="text-xs text-black/60">
-              Week: {formatDate(analyticsWeek.week_start)} - {formatDate(analyticsWeek.week_end)}
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Week: {formatDate(analyticsWeek.week_start)} – {formatDate(analyticsWeek.week_end)}
             </p>
           )}
         </div>
 
         {loadingAnalytics ? (
-          <p className="text-sm text-black/60 mt-3">Loading chart data...</p>
+          <p className="text-sm text-[var(--muted-foreground)] mt-3">Loading chart data...</p>
         ) : analyticsError ? (
-          <p className="text-sm text-red-600 mt-3">{analyticsError}</p>
+          <p className="text-sm text-[var(--destructive)] mt-3">{analyticsError}</p>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-4">
-            <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Orders per day</p>
-              <div className="h-52 grid grid-cols-7 gap-2 items-end">
-                {dailyOrders.map((point) => {
-                  const height = (point.orders_count / maxDailyOrders) * 100
-                  return (
-                    <div key={point.date} className="h-full flex flex-col justify-end items-center">
-                      <span className="text-[11px] text-black/60 mb-1">{point.orders_count}</span>
-                      <div className="h-36 w-full flex items-end justify-center">
-                        <div
-                          className="w-full max-w-12 rounded-t-md bg-cyan-500/80 border border-cyan-600/20"
-                          style={{ height: `${Math.max(height, 4)}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] text-black/60 mt-1">{formatShortDay(point.date)}</span>
-                    </div>
-                  )
-                })}
+            <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium mb-3">Orders per day</p>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyChartData} margin={{ top: 8, right: 4, left: -16, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: '1px solid var(--border)' }} />
+                    <Bar dataKey="orders" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-              <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Top products this week</p>
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium mb-3">Top products this week</p>
               {topProducts.length === 0 ? (
-                <p className="text-sm text-black/60">No product sales this week yet.</p>
+                <p className="text-sm text-[var(--muted-foreground)]">No product sales this week yet.</p>
               ) : (
                 <ul className="space-y-2">
                   {topProducts.map((item, index) => (
                     <li key={item.product_id} className="rounded-lg border border-[var(--border)] px-3 py-2 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          {index + 1}. {item.product_name}
-                        </p>
-                        <p className="text-xs text-black/60">{item.product_sku}</p>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="w-6 h-6 rounded-md bg-[var(--input-background)] text-[var(--primary)] text-[11px] font-bold grid place-items-center shrink-0">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{item.product_name}</p>
+                          <p className="text-xs text-[var(--muted-foreground)] truncate">{item.product_sku}</p>
+                        </div>
                       </div>
-                      <span className="text-sm font-semibold">{item.units_sold} units</span>
+                      <span className="text-sm font-semibold shrink-0">{item.units_sold}<span className="text-xs text-[var(--muted-foreground)] font-normal ml-1">units</span></span>
                     </li>
                   ))}
                 </ul>
@@ -433,37 +438,40 @@ const SalesDashboard = () => {
 
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-black/50">Filtered Orders</p>
-            <p className="text-2xl font-semibold mt-1">{totalCount}</p>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-black/50">Filtered Total Value</p>
-            <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(totalRonSum)}</p>
-          </div>
-          <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-black/50">Average Order Value</p>
-            <p className="text-2xl font-semibold mt-1">{formatCurrencyRon(averageOrderValue)}</p>
-          </div>
+          {[
+            { title: 'Filtered Orders', value: totalCount, Icon: FiList },
+            { title: 'Filtered Total Value', value: formatCurrencyRon(totalRonSum), Icon: FiDollarSign },
+            { title: 'Average Order Value', value: formatCurrencyRon(averageOrderValue), Icon: FiPackage },
+          ].map(({ title, value, Icon }) => (
+            <article key={title} className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-start justify-between gap-3">
+              <div className="flex flex-col">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{title}</p>
+                <p className="text-2xl font-semibold mt-1 tracking-tight">{value}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                <Icon size={18} />
+              </div>
+            </article>
+          ))}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-black/50">Search</label>
+            <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Search</label>
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Order number or customer name"
-              className="w-full mt-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-black/50">Status</label>
+            <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Status</label>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="w-full mt-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-sm"
             >
               {statusOptions.map((option) => (
                 <option key={option.label} value={option.value}>
@@ -474,11 +482,11 @@ const SalesDashboard = () => {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-black/50">Channel</label>
+            <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Channel</label>
             <select
               value={channelFilter}
               onChange={(event) => setChannelFilter(event.target.value)}
-              className="w-full mt-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-sm"
             >
               {channelOptions.map((option) => (
                 <option key={option.label} value={option.value}>
@@ -490,44 +498,42 @@ const SalesDashboard = () => {
         </div>
 
         {loadingOrders ? (
-          <p className="text-sm text-black/60">Loading orders...</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Loading orders...</p>
         ) : ordersError ? (
-          <p className="text-sm text-red-600">{ordersError}</p>
+          <p className="text-sm text-[var(--destructive)]">{ordersError}</p>
         ) : (
           <>
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
-                <thead>
+            <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+              <table className="min-w-full text-sm">
+                <thead className="bg-[var(--input-background)]">
                   <tr>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Order</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Customer</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Date</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Status</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Channel</th>
-                    <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Value</th>
+                    {['Order', 'Customer', 'Date', 'Status', 'Channel'].map(h => (
+                      <th key={h} className="text-left text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">{h}</th>
+                    ))}
+                    <th className="text-right text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">Value</th>
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((order) => (
                     <tr
                       key={order.id}
-                      className="bg-white border border-[var(--border)] cursor-pointer hover:bg-black/[0.02]"
+                      className="border-t border-[var(--border)] cursor-pointer hover:bg-[var(--input-background)] transition-colors"
                       onClick={() => openOrderDetail(order.id)}
                     >
-                      <td className="px-3 py-2 text-sm font-semibold">{order.order_number}</td>
-                      <td className="px-3 py-2 text-sm">{order.customer_name}</td>
-                      <td className="px-3 py-2 text-sm">{formatDate(order.date)}</td>
-                      <td className="px-3 py-2 text-sm">
-                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${statusBadgeClass[order.status] ?? 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
+                      <td className="px-4 py-2.5 font-semibold">{order.order_number}</td>
+                      <td className="px-4 py-2.5">{order.customer_name}</td>
+                      <td className="px-4 py-2.5">{formatDate(order.date)}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClass[order.status] ?? 'bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]'}`}>
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-sm">
-                        <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${channelBadgeClass[order.channel] ?? 'bg-slate-100 text-slate-700 border border-slate-300'}`}>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${channelBadgeClass[order.channel] ?? 'bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]'}`}>
                           {order.channel}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-sm text-right font-semibold">{formatCurrencyRon(order.value_ron)}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold">{formatCurrencyRon(order.value_ron)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -535,13 +541,13 @@ const SalesDashboard = () => {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-black/60">Page {page}</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Page {page}</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={!previousPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -549,7 +555,7 @@ const SalesDashboard = () => {
                   type="button"
                   onClick={() => setPage((current) => current + 1)}
                   disabled={!nextPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>
@@ -561,67 +567,66 @@ const SalesDashboard = () => {
 
       {(loadingDetail || selectedOrder || detailError) && (
         <div className="fixed inset-0 z-50 bg-black/40 p-4 flex items-center justify-center" onClick={closeModal}>
-          <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-white rounded-2xl border border-[var(--border)] p-5" onClick={(event) => event.stopPropagation()}>
+          <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto bg-[var(--card)] rounded-2xl border border-[var(--border)] p-5" onClick={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Order Details</h3>
+                <h3 className="text-[1.05rem] font-semibold tracking-tight">Order Details</h3>
                 {selectedOrder && (
-                  <p className="text-sm text-black/60 mt-1">
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1">
                     {selectedOrder.order_number} · {selectedOrder.customer_name}
                   </p>
                 )}
               </div>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-1 text-sm" onClick={closeModal}>
+              <button
+                type="button"
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors"
+                onClick={closeModal}
+              >
                 Close
               </button>
             </div>
 
             {loadingDetail ? (
-              <p className="text-sm text-black/60 mt-4">Loading order details...</p>
+              <p className="text-sm text-[var(--muted-foreground)] mt-4">Loading order details...</p>
             ) : detailError ? (
-              <p className="text-sm text-red-600 mt-4">{detailError}</p>
+              <p className="text-sm text-[var(--destructive)] mt-4">{detailError}</p>
             ) : selectedOrder ? (
               <div className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="rounded-xl border border-[var(--border)] p-3">
-                    <p className="text-xs uppercase tracking-wide text-black/50">Status</p>
-                    <p className="text-sm font-semibold mt-1">{selectedOrder.status}</p>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] p-3">
-                    <p className="text-xs uppercase tracking-wide text-black/50">Channel</p>
-                    <p className="text-sm font-semibold mt-1">{selectedOrder.channel}</p>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] p-3">
-                    <p className="text-xs uppercase tracking-wide text-black/50">Date</p>
-                    <p className="text-sm font-semibold mt-1">{formatDate(selectedOrder.date)}</p>
-                  </div>
-                  <div className="rounded-xl border border-[var(--border)] p-3">
-                    <p className="text-xs uppercase tracking-wide text-black/50">Total</p>
-                    <p className="text-sm font-semibold mt-1">{formatCurrencyRon(selectedOrder.value_ron)}</p>
-                  </div>
+                  {[
+                    { label: 'Status', value: selectedOrder.status },
+                    { label: 'Channel', value: selectedOrder.channel },
+                    { label: 'Date', value: formatDate(selectedOrder.date) },
+                    { label: 'Total', value: formatCurrencyRon(selectedOrder.value_ron) },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-xl border border-[var(--border)] p-3">
+                      <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{label}</p>
+                      <p className="text-sm font-semibold mt-1">{value}</p>
+                    </div>
+                  ))}
                 </div>
 
                 <div>
                   <h4 className="text-sm font-semibold">Line Items</h4>
-                  <div className="overflow-x-auto mt-2">
-                    <table className="min-w-full border-separate border-spacing-y-2">
-                      <thead>
+                  <div className="overflow-x-auto mt-2 rounded-xl border border-[var(--border)]">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-[var(--input-background)]">
                         <tr>
-                          <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Product</th>
-                          <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">SKU</th>
-                          <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Qty</th>
-                          <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Unit Price</th>
-                          <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Line Total</th>
+                          <th className="text-left text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">Product</th>
+                          <th className="text-left text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">SKU</th>
+                          <th className="text-right text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">Qty</th>
+                          <th className="text-right text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">Unit Price</th>
+                          <th className="text-right text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] px-4 py-2.5">Line Total</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedOrder.items.map((item) => (
-                          <tr key={item.id} className="bg-white border border-[var(--border)]">
-                            <td className="px-3 py-2 text-sm">{item.product_name}</td>
-                            <td className="px-3 py-2 text-sm text-black/60">{item.product_sku}</td>
-                            <td className="px-3 py-2 text-sm text-right">{item.quantity}</td>
-                            <td className="px-3 py-2 text-sm text-right">{formatCurrencyRon(item.unit_price_ron)}</td>
-                            <td className="px-3 py-2 text-sm text-right font-semibold">{formatCurrencyRon(item.line_total_ron)}</td>
+                          <tr key={item.id} className="border-t border-[var(--border)]">
+                            <td className="px-4 py-2.5">{item.product_name}</td>
+                            <td className="px-4 py-2.5 text-[var(--muted-foreground)]">{item.product_sku}</td>
+                            <td className="px-4 py-2.5 text-right">{item.quantity}</td>
+                            <td className="px-4 py-2.5 text-right">{formatCurrencyRon(item.unit_price_ron)}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold">{formatCurrencyRon(item.line_total_ron)}</td>
                           </tr>
                         ))}
                       </tbody>

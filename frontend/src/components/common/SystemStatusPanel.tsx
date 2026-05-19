@@ -58,26 +58,26 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
   const getStatusColor = (status: string): string => {
     switch (status) {
       case 'ONLINE':
-        return 'bg-green-500'
+        return 'bg-emerald-500'
       case 'DEGRADED':
-        return 'bg-yellow-500'
+        return 'bg-amber-500'
       case 'OFFLINE':
-        return 'bg-red-500'
+        return 'bg-rose-500'
       default:
-        return 'bg-gray-500'
+        return 'bg-[var(--muted-foreground)]'
     }
   }
 
-  const getStatusBgColor = (status: string): string => {
+  const getStatusRowClass = (status: string): string => {
     switch (status) {
       case 'ONLINE':
-        return 'bg-green-50'
+        return 'border-emerald-200 bg-emerald-50'
       case 'DEGRADED':
-        return 'bg-yellow-50'
+        return 'border-amber-200 bg-amber-50'
       case 'OFFLINE':
-        return 'bg-red-50'
+        return 'border-rose-200 bg-rose-50'
       default:
-        return 'bg-gray-50'
+        return 'border-[var(--border)] bg-[var(--input-background)]'
     }
   }
 
@@ -87,46 +87,46 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
   }
 
   if (compact) {
-    // Compact view - just show indicator dots
     return (
       <div className="flex gap-2">
         {systems.map((system) => (
           <div key={system.id} className="flex items-center gap-1" title={`${system.name}: ${system.status} (${system.uptime_pct}%)`}>
             <div className={`w-3 h-3 rounded-full ${getStatusColor(system.status)}`} />
-            {!compact && <span className="text-xs text-gray-600">{system.name}</span>}
           </div>
         ))}
       </div>
     )
   }
 
-  // Full view
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6">
-      <h2 className="text-xl font-semibold mb-4 text-gray-800">System Status</h2>
-      
-      {loading && <p className="text-gray-500">Loading system status...</p>}
-      {error && <p className="text-red-600">Error: {error}</p>}
-      
+    <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+      <header className="mb-4">
+        <h2 className="text-[1.05rem] font-semibold tracking-tight">System Status</h2>
+        <p className="text-sm text-[var(--muted-foreground)] mt-1">Live infrastructure health snapshot.</p>
+      </header>
+
+      {loading && <p className="text-sm text-[var(--muted-foreground)]">Loading system status...</p>}
+      {error && <p className="text-sm text-[var(--destructive)]">Error: {error}</p>}
+
       {!loading && systems.length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {systems.map((system) => (
-            <div key={system.id} className={`rounded-lg p-4 ${getStatusBgColor(system.status)}`}>
+            <div key={system.id} className={`rounded-xl border p-3 ${getStatusRowClass(system.status)}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-4 h-4 rounded-full ${getStatusColor(system.status)}`} />
+                  <div className={`w-2.5 h-2.5 rounded-full ${getStatusColor(system.status)}`} />
                   <div>
-                    <h3 className="font-medium text-gray-800">{system.name}</h3>
-                    <p className="text-sm text-gray-600">{system.status}</p>
+                    <h3 className="text-sm font-semibold">{system.name}</h3>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{system.status}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-gray-800">{system.uptime_pct}%</p>
-                  <p className="text-xs text-gray-500">uptime</p>
+                  <p className="text-sm font-semibold">{system.uptime_pct}%</p>
+                  <p className="text-[11px] text-[var(--muted-foreground)] uppercase tracking-[0.14em]">uptime</p>
                 </div>
               </div>
               {system.last_incident_date && (
-                <p className="text-xs text-gray-600 mt-2">
+                <p className="text-xs text-[var(--muted-foreground)] mt-2">
                   Last incident: {new Date(system.last_incident_date).toLocaleString()}
                 </p>
               )}
@@ -136,9 +136,9 @@ const SystemStatusPanel: React.FC<SystemStatusPanelProps> = ({
       )}
 
       {!loading && systems.length === 0 && (
-        <p className="text-gray-500">No systems found</p>
+        <p className="text-sm text-[var(--muted-foreground)]">No systems found</p>
       )}
-    </div>
+    </section>
   )
 }
 

@@ -6,17 +6,24 @@ interface StatCardProps {
   icon: IconType;
   iconColor: string;
   suffix?: string;
+  sub?: string;
 }
 
-const StatCard = ({ title, value, icon: Icon, iconColor, suffix }: StatCardProps) => {
+const StatCard = ({ title, value, icon: Icon, suffix, sub }: StatCardProps) => {
   return (
-    <div className="bg-white flex flex-col items-stretch justify-between p-4 rounded-lg shadow-md w-full">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm text-gray-500 text-start capitalize">{title}</h3>
-        <Icon className="h-10 w-10 bg-[var(--open-tickets-icon-bg)] p-2 rounded-lg" style={{ color: `var(--${iconColor})` }} />
+    <article className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 w-full flex items-start justify-between gap-3">
+      <div className="flex flex-col">
+        <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{title}</p>
+        <p className="text-2xl font-semibold mt-1 tracking-tight">
+          {value}
+          {suffix ? <span className="text-base font-medium text-[var(--muted-foreground)] ml-1">{suffix}</span> : null}
+        </p>
+        {sub && <p className="text-xs text-[var(--muted-foreground)] mt-1">{sub}</p>}
       </div>
-      <h2 className="text-2xl font-bold mt-2">{value} {suffix}</h2>
-    </div>
+      <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+        <Icon size={18} />
+      </div>
+    </article>
   );
 };
 
