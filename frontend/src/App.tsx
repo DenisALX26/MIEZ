@@ -157,7 +157,7 @@ function App() {
               path="/it/tickets"
               element={
                 <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
+                  <ItDashboard />
                 </ProtectedRoute>
               }
             />
@@ -174,14 +174,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CreateTicketPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/it/assets"
-              element={
-                <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
                 </ProtectedRoute>
               }
             />
@@ -299,7 +291,7 @@ function App() {
               path="/inventory/dashboard"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <InventoryDashboard />
                 </ProtectedRoute>
               }
             />
@@ -340,14 +332,6 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
                   <StockMovementsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/inventory/low-stock-alert"
-              element={
-                <ProtectedRoute requiredRole="INVENTORY">
-                  <LowStockPage />
                 </ProtectedRoute>
               }
             />

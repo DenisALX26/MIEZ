@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FiTruck, FiAlertCircle, FiBox } from 'react-icons/fi'
+import { FiTruck, FiAlertTriangle, FiBox, FiCheckCircle } from 'react-icons/fi'
 import { useNavigate } from 'react-router-dom'
 
 type ApiProduct = {
@@ -20,29 +20,11 @@ export default function LowStockPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/inventory/products/?status=LOW&status=OUT', { credentials: 'include' })
-        if (!res.ok) {
-          setProducts([])
-          return
-        }
-        const data = await res.json()
-        if (data && data.results && Array.isArray(data.results)) {
-          setProducts(data.results)
-        } else if (Array.isArray(data)) {
-          setProducts(data)
-        } else {
-          setProducts([])
-        }
-      } catch (err) {
-        setProducts([])
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchProducts()
+    fetch('/api/inventory/products/?status=LOW&status=OUT', { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : Promise.reject()))
+      .then(d => setProducts(d.results ?? d))
+      .catch(() => setProducts([]))
+      .finally(() => setLoading(false))
   }, [])
 
   const openReceive = (p: ApiProduct) => {
@@ -54,97 +36,92 @@ export default function LowStockPage() {
 
   if (products.length === 0) {
     return (
-      <div className="max-w-[700px] mx-auto mt-20 p-12 bg-white rounded-3xl border border-gray-100 shadow-sm text-center">
-        <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6 text-emerald-500 border border-emerald-100">
-           <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 border border-emerald-100">
+          <FiCheckCircle size={28} />
         </div>
-        <h2 className="text-2xl font-black text-gray-900 tracking-tight">All products are within safe stock levels</h2>
-        <p className="text-gray-500 mt-2 font-medium">Your inventory is healthy. No stock replenishments are required at this time.</p>
+        <div className="text-center">
+          <h2 className="text-[1.1rem] font-semibold">All stock levels are healthy</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-1">No replenishments needed at this time.</p>
+        </div>
       </div>
     )
   }
 
-  const outCount = products.filter(p => p.status === 'OUT').length;
+  const outCount = products.filter(p => p.status === 'OUT').length
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 pb-10">
-      {/* Header exactly like Dashboard */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Critical Stock Alerts</h1>
-          <p className="text-gray-500 mt-1 font-medium">Review and replenish products that have fallen below safety limits.</p>
+          <h2 className="text-[1.15rem] font-semibold tracking-tight">Critical Stock Alerts</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-0.5">
+            Products below safety levels that need replenishment.
+          </p>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-2">
           {outCount > 0 && (
-            <span className="px-4 py-2 bg-rose-50 text-rose-700 font-bold rounded-xl border border-rose-100 flex items-center gap-2">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+            <span className="h-8 px-3 inline-flex items-center gap-2 bg-rose-50 text-rose-700 text-[0.78rem] font-semibold rounded-lg border border-rose-200">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
               </span>
-              {outCount} Depleted
+              {outCount} depleted
             </span>
           )}
-          <span className="px-4 py-2 bg-white text-gray-700 font-bold rounded-xl border border-gray-200 flex items-center gap-2 shadow-sm">
-            <FiBox className="text-indigo-500" />
-            {products.length} Affected
+          <span className="h-8 px-3 inline-flex items-center gap-2 bg-[var(--card)] text-[var(--card-foreground)] text-[0.78rem] font-semibold rounded-lg border border-[var(--border)]">
+            <FiBox size={13} className="text-[var(--primary)]" />
+            {products.length} affected
           </span>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-        
-        {/* Table Header Row */}
-        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-200 bg-gray-50/30">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
-              <FiAlertCircle size={20} />
-            </div>
-            <h4 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Products Requiring Attention</h4>
-          </div>
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--muted)]/30 flex items-center gap-2">
+          <FiAlertTriangle size={15} className="text-rose-500" />
+          <span className="text-[0.875rem] font-medium">Products requiring attention</span>
         </div>
 
-        {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-[0.875rem]">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest w-[30%]">Product Details</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center bg-gray-50/30">Current</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center">Minimum</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-center">Shortfall</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-widest text-right">Action</th>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Product</th>
+                <th className="px-5 py-2.5 text-center text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Current</th>
+                <th className="px-5 py-2.5 text-center text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Minimum</th>
+                <th className="px-5 py-2.5 text-center text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Shortfall</th>
+                <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {products.map((p) => {
+            <tbody>
+              {products.map(p => {
                 const shortfall = Math.max(0, p.min_stock - p.stock_count)
                 const isOut = p.status === 'OUT'
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <p className="font-bold text-gray-900 text-[15px]">{p.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-gray-400 font-mono bg-gray-100 px-1.5 py-0.5 rounded">{p.sku}</span>
-                        {p.category && <span className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider">{p.category}</span>}
+                  <tr key={p.id} className="border-t border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors">
+                    <td className="px-5 py-3">
+                      <p className="font-medium">{p.name}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-[var(--muted-foreground)] font-mono bg-[var(--muted)] px-1.5 py-0.5 rounded">{p.sku}</span>
+                        {p.category && <span className="text-xs text-[var(--muted-foreground)]">{p.category}</span>}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center bg-gray-50/10 group-hover:bg-transparent transition-colors">
-                      <span className={`text-[1.15rem] font-bold ${isOut ? 'text-rose-600' : 'text-amber-500'}`}>{p.stock_count}</span>
+                    <td className="px-5 py-3 text-center">
+                      <span className={`text-[1.05rem] font-semibold ${isOut ? 'text-rose-600' : 'text-amber-600'}`}>{p.stock_count}</span>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className="text-[15px] font-bold text-gray-400">{p.min_stock}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider ${isOut ? 'bg-rose-50 text-rose-600 border border-rose-200' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
-                        -{shortfall} units
+                    <td className="px-5 py-3 text-center text-[var(--muted-foreground)] font-medium">{p.min_stock}</td>
+                    <td className="px-5 py-3 text-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-[0.78rem] font-semibold ${isOut ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                        -{shortfall}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
+                    <td className="px-5 py-3 text-right">
+                      <button
                         onClick={() => openReceive(p)}
-                        className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 hover:shadow-lg hover:-translate-y-0.5 transition-all inline-flex items-center gap-2"
+                        className="h-8 px-3 text-[0.78rem] font-semibold rounded-lg bg-[var(--primary)] text-white hover:opacity-90 transition-opacity inline-flex items-center gap-1.5"
                       >
-                        <FiTruck size={14} /> Refill Stock
+                        <FiTruck size={13} /> Refill
                       </button>
                     </td>
                   </tr>

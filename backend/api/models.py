@@ -105,7 +105,7 @@ class Product(models.Model):
         stock = int(self.stock_count or 0)
         if stock <= 0:
             return 'Out of Stock'
-        if stock <= 9:
+        if stock < int(self.min_stock or 0):
             return 'Low Stock'
         return 'In Stock'
 
@@ -148,7 +148,7 @@ class Order(models.Model):
             )
 
             next_number = 1
-            if last_order_number and last_order_number.startswith('#'):
+            if last_order_number:
                 raw = last_order_number[1:]
                 if raw.isdigit():
                     next_number = int(raw) + 1

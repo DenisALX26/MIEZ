@@ -57,7 +57,6 @@ from .serializers import (
     WorkflowLogSerializer,
 )
 from .agent import AgentRunner, get_registry
-from .rate_limiting import rate_limit
 
 
 # Create your views here.
@@ -123,8 +122,6 @@ class RefreshTokenView(TokenRefreshView):
 
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from rest_framework.permissions import IsAuthenticated
-
 
 class LogoutView(APIView):
     def post(self, request):
@@ -142,18 +139,15 @@ class LogoutView(APIView):
 
 
 class UserMeView(APIView):
-    # For development/testing we allow public access so the frontend can show the low-stock demo
-    # In production revert this to IsAuthenticated or add proper auth checks.
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return JsonResponse(
+        return Response(
             {
                 "id": request.user.id,
                 "username": request.user.username,
                 "email": request.user.email,
                 "role": request.user.role,
-                "message": "Daca apare asta, inseamna ca sunt smecher rau de tot sa mor eu",
             }
         )
 
@@ -2120,7 +2114,7 @@ class WorkflowListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _check_role(self, request):
-        if request.user.role not in ('CEO', 'HR'):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({'detail': 'Forbidden.'}, status=403)
         return None
 
@@ -2146,7 +2140,7 @@ class WorkflowDetailView(APIView):
         return get_object_or_404(Workflow, id=id)
 
     def _check_role(self, request):
-        if request.user.role not in ('CEO', 'HR'):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({'detail': 'Forbidden.'}, status=403)
         return None
 
@@ -2171,7 +2165,7 @@ class WorkflowToggleView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, id):
-        if request.user.role not in ('CEO', 'HR'):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({'detail': 'Forbidden.'}, status=403)
         workflow = get_object_or_404(Workflow, id=id)
         is_active = request.data.get('is_active')

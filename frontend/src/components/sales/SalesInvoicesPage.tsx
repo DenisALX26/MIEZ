@@ -135,45 +135,43 @@ const SalesInvoicesPage = () => {
   }, [statusFilter, page])
 
   return (
-    <div className="space-y-6">
-      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Invoices</h2>
-            <p className="text-sm text-black/60 mt-1">Track billing status across all sales orders.</p>
-          </div>
-          <div className="text-right text-sm text-black/60">
-            <p>{totalCount} invoices</p>
-          </div>
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-[1.15rem] font-semibold tracking-tight">Invoices</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-0.5">Billing status across all sales orders.</p>
         </div>
-      </section>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Paid</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrencyRon(paidTotal)}</p>
-        </section>
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Pending</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrencyRon(pendingTotal)}</p>
-        </section>
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Overdue</p>
-          <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrencyRon(overdueTotal)}</p>
-        </section>
+        <span className="text-[0.78rem] text-[var(--muted-foreground)] bg-[var(--muted)] px-2.5 py-0.5 rounded-full border border-[var(--border)]">
+          {totalCount} total
+        </span>
       </div>
 
-      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
-        <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Paid</p>
+          <p className="text-[1.6rem] font-bold text-emerald-600 mt-1 leading-none">{formatCurrencyRon(paidTotal)}</p>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Pending</p>
+          <p className="text-[1.6rem] font-bold text-amber-600 mt-1 leading-none">{formatCurrencyRon(pendingTotal)}</p>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Overdue</p>
+          <p className="text-[1.6rem] font-bold text-rose-600 mt-1 leading-none">{formatCurrencyRon(overdueTotal)}</p>
+        </div>
+      </div>
+
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
               type="button"
               onClick={() => setStatusFilter(tab.value)}
-              className={`rounded-lg px-3 py-1.5 text-sm border transition-colors ${
+              className={`h-7 px-3 text-[0.8rem] rounded-md border transition-colors ${
                 statusFilter === tab.value
-                  ? 'bg-black text-white border-black'
-                  : 'bg-white text-black/70 border-[var(--border)] hover:bg-black/[0.04]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:bg-[var(--muted)]'
               }`}
             >
               {tab.label}
@@ -182,50 +180,50 @@ const SalesInvoicesPage = () => {
         </div>
 
         {loading ? (
-          <p className="text-sm text-black/60">Loading invoices...</p>
+          <p className="px-5 py-8 text-[0.875rem] text-[var(--muted-foreground)]">Loading…</p>
         ) : error ? (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="px-5 py-8 text-[0.875rem] text-rose-600">{error}</p>
         ) : invoices.length === 0 ? (
-          <p className="text-sm text-black/60">No invoices found.</p>
+          <p className="px-5 py-8 text-[0.875rem] text-[var(--muted-foreground)]">No invoices found.</p>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
+              <table className="w-full text-[0.875rem]">
                 <thead>
-                  <tr>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Invoice</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Order</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Customer</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Issued</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Due</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Status</th>
-                    <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Amount</th>
+                  <tr className="border-b border-[var(--border)] bg-[var(--muted)]/40">
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Invoice</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Order</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Customer</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Issued</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Due</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Status</th>
+                    <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map((invoice) => (
-                    <tr key={invoice.id} className="bg-white border border-[var(--border)]">
-                      <td className="px-3 py-2 text-sm font-semibold font-mono">{invoice.invoice_number}</td>
-                      <td className="px-3 py-2 text-sm text-black/60 font-mono">{invoice.order_number}</td>
-                      <td className="px-3 py-2 text-sm">{invoice.customer_name}</td>
-                      <td className="px-3 py-2 text-sm text-black/60">{formatDate(invoice.issued_date)}</td>
-                      <td className="px-3 py-2 text-sm text-black/60">{formatDate(invoice.due_date)}</td>
-                      <td className="px-3 py-2 text-sm">{effectiveStatusBadge(invoice.effective_status)}</td>
-                      <td className="px-3 py-2 text-sm text-right font-semibold">{formatCurrencyRon(invoice.amount_ron)}</td>
+                    <tr key={invoice.id} className="border-t border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors">
+                      <td className="px-5 py-3 font-semibold font-mono text-[0.8rem]">{invoice.invoice_number}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)] font-mono text-[0.8rem]">{invoice.order_number}</td>
+                      <td className="px-5 py-3">{invoice.customer_name}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)]">{formatDate(invoice.issued_date)}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)]">{formatDate(invoice.due_date)}</td>
+                      <td className="px-5 py-3">{effectiveStatusBadge(invoice.effective_status)}</td>
+                      <td className="px-5 py-3 text-right font-semibold">{formatCurrencyRon(invoice.amount_ron)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-black/60">Page {page} · {totalCount} total</p>
+            <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--muted)]/20 flex items-center justify-between">
+              <p className="text-[0.78rem] text-[var(--muted-foreground)]">Page {page} · {totalCount} total</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={!previousPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-8 px-3 text-[0.8rem] rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
@@ -233,7 +231,7 @@ const SalesInvoicesPage = () => {
                   type="button"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!nextPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-8 px-3 text-[0.8rem] rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
@@ -241,7 +239,7 @@ const SalesInvoicesPage = () => {
             </div>
           </>
         )}
-      </section>
+      </div>
     </div>
   )
 }

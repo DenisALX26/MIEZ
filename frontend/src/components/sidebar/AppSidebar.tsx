@@ -53,7 +53,6 @@ const IT_NAV: NavItem[] = [
   { label: 'All Tickets', to: '/it/tickets', icon: FiFileText, roles: ['IT'] },
   { label: 'My Assigned', to: '/it/assigned', icon: FiUsers, roles: ['IT'] },
   { label: 'Create Ticket', to: '/it/create', icon: FiUserPlus, roles: ['IT'] },
-  { label: 'Assets', to: '/it/assets', icon: FiMonitor, roles: ['IT'] },
 ]
 
 const SALES_NAV: NavItem[] = [

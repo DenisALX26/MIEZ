@@ -82,7 +82,6 @@ You have access to tools scoped to this user's role. Do not attempt actions outs
             'view_it_dashboard',
             'manage_tickets',
             'view_system_status',
-            'manage_tickets',
         ],
         User.Role.INVENTORY: [
             'view_inventory_dashboard',
