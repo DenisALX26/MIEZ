@@ -40,6 +40,7 @@ from .serializers import (
     DepartmentSerializer,
     EmployeeCreateSerializer,
     EmployeeListSerializer,
+    InvoiceDetailSerializer,
     InvoiceListSerializer,
     OrderCreateSerializer,
     OrderDetailSerializer,
@@ -1937,6 +1938,44 @@ class InvoiceListView(APIView):
         paginated_response.data['pending_total'] = str(totals['pending_total'] or '0.00')
         paginated_response.data['overdue_total'] = str(totals['overdue_total'] or '0.00')
         return paginated_response
+
+
+class InvoiceDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can view invoices."}, status=status.HTTP_403_FORBIDDEN)
+
+        invoice = get_object_or_404(
+            Invoice.objects.select_related('order', 'order__customer').prefetch_related('order__items__product'),
+            id=id,
+        )
+        serializer = InvoiceDetailSerializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can update invoices."}, status=status.HTTP_403_FORBIDDEN)
+
+        invoice = get_object_or_404(
+            Invoice.objects.select_related('order', 'order__customer').prefetch_related('order__items__product'),
+            id=id,
+        )
+
+        status_value = (request.data.get('status') or '').strip().upper()
+        if not status_value:
+            return Response({"detail": "status is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if status_value != Invoice.Status.PAID:
+            return Response({"detail": "Only PAID status updates are supported."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if invoice.status != Invoice.Status.PAID:
+            invoice.status = Invoice.Status.PAID
+            invoice.save(update_fields=['status', 'updated_at'])
+
+        serializer = InvoiceDetailSerializer(invoice)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class SalesChannelSplitView(APIView):

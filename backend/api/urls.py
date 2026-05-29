@@ -37,6 +37,7 @@ urlpatterns = [
   path('customers/', views.CustomerListView.as_view(), name='customer_list'),
   path('customers/<int:id>/', views.CustomerDetailView.as_view(), name='customer_detail'),
   path('invoices/', views.InvoiceListView.as_view(), name='invoice_list'),
+  path('invoices/<int:id>/', views.InvoiceDetailView.as_view(), name='invoice_detail'),
   path('orders/', views.OrderListView.as_view(), name='order_list'),
   path('orders/<int:id>/', views.OrderDetailView.as_view(), name='order_detail'),
   path('it/dashboard/', views.DashboardItView.as_view(), name='dashboard_data'),

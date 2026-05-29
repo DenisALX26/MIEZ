@@ -401,6 +401,39 @@ class InvoiceListSerializer(serializers.ModelSerializer):
         return obj.status
 
 
+class InvoiceLineItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    subtotal_ron = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product', 'product_name', 'quantity', 'unit_price_ron', 'subtotal_ron']
+
+    def get_subtotal_ron(self, obj):
+        return obj.quantity * obj.unit_price_ron
+
+
+class InvoiceDetailSerializer(serializers.ModelSerializer):
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    customer_name = serializers.CharField(source='order.customer.name', read_only=True)
+    line_items = InvoiceLineItemSerializer(source='order.items', many=True, read_only=True)
+
+    class Meta:
+        model = Invoice
+        fields = [
+            'id',
+            'invoice_number',
+            'order',
+            'order_number',
+            'customer_name',
+            'issued_date',
+            'due_date',
+            'status',
+            'amount_ron',
+            'line_items',
+        ]
+
+
 class TicketSerializer(serializers.ModelSerializer):
     requested_by_username = serializers.CharField(source='requested_by.username', read_only=True)
     requested_for_username = serializers.CharField(source='requested_for.username', read_only=True, allow_null=True)
