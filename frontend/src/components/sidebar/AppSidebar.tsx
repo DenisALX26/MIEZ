@@ -50,6 +50,7 @@ const HR_NAV: NavItem[] = [
 
 const IT_NAV: NavItem[] = [
   { label: 'Dashboard', to: '/it/dashboard', icon: FiGrid, roles: ['IT'] },
+  { label: 'Assets', to: '/it/assets', icon: FiPackage, roles: ['IT'] },
   { label: 'All Tickets', to: '/it/tickets', icon: FiFileText, roles: ['IT'] },
   { label: 'My Assigned', to: '/it/assigned', icon: FiUsers, roles: ['IT'] },
   { label: 'Create Ticket', to: '/it/create', icon: FiUserPlus, roles: ['IT'] },

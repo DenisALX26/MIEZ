@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
 import ItAssignedPage from './components/it/ItAssignedPage'
+import ItAssetsPage from './components/it/ItAssetsPage'
 import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
@@ -166,6 +167,14 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="IT">
                   <ItAssignedPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/it/assets"
+              element={
+                <ProtectedRoute requiredRoles={['CEO', 'IT']}>
+                  <ItAssetsPage />
                 </ProtectedRoute>
               }
             />

@@ -23,7 +23,7 @@ from django_filters import rest_framework as filters
 from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
-    Department, Report, Supplier, User, Product, StockMovement, Ticket,
+    Department, Report, Supplier, User, Product, StockMovement, Ticket, Asset,
     Order, OrderItem, Customer, Invoice, LeaveRequest, Attendance, Contract,
     PayrollEntry, SystemStatus, Notification, ConversationSession, ConversationMessage,
     Workflow, WorkflowLog,
@@ -32,6 +32,7 @@ from .management.commands.generate_hr_digest import DigestGenerator
 from .serializers import (
     AssistantChatRequestSerializer,
     AssistantChatResponseSerializer,
+    AssetSerializer,
     ConversationSessionSerializer,
     ConversationSessionListSerializer,
     CustomerDetailSerializer,
@@ -268,8 +269,8 @@ class EmployeeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in [User.Role.CEO, User.Role.HR]:
-            return Response({"detail": "Only CEO and HR can view employees."}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role not in [User.Role.CEO, User.Role.HR, User.Role.IT]:
+            return Response({"detail": "Only CEO, HR, and IT can view employees."}, status=status.HTTP_403_FORBIDDEN)
 
         queryset = User.objects.select_related('department').all().order_by('id')
 
@@ -310,6 +311,57 @@ class EmployeeListView(APIView):
         employee = serializer.save()
         response_serializer = EmployeeListSerializer(employee)
         return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class AssetListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({"detail": "Only IT and CEO can view assets."}, status=status.HTTP_403_FORBIDDEN)
+
+        assets = Asset.objects.select_related('assigned_to').all().order_by('-created_at')
+        serializer = AssetSerializer(assets, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({"detail": "Only IT and CEO can create assets."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AssetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        asset = serializer.save()
+        return Response(AssetSerializer(asset).data, status=status.HTTP_201_CREATED)
+
+
+class AssetDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({"detail": "Only IT and CEO can view assets."}, status=status.HTTP_403_FORBIDDEN)
+
+        asset = get_object_or_404(Asset.objects.select_related('assigned_to'), id=id)
+        serializer = AssetSerializer(asset)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({"detail": "Only IT and CEO can update assets."}, status=status.HTTP_403_FORBIDDEN)
+
+        asset = get_object_or_404(Asset.objects.select_related('assigned_to'), id=id)
+        serializer = AssetSerializer(asset, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(AssetSerializer(asset).data, status=status.HTTP_200_OK)
+
+    def delete(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response({"detail": "Only IT and CEO can delete assets."}, status=status.HTTP_403_FORBIDDEN)
+
+        asset = get_object_or_404(Asset, id=id)
+        asset.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EmployeeDetailView(APIView):
