@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from django.http import FileResponse, JsonResponse
 from django.views.decorators.http import require_GET
 from django.shortcuts import get_object_or_404
-from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField
+from django.db.models import F, Avg, Count, Q, DurationField, ExpressionWrapper, Sum, Value, DecimalField, Case, When, IntegerField
 from django.db.models.functions import TruncDay, TruncWeek, TruncMonth, Coalesce
 from django.utils import timezone
 from django.core.cache import cache
@@ -57,6 +57,9 @@ from .serializers import (
     WorkflowLogSerializer,
 )
 from .agent import AgentRunner, get_registry
+
+
+IT_SLA_THRESHOLD_HOURS = 48
 
 
 # Create your views here.
@@ -1236,6 +1239,92 @@ class ItTicketTrendView(APIView):
             )
 
         return Response({'weeks': weeks}, status=status.HTTP_200_OK)
+
+class TechnicianStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in [User.Role.CEO, User.Role.IT]:
+            return Response(
+                {"detail": "Access denied. Only IT and CEO can view technician stats."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            days = int(request.query_params.get('days', 30))
+        except (TypeError, ValueError):
+            days = 30
+
+        if days <= 0:
+            days = 30
+
+        window_start = timezone.now() - timedelta(days=days)
+        sla_threshold = timedelta(hours=IT_SLA_THRESHOLD_HOURS)
+
+        resolved_rows = (
+            Ticket.objects.filter(
+                assigned_to__role=User.Role.IT,
+                status=Ticket.Status.RESOLVED,
+                resolved_at__gte=window_start,
+                assigned_to__isnull=False,
+            )
+            .annotate(
+                resolution_time=ExpressionWrapper(F('resolved_at') - F('created_at'), output_field=DurationField()),
+            )
+            .annotate(
+                sla_met=Case(
+                    When(resolution_time__lte=sla_threshold, then=Value(1)),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                ),
+            )
+            .values('assigned_to_id', 'assigned_to__username')
+            .annotate(
+                resolved_count=Count('id'),
+                avg_resolution_time=Avg('resolution_time'),
+                sla_met_count=Sum('sla_met'),
+            )
+            .order_by('assigned_to__username')
+        )
+
+        rows_by_user = {
+            row['assigned_to_id']: row
+            for row in resolved_rows
+        }
+
+        technicians = []
+        for tech in User.objects.filter(role=User.Role.IT).order_by('username'):
+            row = rows_by_user.get(tech.id)
+            resolved_count = int(row['resolved_count']) if row else 0
+            avg_duration = row['avg_resolution_time'] if row and row['avg_resolution_time'] is not None else None
+            sla_met_count = int(row['sla_met_count']) if row and row['sla_met_count'] is not None else 0
+
+            avg_resolution_hours = 0.0
+            if avg_duration is not None:
+                avg_resolution_hours = round(avg_duration.total_seconds() / 3600, 2)
+
+            sla_percent = 0.0
+            if resolved_count > 0:
+                sla_percent = round((sla_met_count / resolved_count) * 100, 2)
+
+            technicians.append(
+                {
+                    'user_id': tech.id,
+                    'username': tech.username,
+                    'resolved_count': resolved_count,
+                    'avg_resolution_hours': avg_resolution_hours,
+                    'sla_percent': sla_percent,
+                }
+            )
+
+        return Response(
+            {
+                'days': days,
+                'sla_threshold_hours': IT_SLA_THRESHOLD_HOURS,
+                'technicians': technicians,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 
