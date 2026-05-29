@@ -370,7 +370,7 @@ def seed_sales_orders():
             'customer': 'Beta Retail',
             'value_ron': Decimal('80.00'),
             'date': today,
-            'status': Order.Status.PENDING,
+            'status': Order.Status.PROCESSING,
             'channel': Order.Channel.EMAG,
             'items': [
                 {'sku': 'WIDGET-A', 'quantity': 1, 'unit_price_ron': Decimal('80.00')},
@@ -392,7 +392,7 @@ def seed_sales_orders():
             'customer': 'Carpathia Direct',
             'value_ron': Decimal('30.00'),
             'date': yesterday,
-            'status': Order.Status.RETURNED,
+            'status': Order.Status.CANCELLED,
             'channel': Order.Channel.WEBSITE,
             'items': [
                 {'sku': 'WIDGET-B', 'quantity': 1, 'unit_price_ron': Decimal('30.00')},
@@ -414,7 +414,7 @@ def seed_sales_orders():
             'customer': 'Acme SRL',
             'value_ron': Decimal('20.00'),
             'date': start_of_week,
-            'status': Order.Status.RETURNED,
+            'status': Order.Status.CANCELLED,
             'channel': Order.Channel.DIRECT,
             'items': [
                 {'sku': 'WIDGET-A', 'quantity': 1, 'unit_price_ron': Decimal('20.00')},
@@ -425,7 +425,7 @@ def seed_sales_orders():
             'customer': 'Beta Retail',
             'value_ron': Decimal('15.00'),
             'date': previous_week,
-            'status': Order.Status.RETURNED,
+            'status': Order.Status.CANCELLED,
             'channel': Order.Channel.WEBSITE,
             'items': [
                 {'sku': 'WIDGET-B', 'quantity': 1, 'unit_price_ron': Decimal('15.00')},

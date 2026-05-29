@@ -174,8 +174,8 @@ def get_dashboard_summary(module: str, user: User) -> dict[str, Any]:
         return _result([
             {'label': 'Orders Today', 'value': orders_today},
             {'label': 'Revenue Today (RON)', 'value': f'{revenue_today:.2f}'},
-            {'label': 'Pending Orders', 'value': base_qs.filter(status=Order.Status.PENDING).count()},
-            {'label': 'Returns This Week', 'value': base_qs.filter(status=Order.Status.RETURNED, date__gte=start_of_week, date__lte=today).count()},
+            {'label': 'Processing Orders', 'value': base_qs.filter(status=Order.Status.PROCESSING).count()},
+            {'label': 'Cancelled This Week', 'value': base_qs.filter(status=Order.Status.CANCELLED, date__gte=start_of_week, date__lte=today).count()},
             {'label': 'Orders Change vs Yesterday (%)', 'value': _pct(orders_today, orders_yesterday)},
             {'label': 'Revenue Change vs Yesterday (%)', 'value': _pct(revenue_today, revenue_yesterday)},
         ])
@@ -833,7 +833,7 @@ def get_headcount_vs_workload(user: User) -> list[dict[str, Any]]:
         {
             'department': 'Sales',
             'active_headcount': User.objects.filter(role=User.Role.SALES, is_active=True).count(),
-            'workload_items': Order.objects.filter(status=Order.Status.PENDING).count(),
+            'workload_items': Order.objects.filter(status=Order.Status.PROCESSING).count(),
         },
         {
             'department': 'IT',

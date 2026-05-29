@@ -217,7 +217,7 @@ def test_get_headcount_vs_workload_computes_ratio_per_department():
     baker.make(User, role=User.Role.INVENTORY, is_active=True)
 
     customer = baker.make('api.Customer')
-    baker.make(Order, customer=customer, status=Order.Status.PENDING, _quantity=6)
+    baker.make(Order, customer=customer, status=Order.Status.PROCESSING, _quantity=6)
     baker.make(Ticket, status=Ticket.Status.OPEN, ticket_number='TKT-RT-0001')
     baker.make(Ticket, status=Ticket.Status.OPEN, ticket_number='TKT-RT-0002')
 
@@ -250,7 +250,7 @@ def test_get_headcount_vs_workload_sets_status_when_ratio_exceeds_threshold():
     baker.make(User, role=User.Role.SALES, is_active=True)
 
     customer = baker.make('api.Customer')
-    baker.make(Order, customer=customer, status=Order.Status.PENDING, _quantity=11)
+    baker.make(Order, customer=customer, status=Order.Status.PROCESSING, _quantity=11)
 
     rows = get_headcount_vs_workload(user=hr_user)
     sales_row = next(item for item in rows if item['department'] == 'Sales')

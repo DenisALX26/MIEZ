@@ -1474,6 +1474,42 @@ class OrderDetailView(APIView):
         serializer = OrderDetailSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.SALES, User.Role.CEO]:
+            return Response({"detail": "Only Sales and CEO can update orders."}, status=status.HTTP_403_FORBIDDEN)
+
+        order = get_object_or_404(
+            Order.objects.select_related('customer', 'created_by').prefetch_related('items__product'),
+            id=id,
+        )
+
+        status_value = (request.data.get('status') or '').strip().upper()
+        if not status_value:
+            return Response({"detail": "status is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_statuses = {choice[0] for choice in Order.Status.choices}
+        if status_value not in valid_statuses:
+            return Response({"detail": "Invalid status value."}, status=status.HTTP_400_BAD_REQUEST)
+
+        allowed_transitions = {
+            Order.Status.PROCESSING: [Order.Status.SHIPPED, Order.Status.CANCELLED],
+            Order.Status.SHIPPED: [Order.Status.DELIVERED],
+            Order.Status.DELIVERED: [],
+            Order.Status.CANCELLED: [],
+        }
+
+        if status_value != order.status:
+            allowed_next = allowed_transitions.get(order.status, [])
+            if status_value not in allowed_next:
+                return Response({"detail": "Invalid status transition."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if status_value != order.status:
+            order.status = status_value
+            order.save(update_fields=['status', 'updated_at'])
+
+        serializer = OrderDetailSerializer(order)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class SalesDashboardView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1508,10 +1544,10 @@ class SalesDashboardView(APIView):
             revenue_yesterday_ron=Sum('value_ron'),
         )
 
-        pending_orders = base_queryset.filter(status=Order.Status.PENDING).aggregate(count=Count('id'))['count'] or 0
+        pending_orders = base_queryset.filter(status=Order.Status.PROCESSING).aggregate(count=Count('id'))['count'] or 0
 
         returns_this_week = base_queryset.filter(
-            status=Order.Status.RETURNED,
+            status=Order.Status.CANCELLED,
             date__gte=start_of_week,
             date__lte=today,
         ).aggregate(count=Count('id'))['count'] or 0

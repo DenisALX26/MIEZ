@@ -67,7 +67,7 @@ class ERPModelsTestCase(TestCase):
 			order_number='ORD-1',
 			customer=customer,
 			created_by=self.sales_user,
-			status=Order.Status.PENDING,
+			status=Order.Status.PROCESSING,
 		)
 		self.assertEqual(str(order), 'ORD-1')
 
