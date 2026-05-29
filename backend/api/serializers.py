@@ -3,6 +3,7 @@ from rest_framework.validators import UniqueValidator
 from django.utils import timezone
 
 from .models import Department, User
+from .models import Asset
 from .models import Product
 from .models import Report
 from .models import Supplier, StockMovement
@@ -17,6 +18,35 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = ['id', 'name', 'slug', 'icon', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class AssetSerializer(serializers.ModelSerializer):
+    assigned_to = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
+    assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True, allow_null=True)
+    assigned_to_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Asset
+        fields = [
+            'id',
+            'name',
+            'serial_number',
+            'category',
+            'assigned_to',
+            'assigned_to_username',
+            'assigned_to_name',
+            'status',
+            'notes',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'assigned_to_username', 'assigned_to_name']
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to is None:
+            return None
+
+        full_name = obj.assigned_to.get_full_name().strip()
+        return full_name or obj.assigned_to.username
 
 
 class EmployeeListSerializer(serializers.ModelSerializer):
