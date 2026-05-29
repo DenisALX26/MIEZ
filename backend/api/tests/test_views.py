@@ -948,6 +948,7 @@ class SalesDashboardKpiTests(APITestCase):
         today_revenue = Order.objects.filter(date=today).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
         yesterday_orders = Order.objects.filter(date=yesterday).count()
         yesterday_revenue = Order.objects.filter(date=yesterday).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
+        processing_orders = Order.objects.filter(status=Order.Status.PROCESSING).count()
         returns_week = Order.objects.filter(
             status=Order.Status.CANCELLED,
             date__gte=start_of_week,
@@ -964,7 +965,7 @@ class SalesDashboardKpiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['orders_today'], today_orders)
         self.assertEqual(Decimal(response.data['revenue_today_ron']), today_revenue)
-        self.assertEqual(response.data['pending_orders'], 1)
+        self.assertEqual(response.data['pending_orders'], processing_orders)
         self.assertEqual(response.data['returns_this_week'], returns_week)
         self.assertEqual(response.data['pct_changes']['orders'], pct_change(today_orders, yesterday_orders))
         self.assertEqual(response.data['pct_changes']['revenue'], pct_change(today_revenue, yesterday_revenue))
