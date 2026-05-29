@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from api.models import (
-    Attendance, Contract, Customer, Department, Invoice,
+    Asset, Attendance, Contract, Customer, Department, Invoice,
     LeaveRequest, Notification, Order, OrderItem, PayrollEntry,
     Product, Report, StockMovement, Supplier, SystemStatus,
     Ticket, TicketComment, User, Workflow, WorkflowLog,
@@ -62,6 +62,9 @@ class Command(BaseCommand):
 
         self.stdout.write('Products…')
         products = self._products()
+
+        self.stdout.write('Assets…')
+        self._assets(users)
 
         self.stdout.write('Suppliers…')
         suppliers = self._suppliers()
@@ -127,6 +130,7 @@ class Command(BaseCommand):
         Product.objects.all().delete()
         Customer.objects.all().delete()
         Report.objects.all().delete()
+        Asset.objects.all().delete()
         User.objects.all().delete()
         Department.objects.all().delete()
 
@@ -258,6 +262,36 @@ class Command(BaseCommand):
                 address=addr, location=location, tier=tier,
             ))
         return customers
+
+
+    def _assets(self, users):
+        specs = [
+            ('Alex Lead Laptop', 'ASSET-LAP-001', 'LAPTOP', users['it1'], 'ASSIGNED', 'Primary IT lead workstation.'),
+            ('Dan Support Laptop', 'ASSET-LAP-002', 'LAPTOP', users['it2'], 'ASSIGNED', 'Issued to systems administrator.'),
+            ('CEO Travel Laptop', 'ASSET-LAP-004', 'LAPTOP', users['ceo'], 'ASSIGNED', 'Lightweight laptop for executive travel.'),
+            ('HR Onboarding Laptop', 'ASSET-LAP-005', 'LAPTOP', users['hr2'], 'ASSIGNED', 'Used for HR onboarding sessions.'),
+            ('Spare Dell Monitor', 'ASSET-MON-001', 'MONITOR', None, 'AVAILABLE', 'Backup monitor stored in IT cabinet.'),
+            ('Sales Demo Monitor', 'ASSET-MON-003', 'MONITOR', users['sales1'], 'ASSIGNED', 'Portable monitor for client demos.'),
+            ('Reception Phone', 'ASSET-PHN-001', 'PHONE', users['hr1'], 'ASSIGNED', 'Reception desk handset.'),
+            ('CEO Mobile Phone', 'ASSET-PHN-002', 'PHONE', users['ceo'], 'ASSIGNED', 'Executive mobile device with MDM enrolled.'),
+            ('Docking Station', 'ASSET-PER-001', 'PERIPHERAL', users['it3'], 'ASSIGNED', 'USB-C dock for IT support.'),
+            ('Warehouse Barcode Scanner', 'ASSET-PER-003', 'PERIPHERAL', users['inv2'], 'ASSIGNED', 'Handheld scanner for stock checks.'),
+            ('Conference Webcam', 'ASSET-PER-004', 'PERIPHERAL', None, 'MAINTENANCE', 'Needs firmware update before next meeting room install.'),
+            ('Retired Lenovo Laptop', 'ASSET-LAP-003', 'LAPTOP', None, 'RETIRED', 'Old laptop removed from circulation.'),
+            ('Conference Room Display', 'ASSET-MON-002', 'MONITOR', users['ceo'], 'MAINTENANCE', 'Awaiting HDMI controller repair.'),
+            ('Wireless Mouse Kit', 'ASSET-PER-002', 'PERIPHERAL', None, 'AVAILABLE', 'Spare peripherals for new hires.'),
+            ('Spare Office Tablet', 'ASSET-TBL-001', 'OTHER', None, 'AVAILABLE', 'Shared tablet for presentations and approvals.'),
+        ]
+
+        for name, serial, category, assigned_to, status, notes in specs:
+            Asset.objects.create(
+                name=name,
+                serial_number=serial,
+                category=category,
+                assigned_to=assigned_to,
+                status=status,
+                notes=notes,
+            )
 
     # ──────────────────────────────────────────────────────────────
     # Products  (final stock_count is set independently of movements)
