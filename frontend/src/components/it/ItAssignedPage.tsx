@@ -77,9 +77,14 @@ const ItAssignedPage = () => {
 
       <ItTicketsSection
         userRole={user?.role}
+        currentUserId={user?.id}
+        currentUserUsername={user?.username}
         tickets={tickets}
         loadingTickets={loadingTickets}
         ticketsError={ticketsError}
+        onTicketUpdated={(updatedTicket) => {
+          setTickets((prev) => prev.map((ticket) => (ticket.id === updatedTicket.id ? updatedTicket : ticket)));
+        }}
       />
     </div>
   );

@@ -36,9 +36,12 @@ export interface TicketItem {
 
 interface ItTicketsSectionProps {
   userRole?: string;
+  currentUserId?: number;
+  currentUserUsername?: string;
   tickets: TicketItem[];
   loadingTickets: boolean;
   ticketsError: string;
+  onTicketUpdated?: (ticket: TicketItem) => void;
 }
 
 const statusBadgeClass: Record<TicketStatus, string> = {
@@ -82,7 +85,15 @@ const formatDateOnly = (value: string | null): string => {
 
 const normalizeValue = (value: string | null | undefined): string => (value ?? "").toLowerCase();
 
-const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: ItTicketsSectionProps) => {
+const ItTicketsSection = ({
+  userRole,
+  currentUserId,
+  currentUserUsername,
+  tickets,
+  loadingTickets,
+  ticketsError,
+  onTicketUpdated,
+}: ItTicketsSectionProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | TicketStatus>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<"ALL" | TicketPriority>("ALL");
@@ -91,8 +102,17 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
   const [requesterFilter, setRequesterFilter] = useState("ALL");
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<TicketItem | null>(null);
+  const [isUpdatingTicket, setIsUpdatingTicket] = useState(false);
+  const [ticketUpdateError, setTicketUpdateError] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ticketsPerPage = 10;
+
+  const closeTicketDetails = () => {
+    setSelectedTicket(null);
+    setTicketUpdateError("");
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -101,7 +121,7 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
       }
 
       if (selectedTicket) {
-        setSelectedTicket(null);
+        closeTicketDetails();
         return;
       }
 
@@ -205,6 +225,17 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
     return sorted;
   }, [visibleTickets, sortKey, sortDirection]);
 
+  const totalPages = Math.max(1, Math.ceil(sortedTickets.length / ticketsPerPage));
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
+
+  const paginatedTickets = useMemo(() => {
+    const startIndex = (currentPage - 1) * ticketsPerPage;
+    return sortedTickets.slice(startIndex, startIndex + ticketsPerPage);
+  }, [currentPage, sortedTickets]);
+
   const departmentOptions = useMemo(() => {
     const values = new Set(roleScopedTickets.map((t) => t.department_name ?? "Unassigned"));
     return ["ALL", ...Array.from(values).sort((a, b) => a.localeCompare(b))];
@@ -227,7 +258,68 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
     setDepartmentFilter("ALL");
     setAssigneeFilter("ALL");
     setRequesterFilter("ALL");
+    setCurrentPage(1);
   };
+
+  const updateTicketStatus = async (nextStatus: "IN_PROGRESS" | "RESOLVED") => {
+    if (!selectedTicket || isUpdatingTicket) {
+      return;
+    }
+
+    try {
+      setIsUpdatingTicket(true);
+      setTicketUpdateError("");
+
+      const payload: Record<string, number | string> = { status: nextStatus };
+
+      if (nextStatus === "IN_PROGRESS") {
+        if (typeof currentUserId !== "number") {
+          throw new Error("Missing technician id.");
+        }
+
+        payload.assigned_to = currentUserId;
+      }
+
+      const response = await fetch(`/api/tickets/${selectedTicket.id}/`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `Ticket update failed with ${response.status}`);
+      }
+
+      const responseData = (await response.json()) as {
+        status?: TicketStatus;
+        resolved_at?: string | null;
+      };
+
+      const updatedTicket: TicketItem = {
+        ...selectedTicket,
+        status: responseData.status ?? nextStatus,
+        resolved_at: responseData.resolved_at ?? selectedTicket.resolved_at,
+        assigned_to_username:
+          nextStatus === "IN_PROGRESS"
+            ? currentUserUsername ?? selectedTicket.assigned_to_username
+            : selectedTicket.assigned_to_username,
+      };
+
+      setSelectedTicket(updatedTicket);
+      onTicketUpdated?.(updatedTicket);
+    } catch (error) {
+      console.error("Failed to update ticket:", error);
+      setTicketUpdateError("Could not update the ticket status.");
+    } finally {
+      setIsUpdatingTicket(false);
+    }
+  };
+
+  const canManageTicket = userRole === "IT" && typeof currentUserId === "number";
 
   return (
     <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
@@ -320,7 +412,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <input
                   type="text"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder="Search ticket no, title, description, users, location"
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 />
@@ -330,7 +425,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Status</label>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as "ALL" | TicketStatus)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as "ALL" | TicketStatus);
+                    setCurrentPage(1);
+                  }}
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="ALL">All Statuses</option>
@@ -345,7 +443,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Priority</label>
                 <select
                   value={priorityFilter}
-                  onChange={(e) => setPriorityFilter(e.target.value as "ALL" | TicketPriority)}
+                  onChange={(e) => {
+                    setPriorityFilter(e.target.value as "ALL" | TicketPriority);
+                    setCurrentPage(1);
+                  }}
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="ALL">All Priorities</option>
@@ -360,7 +461,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Department</label>
                 <select
                   value={departmentFilter}
-                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDepartmentFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {departmentOptions.map((option) => (
@@ -375,7 +479,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Assignee</label>
                 <select
                   value={assigneeFilter}
-                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  onChange={(e) => {
+                    setAssigneeFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {assigneeOptions.map((option) => (
@@ -390,7 +497,10 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Requester</label>
                 <select
                   value={requesterFilter}
-                  onChange={(e) => setRequesterFilter(e.target.value)}
+                  onChange={(e) => {
+                    setRequesterFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {requesterOptions.map((option) => (
@@ -437,7 +547,7 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </tr>
             </thead>
             <tbody>
-              {sortedTickets.map((ticket) => (
+              {paginatedTickets.map((ticket) => (
                 <tr key={ticket.id} className="border-t border-[var(--border)] hover:bg-[var(--input-background)] transition-colors">
                   <td className="px-4 py-2.5 font-medium text-[var(--muted-foreground)] whitespace-nowrap">{ticket.ticket_number}</td>
                   <td className="px-4 py-2.5 min-w-[14rem] font-medium">{ticket.title}</td>
@@ -473,12 +583,44 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
         </div>
       )}
 
+      {!ticketsError && !loadingTickets && sortedTickets.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 text-sm text-[var(--muted-foreground)]">
+          <div>
+            Showing {(currentPage - 1) * ticketsPerPage + 1}-{Math.min(currentPage * ticketsPerPage, sortedTickets.length)} of {sortedTickets.length} tickets
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Previous
+            </button>
+
+            <span className="min-w-[6rem] text-center">
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              disabled={currentPage === totalPages}
+              className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       {selectedTicket && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
-              setSelectedTicket(null);
+              closeTicketDetails();
             }
           }}
         >
@@ -489,7 +631,7 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </h3>
               <button
                 type="button"
-                onClick={() => setSelectedTicket(null)}
+                onClick={closeTicketDetails}
                 className="cursor-pointer rounded-lg px-2 py-1 text-sm text-[var(--muted-foreground)] hover:bg-[var(--input-background)] hover:text-[var(--foreground)] transition-colors"
               >
                 Close
@@ -555,16 +697,44 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
                 <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Description</div>
                 <div className="whitespace-pre-wrap">{selectedTicket.description || "-"}</div>
               </div>
+
+              {ticketUpdateError && (
+                <div className="md:col-span-2 text-sm text-[var(--destructive)] bg-rose-50 border border-rose-200 rounded-lg p-3">
+                  {ticketUpdateError}
+                </div>
+              )}
             </div>
 
-            <div className="flex justify-end px-5 py-4 border-t border-[var(--border)]">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
               <button
                 type="button"
-                onClick={() => setSelectedTicket(null)}
-                className="cursor-pointer bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg px-3.5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
+                onClick={closeTicketDetails}
+                className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3.5 py-2 text-sm font-medium hover:bg-[var(--input-background)] transition-colors"
               >
                 Close
               </button>
+
+              {canManageTicket && selectedTicket.status === "OPEN" && (
+                <button
+                  type="button"
+                  onClick={() => updateTicketStatus("IN_PROGRESS")}
+                  disabled={isUpdatingTicket}
+                  className="cursor-pointer bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg px-3.5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isUpdatingTicket ? "Accepting..." : "Accept"}
+                </button>
+              )}
+
+              {canManageTicket && selectedTicket.status === "IN_PROGRESS" && (
+                <button
+                  type="button"
+                  onClick={() => updateTicketStatus("RESOLVED")}
+                  disabled={isUpdatingTicket}
+                  className="cursor-pointer bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg px-3.5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isUpdatingTicket ? "Resolving..." : "Resolve"}
+                </button>
+              )}
             </div>
           </div>
         </div>
