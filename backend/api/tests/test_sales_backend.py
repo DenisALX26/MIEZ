@@ -39,7 +39,7 @@ def test_post_orders_valid_payload_creates_invoice_via_signal():
         'customer': customer.id,
         'value_ron': '123.45',
         'date': timezone.localdate().isoformat(),
-        'status': Order.Status.PENDING,
+        'status': Order.Status.PROCESSING,
         'channel': Order.Channel.EMAG,
         'notes': 'Created from pytest',
     }
@@ -71,18 +71,18 @@ def test_get_orders_returns_paginated_list_with_total_ron_sum():
     assert len(response.data['results']) == 2
 
 
-def test_get_orders_with_status_pending_filters_correctly():
+def test_get_orders_with_status_processing_filters_correctly():
     client, user = _authed_sales_client()
     customer = baker.make(Customer)
 
-    baker.make(Order, customer=customer, created_by=user, status=Order.Status.PENDING)
+    baker.make(Order, customer=customer, created_by=user, status=Order.Status.PROCESSING)
     baker.make(Order, customer=customer, created_by=user, status=Order.Status.SHIPPED)
 
-    response = client.get('/api/orders/?status=Pending')
+    response = client.get('/api/orders/?status=Processing')
 
     assert response.status_code == 200
     assert response.data['total_count'] == 1
-    assert all(item['status'] == Order.Status.PENDING for item in response.data['results'])
+    assert all(item['status'] == Order.Status.PROCESSING for item in response.data['results'])
 
 
 def test_get_orders_with_channel_emag_filters_correctly():

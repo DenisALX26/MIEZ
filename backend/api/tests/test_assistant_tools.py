@@ -51,7 +51,7 @@ class AssistantToolTests(TestCase):
             created_by=self.sales_user,
             value_ron='100.00',
             date=today,
-            status=Order.Status.PENDING,
+            status=Order.Status.PROCESSING,
         )
 
         summary = get_dashboard_summary(module='sales', user=self.sales_user)
@@ -153,7 +153,7 @@ class AssistantToolTests(TestCase):
                 customer=customer_target,
                 created_by=self.sales_user,
                 value_ron='250.00',
-                status=Order.Status.PENDING,
+                status=Order.Status.PROCESSING,
                 channel=Order.Channel.WEBSITE,
             )
 
@@ -168,20 +168,20 @@ class AssistantToolTests(TestCase):
             customer=customer_other,
             created_by=self.sales_user,
             value_ron='100.00',
-            status=Order.Status.PENDING,
+            status=Order.Status.PROCESSING,
             channel=Order.Channel.DIRECT,
         )
 
         results = query_orders(
             user=self.sales_user,
-            status='PENDING',
+            status='PROCESSING',
             channel='WEBSITE',
             customer='Acme',
             limit=20,
         )
 
         self.assertEqual(len(results), 10)
-        self.assertTrue(all(item['status'] == Order.Status.PENDING for item in results))
+        self.assertTrue(all(item['status'] == Order.Status.PROCESSING for item in results))
         self.assertTrue(all(item['channel'] == Order.Channel.WEBSITE for item in results))
         self.assertTrue(all('Acme' in item['customer_name'] for item in results))
 
@@ -565,7 +565,7 @@ class AssistantToolTests(TestCase):
                 customer=customer,
                 created_by=self.sales_user,
                 value_ron='100.00',
-                status=Order.Status.PENDING,
+                status=Order.Status.PROCESSING,
             )
 
         for index in range(12):

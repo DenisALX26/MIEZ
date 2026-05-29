@@ -118,8 +118,7 @@ class Order(models.Model):
         PROCESSING = 'PROCESSING', 'Processing'
         SHIPPED = 'SHIPPED', 'Shipped'
         DELIVERED = 'DELIVERED', 'Delivered'
-        PENDING = 'PENDING', 'Pending'
-        RETURNED = 'RETURNED', 'Returned'
+        CANCELLED = 'CANCELLED', 'Cancelled'
 
     class Channel(models.TextChoices):
         EMAG = 'EMAG', 'eMAG'
@@ -131,7 +130,7 @@ class Order(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='orders_created')
     value_ron = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     date = models.DateField(default=date.today)
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PROCESSING)
     channel = models.CharField(max_length=16, choices=Channel.choices, default=Channel.WEBSITE)
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
