@@ -704,7 +704,7 @@ class Command(BaseCommand):
             )
 
     # ──────────────────────────────────────────────────────────────
-    # Payroll – Jan, Feb, Mar, Apr (paid) and May 2026 (unpaid)
+    # Payroll – Jan–Apr 2026 (paid), May & June 2026 (unpaid/pending)
     # ──────────────────────────────────────────────────────────────
 
     def _payroll(self, users):
