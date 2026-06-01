@@ -42,17 +42,17 @@ interface ItTicketsSectionProps {
 }
 
 const statusBadgeClass: Record<TicketStatus, string> = {
-  OPEN: "bg-blue-50 text-blue-800 border border-blue-200",
-  IN_PROGRESS: "bg-amber-50 text-amber-800 border border-amber-200",
-  RESOLVED: "bg-emerald-50 text-emerald-800 border border-emerald-200",
-  CLOSED: "bg-slate-100 text-slate-700 border border-slate-300",
+  OPEN: "bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]",
+  IN_PROGRESS: "bg-amber-50 text-amber-700 border border-amber-200",
+  RESOLVED: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  CLOSED: "bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]",
 };
 
 const priorityBadgeClass: Record<TicketPriority, string> = {
-  LOW: "bg-slate-100 text-slate-700 border border-slate-200",
-  MEDIUM: "bg-blue-50 text-blue-700 border border-blue-200",
+  LOW: "bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]",
+  MEDIUM: "bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]",
   HIGH: "bg-orange-50 text-orange-700 border border-orange-200",
-  URGENT: "bg-red-50 text-red-700 border border-red-200",
+  URGENT: "bg-rose-50 text-rose-700 border border-rose-200",
 };
 
 const priorityDotClass: Record<TicketPriority, string> = {
@@ -230,21 +230,21 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
   };
 
   return (
-    <section className="bg-white border border-gray-200 rounded-lg p-4 md:p-5 shadow-sm">
-      <div className="flex flex-col gap-2 mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Tickets</h2>
-        <p className="text-sm text-gray-500">
+    <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+      <div className="flex flex-col gap-1 mb-4">
+        <h2 className="text-[1.05rem] font-semibold tracking-tight">Tickets</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
           {userRole === "CEO"
             ? "CEO view: only HIGH and URGENT priority tickets are shown."
             : "IT view: all tickets are shown."}
         </p>
       </div>
 
-      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4">
+      <div className="flex flex-col md:flex-row md:items-center gap-2 mb-4 flex-wrap">
         <button
           type="button"
           onClick={() => setIsFilterModalOpen(true)}
-          className="cursor-pointer border border-gray-300 bg-white rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors"
         >
           Open Filters
         </button>
@@ -252,7 +252,7 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
         <button
           type="button"
           onClick={resetFilters}
-          className="cursor-pointer border border-gray-300 bg-white rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3 py-1.5 text-sm font-medium hover:bg-[var(--input-background)] transition-colors"
         >
           Clear Filters
         </button>
@@ -260,7 +260,7 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
         <select
           value={sortKey}
           onChange={(e) => setSortKey(e.target.value as SortKey)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+          className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--input-background)]"
         >
           <option value="ticket_number">Sort by Ticket Number</option>
           <option value="title">Sort by Title</option>
@@ -278,37 +278,37 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
         <select
           value={sortDirection}
           onChange={(e) => setSortDirection(e.target.value as SortDirection)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+          className="border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm bg-[var(--input-background)]"
         >
           <option value="asc">Ascending</option>
           <option value="desc">Descending</option>
         </select>
 
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-[var(--muted-foreground)] ml-auto">
           {searchTerm.trim() ? `Search: "${searchTerm}"` : "No search query"}
         </div>
       </div>
 
-      <div className="mb-3 text-sm text-gray-600">
+      <div className="mb-3 text-sm text-[var(--muted-foreground)]">
         Showing {sortedTickets.length} tickets
       </div>
 
       {isFilterModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               setIsFilterModalOpen(false);
             }
           }}
         >
-          <div className="w-full max-w-3xl bg-white border border-gray-200 rounded-lg shadow-lg">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-900">Filter Tickets</h3>
+          <div className="w-full max-w-3xl bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <h3 className="text-[1rem] font-semibold tracking-tight">Filter Tickets</h3>
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(false)}
-                className="cursor-pointer rounded-md px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                className="cursor-pointer rounded-lg px-2 py-1 text-sm text-[var(--muted-foreground)] hover:bg-[var(--input-background)] hover:text-[var(--foreground)] transition-colors"
               >
                 Close
               </button>
@@ -316,22 +316,22 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
 
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Search</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Search</label>
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search ticket no, title, description, users, location"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Status</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Status</label>
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as "ALL" | TicketStatus)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="ALL">All Statuses</option>
                   <option value="OPEN">NEW</option>
@@ -342,11 +342,11 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Priority</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Priority</label>
                 <select
                   value={priorityFilter}
                   onChange={(e) => setPriorityFilter(e.target.value as "ALL" | TicketPriority)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   <option value="ALL">All Priorities</option>
                   <option value="LOW">LOW</option>
@@ -357,11 +357,11 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Department</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Department</label>
                 <select
                   value={departmentFilter}
                   onChange={(e) => setDepartmentFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {departmentOptions.map((option) => (
                     <option key={option} value={option}>
@@ -372,11 +372,11 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Assignee</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Assignee</label>
                 <select
                   value={assigneeFilter}
                   onChange={(e) => setAssigneeFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {assigneeOptions.map((option) => (
                     <option key={option} value={option}>
@@ -387,11 +387,11 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Requester</label>
+                <label className="block text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Requester</label>
                 <select
                   value={requesterFilter}
                   onChange={(e) => setRequesterFilter(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  className="w-full border border-[var(--border)] bg-[var(--input-background)] rounded-lg px-3 py-2 text-sm"
                 >
                   {requesterOptions.map((option) => (
                     <option key={option} value={option}>
@@ -402,18 +402,18 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-200">
+            <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
               <button
                 type="button"
                 onClick={resetFilters}
-                className="cursor-pointer border border-gray-300 bg-white rounded-md px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3.5 py-2 text-sm font-medium hover:bg-[var(--input-background)] transition-colors"
               >
                 Reset
               </button>
               <button
                 type="button"
                 onClick={() => setIsFilterModalOpen(false)}
-                className="cursor-pointer border border-gray-800 bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-800"
+                className="cursor-pointer bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg px-3.5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 Apply
               </button>
@@ -423,46 +423,42 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
       )}
 
       {ticketsError ? (
-        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">{ticketsError}</div>
+        <div className="text-sm text-[var(--destructive)] bg-rose-50 border border-rose-200 rounded-lg p-3">{ticketsError}</div>
       ) : loadingTickets ? (
-        <div className="text-sm text-gray-500">Loading tickets...</div>
+        <div className="text-sm text-[var(--muted-foreground)]">Loading tickets...</div>
       ) : (
-        <div className="overflow-x-auto border border-gray-200 rounded-md">
-          <table className="min-w-full divide-y divide-gray-200 bg-white text-sm">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto border border-[var(--border)] rounded-xl">
+          <table className="min-w-full bg-[var(--card)] text-sm">
+            <thead className="bg-[var(--input-background)]">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Ticket Number</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Title</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Requested By</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Priority</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Status</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Created</th>
-                <th className="px-3 py-2 text-left font-semibold text-gray-500">Actions</th>
+                {['Ticket Number', 'Title', 'Requested By', 'Priority', 'Status', 'Created', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-2.5 text-left text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)]">{h}</th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {sortedTickets.map((ticket) => (
-                <tr key={ticket.id} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-medium text-gray-500 whitespace-nowrap">{ticket.ticket_number}</td>
-                  <td className="px-3 py-2 text-gray-800 min-w-55 font-medium">{ticket.title}</td>
-                  <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{ticket.requested_by_username ?? "Unknown"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="inline-flex items-center gap-2 text-sm font-medium text-gray-800">
+                <tr key={ticket.id} className="border-t border-[var(--border)] hover:bg-[var(--input-background)] transition-colors">
+                  <td className="px-4 py-2.5 font-medium text-[var(--muted-foreground)] whitespace-nowrap">{ticket.ticket_number}</td>
+                  <td className="px-4 py-2.5 min-w-[14rem] font-medium">{ticket.title}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">{ticket.requested_by_username ?? "Unknown"}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <div className="inline-flex items-center gap-2 text-sm font-medium">
                       <span className={`h-1.5 w-1.5 rounded-full ${priorityDotClass[ticket.priority]}`} />
                       <span className="capitalize">{ticket.priority.toLowerCase()}</span>
                     </div>
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold capitalize ${statusBadgeClass[ticket.status]}`}>
-                      {ticket.status.toLowerCase()}
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusBadgeClass[ticket.status]}`}>
+                      {ticket.status.toLowerCase().replace('_', ' ')}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{formatDateOnly(ticket.created_at)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
+                  <td className="px-4 py-2.5 text-[var(--muted-foreground)] whitespace-nowrap">{formatDateOnly(ticket.created_at)}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
                     <button
                       type="button"
                       onClick={() => setSelectedTicket(ticket)}
-                      className="cursor-pointer border border-gray-300 bg-white rounded-md px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                      className="cursor-pointer border border-[var(--border)] bg-[var(--card)] rounded-lg px-3 py-1 text-xs font-medium hover:bg-[var(--input-background)] transition-colors"
                     >
                       View Details
                     </button>
@@ -472,29 +468,29 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
             </tbody>
           </table>
           {sortedTickets.length === 0 && (
-            <div className="p-4 text-sm text-gray-500">No tickets match the current filters.</div>
+            <div className="p-4 text-sm text-[var(--muted-foreground)]">No tickets match the current filters.</div>
           )}
         </div>
       )}
 
       {selectedTicket && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={(event) => {
             if (event.target === event.currentTarget) {
               setSelectedTicket(null);
             }
           }}
         >
-          <div className="w-full max-w-2xl bg-white border border-gray-200 rounded-lg shadow-lg">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-              <h3 className="text-base font-semibold text-gray-900">
-                Ticket Details: {selectedTicket.ticket_number}
+          <div className="w-full max-w-2xl bg-[var(--card)] border border-[var(--border)] rounded-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <h3 className="text-[1rem] font-semibold tracking-tight">
+                Ticket Details · {selectedTicket.ticket_number}
               </h3>
               <button
                 type="button"
                 onClick={() => setSelectedTicket(null)}
-                className="cursor-pointer rounded-md px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                className="cursor-pointer rounded-lg px-2 py-1 text-sm text-[var(--muted-foreground)] hover:bg-[var(--input-background)] hover:text-[var(--foreground)] transition-colors"
               >
                 Close
               </button>
@@ -502,70 +498,70 @@ const ItTicketsSection = ({ userRole, tickets, loadingTickets, ticketsError }: I
 
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Title</div>
-                <div className="text-gray-900">{selectedTicket.title}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Title</div>
+                <div>{selectedTicket.title}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Department</div>
-                <div className="text-gray-900">{selectedTicket.department_name ?? "Unassigned"}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Department</div>
+                <div>{selectedTicket.department_name ?? "Unassigned"}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Requested By</div>
-                <div className="text-gray-900">{selectedTicket.requested_by_username ?? "Unknown"}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Requested By</div>
+                <div>{selectedTicket.requested_by_username ?? "Unknown"}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Assigned To</div>
-                <div className="text-gray-900">{selectedTicket.assigned_to_username ?? "Unassigned"}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Assigned To</div>
+                <div>{selectedTicket.assigned_to_username ?? "Unassigned"}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Priority</div>
-                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${priorityBadgeClass[selectedTicket.priority]}`}>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Priority</div>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${priorityBadgeClass[selectedTicket.priority]}`}>
                   {selectedTicket.priority}
                 </span>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Status</div>
-                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${statusBadgeClass[selectedTicket.status]}`}>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Status</div>
+                <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${statusBadgeClass[selectedTicket.status]}`}>
                   {selectedTicket.status}
                 </span>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Location</div>
-                <div className="text-gray-900">{selectedTicket.location || "-"}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Location</div>
+                <div>{selectedTicket.location || "-"}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Created At</div>
-                <div className="text-gray-900">{formatDateTime(selectedTicket.created_at)}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Created At</div>
+                <div>{formatDateTime(selectedTicket.created_at)}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Updated At</div>
-                <div className="text-gray-900">{formatDateTime(selectedTicket.updated_at)}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Updated At</div>
+                <div>{formatDateTime(selectedTicket.updated_at)}</div>
               </div>
 
               <div>
-                <div className="text-xs font-semibold text-gray-500 mb-1">Resolved At</div>
-                <div className="text-gray-900">{formatDateTime(selectedTicket.resolved_at)}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Resolved At</div>
+                <div>{formatDateTime(selectedTicket.resolved_at)}</div>
               </div>
 
               <div className="md:col-span-2">
-                <div className="text-xs font-semibold text-gray-500 mb-1">Description</div>
-                <div className="text-gray-900 whitespace-pre-wrap">{selectedTicket.description || "-"}</div>
+                <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1">Description</div>
+                <div className="whitespace-pre-wrap">{selectedTicket.description || "-"}</div>
               </div>
             </div>
 
-            <div className="flex justify-end px-5 py-4 border-t border-gray-200">
+            <div className="flex justify-end px-5 py-4 border-t border-[var(--border)]">
               <button
                 type="button"
                 onClick={() => setSelectedTicket(null)}
-                className="cursor-pointer border border-gray-800 bg-gray-900 text-white rounded-md px-4 py-2 text-sm font-medium hover:bg-gray-800"
+                className="cursor-pointer bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg px-3.5 py-2 text-sm font-semibold hover:opacity-90 transition-opacity"
               >
                 Close
               </button>

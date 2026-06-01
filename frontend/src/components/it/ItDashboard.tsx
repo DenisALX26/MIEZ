@@ -168,8 +168,8 @@ const ItDashboard = () => {
   if (loadingStats) return <div className="p-6">Loading data...</div>;
 
   return (
-    <div className="w-full lg:w-[92%] mx-auto space-y-6">
-      <div className="flex flex-col md:flex-row md:w-full w-full items-stretch justify-between gap-4">
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {cardsConfig.map((config, index) => (
           <StatsCard
             key={index}

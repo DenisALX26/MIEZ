@@ -7,10 +7,15 @@ import {
   FiHome,
   FiTrash2,
   FiPlus,
+  FiClock,
+  FiLayers,
 } from 'react-icons/fi'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 import UpcomingEventsWidget from '../hr/UpcomingEventsWidget'
+import CeoItSummary from './CeoItSummary'
+import CeoSalesSummary from './CeoSalesSummary'
+import CeoInventorySummary from './CeoInventorySummary'
 
 type Department = {
   id: number
@@ -206,9 +211,24 @@ const CeoDashboard = () => {
 
   const stats = useMemo(() => {
     return [
-      { label: 'Departments', value: departments.length },
-      { label: 'Employee Teams', value: departments.length },
-      { label: 'Pending Actions', value: departments.length === 0 ? 1 : 0 },
+      {
+        label: 'Departments',
+        value: departments.length,
+        sub: departments.length === 1 ? 'active module' : 'active modules',
+        Icon: FiLayers,
+      },
+      {
+        label: 'Employee Teams',
+        value: departments.length,
+        sub: 'mirrors department count',
+        Icon: FiUsers,
+      },
+      {
+        label: 'Pending Actions',
+        value: departments.length === 0 ? 1 : 0,
+        sub: departments.length === 0 ? 'add a first department' : 'all caught up',
+        Icon: FiClock,
+      },
     ]
   }, [departments])
 
@@ -229,18 +249,18 @@ const CeoDashboard = () => {
     <div className="flex flex-col gap-5">
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
         <header className="mb-4">
-          <h2 className="text-[1.1rem] font-semibold">CEO HR Summary</h2>
-          <p className="text-[0.92rem] text-[var(--muted-foreground)]">
+          <h2 className="text-[1.05rem] font-semibold tracking-tight">CEO HR Summary</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">
             Department headcount, leave status and attendance utilisation trend.
           </p>
         </header>
 
         {hrSummaryLoading && (
-          <p className="text-[0.92rem] text-[var(--muted-foreground)]">Loading HR summary...</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Loading HR summary...</p>
         )}
 
         {!hrSummaryLoading && hrSummaryError && (
-          <p className="text-[0.92rem] text-[var(--destructive)]">{hrSummaryError}</p>
+          <p className="text-sm text-[var(--destructive)]">{hrSummaryError}</p>
         )}
 
         {!hrSummaryLoading && !hrSummaryError && (
@@ -314,10 +334,14 @@ const CeoDashboard = () => {
         )}
       </section>
 
-      <header className="flex flex-col gap-2">
-        <h2 className="text-[1.15rem] font-semibold">Department Management</h2>
-        <p className="text-[0.92rem] text-[var(--muted-foreground)]">
-          Add or remove departments to customize your organization
+      <CeoItSummary />
+      <CeoSalesSummary />
+      <CeoInventorySummary />
+
+      <header className="flex flex-col gap-1">
+        <h2 className="text-[1.05rem] font-semibold tracking-tight">Department Management</h2>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Add or remove departments to customize your organization.
         </p>
       </header>
 
@@ -349,13 +373,25 @@ const CeoDashboard = () => {
         </button>
       </form>
 
-      <div className="grid grid-cols-3 gap-4">
-        {stats.map(stat => (
-          <article key={stat.label} className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl px-[1.05rem] py-4 flex flex-col gap-[0.3rem]">
-            <span className="text-[var(--muted-foreground)] text-[0.82rem]">{stat.label}</span>
-            <strong className="text-[1.1rem]">{stat.value}</strong>
-          </article>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {stats.map(stat => {
+          const Icon = stat.Icon
+          return (
+            <article
+              key={stat.label}
+              className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-4 flex items-start justify-between gap-3"
+            >
+              <div className="flex flex-col">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{stat.label}</p>
+                <p className="text-2xl font-semibold mt-1 tracking-tight">{stat.value}</p>
+                <p className="text-xs text-[var(--muted-foreground)] mt-1">{stat.sub}</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                <Icon size={18} />
+              </div>
+            </article>
+          )
+        })}
       </div>
 
       {departments.length === 0 ? (

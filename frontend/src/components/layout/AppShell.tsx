@@ -33,12 +33,15 @@ const AppShell = () => {
   const moduleTitle = getTitleFromPath(location.pathname)
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex bg-[var(--background)]">
       <AppSidebar />
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 px-6 flex items-center justify-between border-b border-black/5 bg-white/70 backdrop-blur">
-          <div className="text-sm text-black/60">{moduleTitle} — {roleLabel}</div>
-          <div className="text-sm text-black/60">{user?.username ?? 'Admin'}</div>
+        <header className="h-14 px-6 flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)]/80 backdrop-blur sticky top-0 z-30">
+          <div className="text-sm font-medium tracking-tight">
+            <span className="text-[var(--foreground)]">{moduleTitle}</span>
+            <span className="text-[var(--muted-foreground)]"> · {roleLabel}</span>
+          </div>
+          <div className="text-sm text-[var(--muted-foreground)]">{user?.username ?? 'Admin'}</div>
         </header>
         <main className="flex-1 p-6 min-w-0">
           <Outlet />
