@@ -908,6 +908,21 @@ class ContractListView(APIView):
             return 'EXPIRING'
         return 'ACTIVE'
 
+    @staticmethod
+    def _serialize_contract(contract, today):
+        return {
+            'id': contract.id,
+            'contract_number': contract.contract_number,
+            'employee': contract.employee_id,
+            'employee_name': (f'{contract.employee.first_name} {contract.employee.last_name}'.strip() or contract.employee.username),
+            'department': contract.department.name if contract.department else None,
+            'type': contract.type,
+            'start_date': contract.start_date.isoformat(),
+            'end_date': contract.end_date.isoformat() if contract.end_date else None,
+            'salary_ron': str(contract.salary_ron),
+            'status': ContractListView._computed_status(contract, today),
+        }
+
     def get(self, request):
         if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({"detail": "Only CEO and HR can view contracts."}, status=status.HTTP_403_FORBIDDEN)
@@ -923,22 +938,21 @@ class ContractListView(APIView):
             if status_filter == 'expiring' and computed_status != 'EXPIRING':
                 continue
 
-            rows.append(
-                {
-                    'id': contract.id,
-                    'contract_number': contract.contract_number,
-                    'employee': contract.employee_id,
-                    'employee_name': (f'{contract.employee.first_name} {contract.employee.last_name}'.strip() or contract.employee.username),
-                    'department': contract.department.name if contract.department else None,
-                    'type': contract.type,
-                    'start_date': contract.start_date.isoformat(),
-                    'end_date': contract.end_date.isoformat() if contract.end_date else None,
-                    'salary_ron': str(contract.salary_ron),
-                    'status': computed_status,
-                }
-            )
+            rows.append(self._serialize_contract(contract, today))
 
         return Response({'contracts': rows}, status=status.HTTP_200_OK)
+
+
+class ContractDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can view contract details."}, status=status.HTTP_403_FORBIDDEN)
+
+        today = timezone.localdate()
+        contract = get_object_or_404(Contract.objects.select_related('employee', 'department'), id=id)
+        return Response(ContractListView._serialize_contract(contract, today), status=status.HTTP_200_OK)
 
 
 class PayrollListView(APIView):

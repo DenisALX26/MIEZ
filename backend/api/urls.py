@@ -24,6 +24,7 @@ urlpatterns = [
   path('leave-requests/<int:id>/approve/', views.LeaveRequestApproveView.as_view(), name='leave_request_approve'),
   path('leave-requests/<int:id>/reject/', views.LeaveRequestRejectView.as_view(), name='leave_request_reject'),
   path('contracts/', views.ContractListView.as_view(), name='contract_list'),
+  path('contracts/<int:id>/', views.ContractDetailView.as_view(), name='contract_detail'),
   path('payroll/', views.PayrollListView.as_view(), name='payroll_list'),
   path('hr/upcoming-events/', views.HrUpcomingEventsView.as_view(), name='hr_upcoming_events'),
   path('hr/dashboard/', views.HrDashboardView.as_view(), name='hr_dashboard_kpis'),
