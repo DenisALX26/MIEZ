@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.core.cache import cache
 
 from django.conf import settings
+from django.contrib.auth import update_session_auth_hash
 from rest_framework.views import APIView
 from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
@@ -142,20 +143,67 @@ class LogoutView(APIView):
 
 
 class UserMeView(APIView):
-    # For development/testing we allow public access so the frontend can show the low-stock demo
-    # In production revert this to IsAuthenticated or add proper auth checks.
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        dept_name = request.user.department.name if hasattr(request.user, 'department') and request.user.department else None
         return JsonResponse(
             {
                 "id": request.user.id,
                 "username": request.user.username,
                 "email": request.user.email,
                 "role": request.user.role,
+                "first_name": request.user.first_name,
+                "last_name": request.user.last_name,
+                "phone": request.user.phone,
+                "address": request.user.address,
+                "department_name": dept_name,
                 "message": "Daca apare asta, inseamna ca sunt smecher rau de tot sa mor eu",
             }
         )
+
+    def patch(self, request):
+        user = request.user
+        data = request.data
+        if 'first_name' in data:
+            user.first_name = data['first_name']
+        if 'last_name' in data:
+            user.last_name = data['last_name']
+        if 'phone' in data:
+            user.phone = data['phone']
+        if 'address' in data:
+            user.address = data['address']
+        
+        user.save(update_fields=['first_name', 'last_name', 'phone', 'address'])
+        return JsonResponse(
+            {
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phone": user.phone,
+                "address": user.address,
+                "detail": "Profile updated successfully."
+            }
+        )
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        current_password = request.data.get('current_password')
+        new_password = request.data.get('new_password')
+
+        if not current_password or not new_password:
+            return Response({'detail': 'Both current and new passwords are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not user.check_password(current_password):
+            return Response({'detail': 'Incorrect current password.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(new_password)
+        user.save()
+        update_session_auth_hash(request, user)  # Keeps the user logged in
+        return Response({'detail': 'Password changed successfully.'}, status=status.HTTP_200_OK)
 
 
 class DepartmentListCreateView(APIView):
@@ -187,12 +235,15 @@ class InventoryFlowView(APIView):
         if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
             return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
 
-        days = int(request.query_params.get('days', 7))
-        start_date = timezone.now() - timedelta(days=days)
+        movements = list(StockMovement.objects.select_related('product', 'supplier').order_by('-created_at')[:100])
 
-        movements = StockMovement.objects.filter(
-            created_at__gte=start_date
-        ).select_related('product', 'supplier')
+        if movements:
+            start_date = min(m.created_at for m in movements)
+            end_date = max(m.created_at for m in movements)
+        else:
+            days = int(request.query_params.get('days', 7))
+            end_date = timezone.now()
+            start_date = end_date - timedelta(days=days)
 
         nodes = []
         node_map = {}
@@ -243,7 +294,7 @@ class InventoryFlowView(APIView):
             'links': links,
             'date_range': {
                 'start': start_date.date().isoformat(),
-                'end': timezone.now().date().isoformat()
+                'end': end_date.date().isoformat()
             }
         }, status=status.HTTP_200_OK)
 
@@ -993,9 +1044,12 @@ class InventoryProductPagination(PageNumberPagination):
 
 class InventoryProductsView(APIView):
     """Return products with search, category, and status filters. Supports conditional pagination."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+
         search = request.query_params.get('search', '').strip()
         category = request.query_params.get('category', 'All').strip()
         statuses = request.query_params.getlist('status')
@@ -1060,6 +1114,31 @@ class InventoryProductsView(APIView):
         if is_paginated:
             return paginator.get_paginated_response(products)
         return Response(products, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = ProductSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class InventoryProductDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Forbidden'}, status=status.HTTP_403_FORBIDDEN)
+        
+        product = get_object_or_404(Product, id=id)
+        serializer = ProductSerializer(product, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StockMovementCreateView(APIView):

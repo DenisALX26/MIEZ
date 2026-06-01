@@ -16,7 +16,7 @@ export function ProtectedRoute({ children, requiredRole, requiredRoles }: Protec
 
   const allowedRoles = requiredRoles ?? (requiredRole ? [requiredRole] : []);
 
-  if (allowedRoles.length > 0 && (!user?.role || !allowedRoles.includes(user.role))) {
+  if (allowedRoles.length > 0 && user?.role !== 'CEO' && (!user?.role || !allowedRoles.includes(user.role))) {
     return <Navigate to="/unauthorized" replace />;
   }
 

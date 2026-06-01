@@ -31,6 +31,7 @@ import PayrollSummaryPage from './components/hr/PayrollSummaryPage'
 import InventoryDashboard from './components/inventory/InventoryDashboard'
 import ReportsPage from './components/reports/ReportsPage'
 import WorkflowsPage from './components/workflows/WorkflowsPage'
+import SettingsPage from './components/settings/SettingsPage'
 
 type ModulePageProps = {
   title: string
@@ -381,12 +382,7 @@ function App() {
             />
             <Route
               path="/settings"
-              element={
-                <ModulePage
-                  title="Settings"
-                  description="Update account, preferences, and system configuration."
-                />
-              }
+              element={<SettingsPage />}
             />
             <Route
               path="/departments/:slug"

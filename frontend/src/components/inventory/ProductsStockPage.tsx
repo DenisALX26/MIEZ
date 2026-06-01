@@ -42,7 +42,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-// Generates a nice visual curve for the chart based on the stock amount
 const getHistory = (currentStock: number) => {
   const points = [];
   let val = currentStock + 15;
@@ -54,7 +53,119 @@ const getHistory = (currentStock: number) => {
   return points;
 };
 
-const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () => void, product: Product | null }) => {
+const ProductFormModal = ({ 
+  open, 
+  onClose, 
+  product, 
+  onSuccess 
+}: { 
+  open: boolean; 
+  onClose: () => void; 
+  product: Product | null; 
+  onSuccess: () => void; 
+}) => {
+  const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
+  const [category, setCategory] = useState("General");
+  const [minStock, setMinStock] = useState("10");
+  const [unitPrice, setUnitPrice] = useState("0.00");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(product?.name || "");
+      setSku(product?.sku || "");
+      setCategory(product?.category || "General");
+      setMinStock(product?.min_stock?.toString() || "10");
+      setUnitPrice(product?.unit_price_ron || "0.00");
+      setError("");
+    }
+  }, [open, product]);
+
+  if (!open) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      const url = product ? `/api/inventory/products/${product.id}/` : `/api/inventory/products/`;
+      const method = product ? "PATCH" : "POST";
+      
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          sku,
+          category,
+          min_stock: parseInt(minStock),
+          unit_price_ron: parseFloat(unitPrice)
+        })
+      });
+      
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.sku) setError(`SKU error: ${data.sku.join(" ")}`);
+        else setError(data.detail || "An error occurred.");
+      } else {
+        onSuccess();
+        onClose();
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to save product.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+          <h2 className="text-lg font-bold text-gray-900">{product ? "Edit Product" : "Add New Product"}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><FiX size={20}/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && <div className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium border border-rose-100">{error}</div>}
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+            <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
+            <input required type="text" value={sku} onChange={e => setSku(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <input type="text" value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
+              <input type="number" min="0" value={minStock} onChange={e => setMinStock(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price (RON)</label>
+              <input type="number" step="0.01" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
+            </div>
+          </div>
+          
+          <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">Cancel</button>
+            <button type="submit" disabled={submitting} className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
+              {submitting ? "Saving..." : "Save Product"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const DetailDrawer = ({ open, onClose, product, onEdit }: { open: boolean, onClose: () => void, product: Product | null, onEdit: (p: Product) => void }) => {
   if (!product) return null;
   const status = getStatus(product.stock_count, product.min_stock);
   const stockValue = parseFloat(product.unit_price_ron) * product.stock_count;
@@ -75,9 +186,14 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
               <span className="text-sm font-medium text-gray-400">• {product.category}</span>
             </div>
           </div>
-          <button onClick={onClose} className="p-2.5 bg-gray-50 hover:bg-rose-50 hover:text-rose-600 rounded-full text-gray-400 transition-colors">
-            <FiX size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onEdit(product)} className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors">
+              Edit
+            </button>
+            <button onClick={onClose} className="p-2.5 bg-gray-50 hover:bg-rose-50 hover:text-rose-600 rounded-full text-gray-400 transition-colors">
+              <FiX size={20} />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
@@ -149,6 +265,10 @@ export default function ProductsStockPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+  const [triggerRefresh, setTriggerRefresh] = useState(0);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -166,7 +286,7 @@ export default function ProductsStockPage() {
       }
     };
     fetchProducts();
-  }, []);
+  }, [triggerRefresh]);
 
   const categories = ["All", ...Array.from(new Set(products.map((p) => p.category)))];
   const statuses = ["All", "OK", "Low", "Out"];
@@ -190,6 +310,12 @@ export default function ProductsStockPage() {
         </div>
         
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          <button 
+            onClick={() => { setProductToEdit(null); setIsFormOpen(true); }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm"
+          >
+            Add Product
+          </button>
           <div className="relative group flex-1 md:w-72">
             <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-gray-400 group-focus-within:text-blue-500 transition-colors">
               <FiSearch size={16} />
@@ -296,6 +422,19 @@ export default function ProductsStockPage() {
         open={!!selectedProduct} 
         onClose={() => setSelectedProduct(null)} 
         product={selectedProduct} 
+        onEdit={(p) => { setProductToEdit(p); setIsFormOpen(true); }}
+      />
+
+      <ProductFormModal 
+        open={isFormOpen} 
+        onClose={() => setIsFormOpen(false)} 
+        product={productToEdit} 
+        onSuccess={() => {
+          setTriggerRefresh(prev => prev + 1);
+          if (productToEdit) {
+            setSelectedProduct(null); // optional: close drawer or re-fetch details
+          }
+        }} 
       />
     </div>
   );
