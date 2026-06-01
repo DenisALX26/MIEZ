@@ -11,6 +11,7 @@ from .models import Ticket, Order, OrderItem, Customer, Invoice
 from .models import SystemStatus
 from .models import ConversationSession, ConversationMessage
 from .models import Workflow, WorkflowLog
+from .models import Notification
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -725,3 +726,10 @@ class WorkflowLogSerializer(serializers.ModelSerializer):
         model = WorkflowLog
         fields = ['id', 'workflow', 'workflow_name', 'triggered_at', 'trigger_type', 'actions_log', 'success']
         read_only_fields = fields
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'type', 'title', 'body', 'is_read', 'link', 'created_at']
+        read_only_fields = ['id', 'type', 'title', 'body', 'link', 'created_at']

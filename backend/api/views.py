@@ -58,7 +58,9 @@ from .serializers import (
     WorkflowSerializer,
     WorkflowWriteSerializer,
     WorkflowLogSerializer,
+    NotificationSerializer,
 )
+from .notifications import notify, notify_role
 from .agent import AgentRunner, get_registry
 
 
@@ -2111,12 +2113,43 @@ class ReportGenerateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, slug):
-        from .report_utils import generate_report_file
+        from .agent import AgentRunner, get_registry
         if request.user.role != User.Role.CEO and not request.user.is_staff:
             raise PermissionDenied('Only CEO or admin can generate reports.')
         report = get_object_or_404(Report, slug=slug)
-        generate_report_file(report, user=request.user)
-        return Response(ReportSerializer(report).data, status=status.HTTP_200_OK)
+        directives = (request.data.get('directives') or '').strip()
+
+        directives_line = f' Additional focus: {directives}.' if directives else ''
+        message = (
+            f'Generate the {report.name} report (slug: "{report.slug}", category: {report.category}, period: {report.period}).'
+            f' Step 1: use the available query tools to gather all relevant real data from the app for this report category.'
+            f' Step 2: call generate_report with slug="{report.slug}" and pass the collected data serialised as a JSON string in context_data.'
+            f'{directives_line}'
+        )
+
+        agent = AgentRunner(user=request.user, current_page='/reports')
+        agent.register_tools(get_registry().get_all())
+        result = agent.run(message=message, history=[])
+
+        report.refresh_from_db()
+        return Response({
+            'response': result.get('response') or f'The {report.name} report has been generated and is ready to view.',
+            'report': ReportSerializer(report).data,
+        }, status=status.HTTP_200_OK)
+
+
+class ReportViewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        from pathlib import Path
+        report = get_object_or_404(Report, id=id)
+        if not report.file_path:
+            return Response({'detail': 'Report not generated yet.'}, status=status.HTTP_404_NOT_FOUND)
+        path = Path(report.file_path)
+        if not path.exists():
+            return Response({'detail': 'File not found on server.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'html': path.read_text(encoding='utf-8'), 'filename': path.name})
 
 
 class SystemStatusListView(APIView):
@@ -2307,21 +2340,15 @@ class HrDigestGenerateView(APIView):
     
     def _notify_hr_managers(self, digest):
         """Create notifications for active HR Managers with critical issue summary."""
-        hr_managers = User.objects.filter(
-            role=User.Role.HR,
-            is_active=True
-        )
-        
         summary = digest['summary_line']
         critical_count = len(digest.get('critical', []))
-        
-        for hr_manager in hr_managers:
-            Notification.objects.create(
-                recipient=hr_manager,
-                title=f'🚨 Critical HR Issues Detected ({critical_count})',
-                body=summary,
-                link='/reports?category=HR',
-            )
+        notify_role(
+            User.Role.HR,
+            title=f'Critical HR Issues Detected ({critical_count})',
+            body=summary,
+            notification_type='WARNING',
+            link='/reports?category=HR',
+        )
 
 
 class ConversationSessionListCreateView(APIView):
@@ -2479,3 +2506,39 @@ class RunInsightsAgentView(APIView):
             'status': 'running',
             'estimated_time': '~15 seconds'
         }, status=status.HTTP_200_OK)
+
+
+class NotificationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = Notification.objects.filter(recipient=request.user).order_by('-created_at')
+        unread_count = qs.filter(is_read=False).count()
+        page_size = min(int(request.query_params.get('page_size', 20)), 50)
+        page = max(int(request.query_params.get('page', 1)), 1)
+        total = qs.count()
+        results = qs[(page - 1) * page_size: page * page_size]
+        serializer = NotificationSerializer(results, many=True)
+        return Response({
+            'count': total,
+            'unread_count': unread_count,
+            'results': serializer.data,
+        })
+
+
+class NotificationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        notification = get_object_or_404(Notification, id=id, recipient=request.user)
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        return Response({'id': notification.id, 'is_read': True})
+
+
+class NotificationMarkAllReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        marked = Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        return Response({'marked_read': marked})

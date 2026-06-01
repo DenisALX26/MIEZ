@@ -51,6 +51,7 @@ urlpatterns = [
   path('tickets/<int:id>/', views.TicketDetailView.as_view(), name='ticket_detail'),
   path('reports/', views.ReportListView.as_view(), name='report_list'),
   path('reports/<int:id>/download/', views.ReportDownloadView.as_view(), name='report_download'),
+  path('reports/<int:id>/view/', views.ReportViewView.as_view(), name='report_view'),
   path('reports/generate/<slug:slug>/', views.ReportGenerateView.as_view(), name='report_generate'),
   path('assistant/chat/', views.AssistantChatView.as_view(), name='assistant_chat'),
   path('assistant/sessions/', views.ConversationSessionListCreateView.as_view(), name='assistant_sessions'),
@@ -64,4 +65,7 @@ urlpatterns = [
   path('workflows/logs/', views.WorkflowLogListView.as_view(), name='workflow_logs'),
   path('workflows/<int:id>/', views.WorkflowDetailView.as_view(), name='workflow_detail'),
   path('workflows/<int:id>/toggle/', views.WorkflowToggleView.as_view(), name='workflow_toggle'),
+  path('notifications/', views.NotificationListView.as_view(), name='notification_list'),
+  path('notifications/mark-all-read/', views.NotificationMarkAllReadView.as_view(), name='notification_mark_all_read'),
+  path('notifications/<int:id>/', views.NotificationDetailView.as_view(), name='notification_detail'),
 ]

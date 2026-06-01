@@ -476,14 +476,21 @@ def create_leave_request(
     return {'id': lr.id, 'status': lr.status}
 
 
-@agent_tool(name='generate_report', description='Generate a report from an existing report definition.')
-def generate_report(user: User, slug: str) -> Report:
+@agent_tool(
+    name='generate_report',
+    description=(
+        'Generate a report HTML file. Before calling this, use query_* tools to gather real data from '
+        'the app and pass it as context_data (a JSON string). The context_data will be embedded into '
+        'the report so it reflects actual app data instead of placeholder numbers.'
+    ),
+)
+def generate_report(user: User, slug: str, context_data: str | None = None) -> dict:
     if not can_generate_reports(user):
         raise _permission_error('Only the CEO or department managers can generate reports through the assistant.')
 
     report = Report.objects.get(slug=slug)
-    generate_report_file(report, user=user)
-    return report
+    generate_report_file(report, user=user, context_data=context_data or '')
+    return {'report_name': report.name, 'slug': report.slug, 'status': 'generated'}
 
 
 @agent_tool(name='query_leave_requests', description='Query leave requests, optionally filtered by ISO week (e.g. 2026-W18), status, or department.')
