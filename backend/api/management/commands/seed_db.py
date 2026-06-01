@@ -714,6 +714,7 @@ class Command(BaseCommand):
             date(2026, 3, 1),
             date(2026, 4, 1),
             date(2026, 5, 1),
+            date(2026, 6, 1),
         ]
         bulk = []
         for user in users.values():
