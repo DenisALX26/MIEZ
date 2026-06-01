@@ -2517,11 +2517,9 @@ class RunInsightsAgentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        import threading
-        from django.core.management import call_command
         from django.core.cache import cache
         from datetime import date
-        
+
         if request.user.role not in [User.Role.CEO, User.Role.HR]:
             return Response({'detail': 'Forbidden. Only CEO and HR Manager can run insights.'}, status=status.HTTP_403_FORBIDDEN)
             
@@ -2532,18 +2530,35 @@ class RunInsightsAgentView(APIView):
             return Response({'detail': 'Rate limit exceeded: max 3 manual triggers per day.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             
         cache.set(cache_key, count + 1, timeout=86400)
-        
-        def run_agent():
-            call_command('run_hr_agent')
-            
-        thread = threading.Thread(target=run_agent)
-        thread.daemon = True
-        thread.start()
-        
+
+        self._spawn_agent()
+
         return Response({
             'status': 'running',
             'estimated_time': '~15 seconds'
         }, status=status.HTTP_200_OK)
+
+    def _spawn_agent(self):
+        """Run the HR agent in a background thread.
+
+        Isolated in its own method so tests can patch it instead of spawning a
+        real thread (running the agent for real writes Workflow/WorkflowLog,
+        which deadlocks the shared SQLite test database).
+        """
+        import threading
+        from django.core.management import call_command
+        from django.db import connection
+
+        def run_agent():
+            try:
+                call_command('run_hr_agent')
+            finally:
+                # Each thread gets its own DB connection; close it so we don't
+                # leak connections held open for the life of the process.
+                connection.close()
+
+        thread = threading.Thread(target=run_agent, daemon=True)
+        thread.start()
 
 
 class NotificationListView(APIView):

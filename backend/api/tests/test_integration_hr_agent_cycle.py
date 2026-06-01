@@ -178,14 +178,18 @@ class HrAgentIntegrationTest(TestCase):
         resp = self.client.post('/api/hr/run-insights-agent/')
         self.assertEqual(resp.status_code, 403)
 
-    def test_post_run_insights_agent_rate_limit_enforced(self):
+    @patch('api.views.RunInsightsAgentView._spawn_agent')
+    def test_post_run_insights_agent_rate_limit_enforced(self, mock_spawn):
+        # _spawn_agent is mocked so the endpoint doesn't launch real background
+        # threads that would run the agent and lock the shared SQLite test DB.
         self.client.force_authenticate(user=self.hr_manager)
         from django.core.cache import cache
         cache.clear()
-        
+
         for _ in range(3):
             resp = self.client.post('/api/hr/run-insights-agent/')
             self.assertEqual(resp.status_code, 200)
-            
+
         resp_rate_limit = self.client.post('/api/hr/run-insights-agent/')
         self.assertEqual(resp_rate_limit.status_code, 429)
+        self.assertEqual(mock_spawn.call_count, 3)
