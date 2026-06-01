@@ -99,20 +99,24 @@ class Command(BaseCommand):
             ))
             return
 
-        # 2. Get service user
-        try:
-            service_user = User.objects.get(username=SERVICE_USERNAME)
-        except User.DoesNotExist:
+        # 2. Get (or atomically create) the service user. get_or_create handles the
+        # race where concurrent runs (cron + threaded RunInsightsAgentView triggers)
+        # would otherwise both try to INSERT the same username and hit a
+        # UniqueViolation.
+        service_user, created = User.objects.get_or_create(
+            username=SERVICE_USERNAME,
+            defaults={
+                'email': 'hr-agent@miez.internal',
+                'role': User.Role.HR,
+                'is_active': True,
+            },
+        )
+        if created:
+            service_user.set_unusable_password()
+            service_user.save(update_fields=['password'])
             self.stdout.write(self.style.WARNING(
-                f'Service user "{SERVICE_USERNAME}" not found — creating it.'
+                f'Service user "{SERVICE_USERNAME}" not found — created it.'
             ))
-            service_user = User.objects.create_user(
-                username=SERVICE_USERNAME,
-                email='hr-agent@miez.internal',
-                password=None,
-                role=User.Role.HR,
-                is_active=True,
-            )
 
         # 3. Determine week bounds
         week_start, week_end = _get_week_bounds(week_arg)
@@ -134,7 +138,12 @@ class Command(BaseCommand):
 
         try:
             result = runner.run(prompt)
-            digest_text: str = result['response']
+            response_value = result.get('response')
+            if not isinstance(response_value, str):
+                raise CommandError(
+                    f'Agent returned a non-text response ({type(response_value).__name__}); aborting digest.'
+                )
+            digest_text: str = response_value
             tool_calls = result.get('tool_calls_made', [])
 
             self.stdout.write(self.style.SUCCESS('\n=== HR Agent Digest ===\n'))

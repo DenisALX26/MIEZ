@@ -78,7 +78,7 @@ INSTALLED_APPS = [
 
 CRONJOBS = [
     # Swap 'generate_hr_report' ↔ 'run_hr_agent' to toggle DB-only vs AI mode
-    ('0 6 * * 1', 'django.core.management.call_command', ['generate_hr_report']),
+    ('0 6 * * 1', 'django.core.management.call_command', ['run_hr_agent']),
 ]
 
 MIDDLEWARE = [
@@ -181,6 +181,8 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH': '/',
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    # Send auth cookies over HTTPS only outside local development.
+    'AUTH_COOKIE_SECURE': False,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', 'miez-jwt-key-min-32-bytes-long-very-secure'),
 }

@@ -3,6 +3,7 @@ from rest_framework.validators import UniqueValidator
 from django.utils import timezone
 
 from .models import Department, User
+from .models import Asset
 from .models import Product
 from .models import Report
 from .models import Supplier, StockMovement
@@ -10,6 +11,7 @@ from .models import Ticket, Order, OrderItem, Customer, Invoice
 from .models import SystemStatus
 from .models import ConversationSession, ConversationMessage
 from .models import Workflow, WorkflowLog
+from .models import Notification
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -17,6 +19,35 @@ class DepartmentSerializer(serializers.ModelSerializer):
         model = Department
         fields = ['id', 'name', 'slug', 'icon', 'created_at']
         read_only_fields = ['id', 'created_at']
+
+
+class AssetSerializer(serializers.ModelSerializer):
+    assigned_to = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), allow_null=True, required=False)
+    assigned_to_username = serializers.CharField(source='assigned_to.username', read_only=True, allow_null=True)
+    assigned_to_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Asset
+        fields = [
+            'id',
+            'name',
+            'serial_number',
+            'category',
+            'assigned_to',
+            'assigned_to_username',
+            'assigned_to_name',
+            'status',
+            'notes',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'assigned_to_username', 'assigned_to_name']
+
+    def get_assigned_to_name(self, obj):
+        if obj.assigned_to is None:
+            return None
+
+        full_name = obj.assigned_to.get_full_name().strip()
+        return full_name or obj.assigned_to.username
 
 
 class EmployeeListSerializer(serializers.ModelSerializer):
@@ -52,7 +83,27 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         }
 
 
-class EmployeeCreateSerializer(serializers.ModelSerializer):
+class EmployeeDepartmentRoleMixin:
+    @staticmethod
+    def get_role_for_department(department, default_role):
+        if department is None:
+            return default_role
+
+        department_slug = (getattr(department, 'slug', '') or '').strip().lower()
+        department_name = (getattr(department, 'name', '') or '').strip().lower()
+
+        if 'it' in department_slug or 'it' in department_name:
+            return User.Role.IT
+        if 'sales' in department_slug or 'sales' in department_name:
+            return User.Role.SALES
+        if 'hr' in department_slug or 'hr' in department_name:
+            return User.Role.HR
+        if 'inventory' in department_slug or 'inventory' in department_name:
+            return User.Role.INVENTORY
+        return default_role
+
+
+class EmployeeCreateSerializer(EmployeeDepartmentRoleMixin, serializers.ModelSerializer):
     email = serializers.EmailField(
         validators=[
             UniqueValidator(
@@ -113,19 +164,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         validated_data['full_time'] = employment_type == User.EmploymentType.FULL_TIME
 
         department = validated_data.get('department')
-        role = User.Role.SALES
-        if department is not None:
-            department_slug = (getattr(department, 'slug', '') or '').strip().lower()
-            department_name = (getattr(department, 'name', '') or '').strip().lower()
-
-            if 'it' in department_slug or 'it' in department_name:
-                role = User.Role.IT
-            elif 'sales' in department_slug or 'sales' in department_name:
-                role = User.Role.SALES
-            elif 'hr' in department_slug or 'hr' in department_name:
-                role = User.Role.HR
-            elif 'inventory' in department_slug or 'inventory' in department_name:
-                role = User.Role.INVENTORY
+        role = self.get_role_for_department(department, User.Role.SALES)
 
         if explicit_role:
             role = explicit_role
@@ -140,6 +179,40 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         user.set_unusable_password()
         user.save(update_fields=['password'])
         return user
+
+
+class EmployeeUpdateSerializer(EmployeeDepartmentRoleMixin, serializers.ModelSerializer):
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'first_name',
+            'last_name',
+            'position',
+            'department',
+            'phone',
+            'is_active',
+        ]
+
+    def validate_phone(self, value):
+        if value and not value.startswith('+40'):
+            raise serializers.ValidationError('Phone number must start with +40.')
+        return value
+
+    def update(self, instance, validated_data):
+        department = validated_data.get('department', instance.department)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.role = self.get_role_for_department(department, instance.role)
+        instance.save()
+        return instance
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -369,6 +442,39 @@ class InvoiceListSerializer(serializers.ModelSerializer):
         if obj.due_date and obj.due_date < today and obj.status != Invoice.Status.PAID:
             return 'OVERDUE'
         return obj.status
+
+
+class InvoiceLineItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    subtotal_ron = serializers.SerializerMethodField()
+
+    class Meta:
+        model = OrderItem
+        fields = ['id', 'product', 'product_name', 'quantity', 'unit_price_ron', 'subtotal_ron']
+
+    def get_subtotal_ron(self, obj):
+        return obj.quantity * obj.unit_price_ron
+
+
+class InvoiceDetailSerializer(serializers.ModelSerializer):
+    order_number = serializers.CharField(source='order.order_number', read_only=True)
+    customer_name = serializers.CharField(source='order.customer.name', read_only=True)
+    line_items = InvoiceLineItemSerializer(source='order.items', many=True, read_only=True)
+
+    class Meta:
+        model = Invoice
+        fields = [
+            'id',
+            'invoice_number',
+            'order',
+            'order_number',
+            'customer_name',
+            'issued_date',
+            'due_date',
+            'status',
+            'amount_ron',
+            'line_items',
+        ]
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -620,3 +726,10 @@ class WorkflowLogSerializer(serializers.ModelSerializer):
         model = WorkflowLog
         fields = ['id', 'workflow', 'workflow_name', 'triggered_at', 'trigger_type', 'actions_log', 'success']
         read_only_fields = fields
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'type', 'title', 'body', 'is_read', 'link', 'created_at']
+        read_only_fields = ['id', 'type', 'title', 'body', 'link', 'created_at']

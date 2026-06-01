@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,6 +22,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
       DEBUG: "False"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USE_TLS: ${SMTP_USE_TLS}
@@ -41,7 +40,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
     ports:
-      - "5173:4173"
+      - "80:4173"
     depends_on:
       - backend
     restart: unless-stopped

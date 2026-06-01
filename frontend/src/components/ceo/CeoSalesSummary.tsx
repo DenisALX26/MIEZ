@@ -88,8 +88,8 @@ const CeoSalesSummary = () => {
     return [
       { label: 'Orders Today', value: kpis.orders_today, sub: `${kpis.pct_changes.orders}% vs yesterday` },
       { label: 'Revenue Today', value: formatCurrencyRon(kpis.revenue_today_ron), sub: `${kpis.pct_changes.revenue}% vs yesterday` },
-      { label: 'Pending Orders', value: kpis.pending_orders, sub: 'awaiting fulfilment' },
-      { label: 'Returns This Week', value: kpis.returns_this_week, sub: 'last 7 days' },
+      { label: 'Processing Orders', value: kpis.pending_orders, sub: 'awaiting fulfilment' },
+      { label: 'Cancelled This Week', value: kpis.returns_this_week, sub: 'last 7 days' },
     ]
   }, [kpis])
 

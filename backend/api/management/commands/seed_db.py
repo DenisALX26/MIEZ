@@ -12,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from api.models import (
-    Attendance, Contract, Customer, Department, Invoice,
+    Asset, Attendance, Contract, Customer, Department, Invoice,
     LeaveRequest, Notification, Order, OrderItem, PayrollEntry,
     Product, Report, StockMovement, Supplier, SystemStatus,
     Ticket, TicketComment, User, Workflow, WorkflowLog,
@@ -62,6 +62,9 @@ class Command(BaseCommand):
 
         self.stdout.write('Products…')
         products = self._products()
+
+        self.stdout.write('Assets…')
+        self._assets(users)
 
         self.stdout.write('Suppliers…')
         suppliers = self._suppliers()
@@ -127,6 +130,7 @@ class Command(BaseCommand):
         Product.objects.all().delete()
         Customer.objects.all().delete()
         Report.objects.all().delete()
+        Asset.objects.all().delete()
         User.objects.all().delete()
         Department.objects.all().delete()
 
@@ -259,6 +263,36 @@ class Command(BaseCommand):
             ))
         return customers
 
+
+    def _assets(self, users):
+        specs = [
+            ('Alex Lead Laptop', 'ASSET-LAP-001', 'LAPTOP', users['it1'], 'ASSIGNED', 'Primary IT lead workstation.'),
+            ('Dan Support Laptop', 'ASSET-LAP-002', 'LAPTOP', users['it2'], 'ASSIGNED', 'Issued to systems administrator.'),
+            ('CEO Travel Laptop', 'ASSET-LAP-004', 'LAPTOP', users['ceo'], 'ASSIGNED', 'Lightweight laptop for executive travel.'),
+            ('HR Onboarding Laptop', 'ASSET-LAP-005', 'LAPTOP', users['hr2'], 'ASSIGNED', 'Used for HR onboarding sessions.'),
+            ('Spare Dell Monitor', 'ASSET-MON-001', 'MONITOR', None, 'AVAILABLE', 'Backup monitor stored in IT cabinet.'),
+            ('Sales Demo Monitor', 'ASSET-MON-003', 'MONITOR', users['sales1'], 'ASSIGNED', 'Portable monitor for client demos.'),
+            ('Reception Phone', 'ASSET-PHN-001', 'PHONE', users['hr1'], 'ASSIGNED', 'Reception desk handset.'),
+            ('CEO Mobile Phone', 'ASSET-PHN-002', 'PHONE', users['ceo'], 'ASSIGNED', 'Executive mobile device with MDM enrolled.'),
+            ('Docking Station', 'ASSET-PER-001', 'PERIPHERAL', users['it3'], 'ASSIGNED', 'USB-C dock for IT support.'),
+            ('Warehouse Barcode Scanner', 'ASSET-PER-003', 'PERIPHERAL', users['inv2'], 'ASSIGNED', 'Handheld scanner for stock checks.'),
+            ('Conference Webcam', 'ASSET-PER-004', 'PERIPHERAL', None, 'MAINTENANCE', 'Needs firmware update before next meeting room install.'),
+            ('Retired Lenovo Laptop', 'ASSET-LAP-003', 'LAPTOP', None, 'RETIRED', 'Old laptop removed from circulation.'),
+            ('Conference Room Display', 'ASSET-MON-002', 'MONITOR', users['ceo'], 'MAINTENANCE', 'Awaiting HDMI controller repair.'),
+            ('Wireless Mouse Kit', 'ASSET-PER-002', 'PERIPHERAL', None, 'AVAILABLE', 'Spare peripherals for new hires.'),
+            ('Spare Office Tablet', 'ASSET-TBL-001', 'OTHER', None, 'AVAILABLE', 'Shared tablet for presentations and approvals.'),
+        ]
+
+        for name, serial, category, assigned_to, status, notes in specs:
+            Asset.objects.create(
+                name=name,
+                serial_number=serial,
+                category=category,
+                assigned_to=assigned_to,
+                status=status,
+                notes=notes,
+            )
+
     # ──────────────────────────────────────────────────────────────
     # Products  (final stock_count is set independently of movements)
     # ──────────────────────────────────────────────────────────────
@@ -336,7 +370,10 @@ class Command(BaseCommand):
         sup = suppliers
         skus = list(products.keys())
 
-        # Explicit historical inbounds (Jan–Apr) for the movements table.
+        # Ancorăm calculele dinamice la data curentă (1 Iunie 2026)
+        REAL_TODAY = date(2026, 6, 1)
+
+        # 1. Istoric masiv din lunile trecute (Ianuarie – Mai)
         history = [
             ('INBOUND', 'LPT-001', sup[0], 50, date(2026, 1, 12), date(2026, 1, 15)),
             ('INBOUND', 'LPT-002', sup[0], 20, date(2026, 1, 14), date(2026, 1, 17)),
@@ -347,66 +384,53 @@ class Command(BaseCommand):
             ('INBOUND', 'WBC-001', sup[2], 40, date(2026, 2, 15), date(2026, 2, 17)),
             ('INBOUND', 'SSD-001', sup[1], 60, date(2026, 2, 22), date(2026, 2, 24)),
             ('INBOUND', 'HDS-001', sup[0], 30, date(2026, 3, 2), date(2026, 3, 5)),
-            ('INBOUND', 'DKS-001', sup[0], 25, date(2026, 3, 8), date(2026, 3, 10)),
             ('INBOUND', 'LPT-003', sup[5], 12, date(2026, 3, 14), date(2026, 3, 18)),
-            ('INBOUND', 'MNT-002', sup[1], 20, date(2026, 3, 21), date(2026, 3, 24)),
-            ('INBOUND', 'TBL-001', sup[5], 25, date(2026, 3, 27), date(2026, 3, 30)),
-            ('INBOUND', 'NSW-001', sup[3], 10, date(2026, 4, 4), date(2026, 4, 7)),
-            ('INBOUND', 'WAP-001', sup[3], 20, date(2026, 4, 9), date(2026, 4, 12)),
-            ('INBOUND', 'SSD-002', sup[1], 18, date(2026, 4, 14), date(2026, 4, 16)),
-            ('INBOUND', 'WBC-002', sup[2], 15, date(2026, 4, 20), date(2026, 4, 23)),
             ('INBOUND', 'MNT-003', sup[1], 70, date(2026, 4, 26), date(2026, 4, 28)),
             ('INBOUND', 'MOU-001', sup[6], 60, date(2026, 5, 1), date(2026, 5, 4)),
-            ('INBOUND', 'KBD-001', sup[6], 40, date(2026, 5, 5), date(2026, 5, 7)),
-
-            # OUTBOUNDs / write-offs / adjustments spanning Jan–May
-            ('OUTBOUND',   'LPT-001', None, 8, date(2026, 1, 28), date(2026, 1, 28)),
-            ('OUTBOUND',   'MOU-001', None, 20, date(2026, 2, 6), date(2026, 2, 6)),
-            ('OUTBOUND',   'KBD-001', None, 15, date(2026, 2, 18), date(2026, 2, 18)),
-            ('WRITE_OFF',  'LPT-002', None, 2, date(2026, 3, 11), date(2026, 3, 11)),
-            ('OUTBOUND',   'SSD-001', None, 12, date(2026, 3, 19), date(2026, 3, 19)),
-            ('ADJUSTMENT', 'MNT-001', None, 28, date(2026, 4, 1), date(2026, 4, 1)),
-            ('OUTBOUND',   'WBC-001', None, 8, date(2026, 4, 17), date(2026, 4, 17)),
-            ('OUTBOUND',   'HUB-001', None, 18, date(2026, 4, 29), date(2026, 4, 29)),
+            ('INBOUND', 'KBD-001', sup[6], 40, date(2026, 5, 15), date(2026, 5, 18)),
+            ('OUTBOUND',   'LPT-001', None, 8, date(2026, 2, 28), date(2026, 2, 28)),
+            ('OUTBOUND',   'MOU-001', None, 20, date(2026, 3, 6), date(2026, 3, 6)),
+            ('WRITE_OFF',  'LPT-002', None, 2, date(2026, 4, 11), date(2026, 4, 11)),
+            ('ADJUSTMENT', 'MNT-001', None, 28, date(2026, 5, 10), date(2026, 5, 10)),
         ]
 
-        # Recent movements (last 7-14 days) – this is what the Sankey shows.
+        # 2. Date ULTRA-RECENTE (Ultimele zile din Mai și AZI, 1 Iunie)
         recent = [
-            ('INBOUND',  'LPT-001', sup[0], 25, days_ago(13), days_ago(11)),
-            ('INBOUND',  'LPT-002', sup[0], 12, days_ago(12), days_ago(10)),
-            ('INBOUND',  'MNT-001', sup[1], 18, days_ago(11), days_ago(9)),
-            ('INBOUND',  'KBD-001', sup[1], 40, days_ago(10), days_ago(8)),
-            ('INBOUND',  'MOU-001', sup[6], 80, days_ago(9),  days_ago(7)),
-            ('INBOUND',  'HUB-001', sup[2], 50, days_ago(8),  days_ago(6)),
-            ('INBOUND',  'SSD-001', sup[1], 28, days_ago(7),  days_ago(5)),
-            ('INBOUND',  'WBC-001', sup[2], 12, days_ago(6),  days_ago(4)),
-            ('INBOUND',  'HDS-001', sup[0], 10, days_ago(5),  days_ago(3)),
-            ('INBOUND',  'MNT-003', sup[1], 30, days_ago(4),  days_ago(2)),
-            ('INBOUND',  'WAP-001', sup[3], 8,  days_ago(3),  days_ago(1)),
-            # Today's expected deliveries (feeds the "Deliveries Today" KPI)
-            ('INBOUND',  'LPT-003', sup[5], 6,  days_ago(2),  TODAY),
-            ('INBOUND',  'DKS-001', sup[0], 10, days_ago(2),  TODAY),
-            # Upcoming June deliveries
-            ('INBOUND',  'PRT-001', sup[4], 8,  days_ago(1),  date(2026, 6, 3)),
-            ('INBOUND',  'UPS-001', sup[3], 6,  days_ago(1),  date(2026, 6, 8)),
-            ('INBOUND',  'PRJ-001', sup[6], 4,  TODAY,        date(2026, 6, 12)),
-            # Recent outbound flow
-            ('OUTBOUND', 'LPT-001', None, 6, days_ago(11), days_ago(11)),
-            ('OUTBOUND', 'MOU-001', None, 22, days_ago(9), days_ago(9)),
-            ('OUTBOUND', 'KBD-001', None, 14, days_ago(8), days_ago(8)),
-            ('OUTBOUND', 'HUB-001', None, 12, days_ago(6), days_ago(6)),
-            ('OUTBOUND', 'SSD-001', None, 9, days_ago(5), days_ago(5)),
-            ('OUTBOUND', 'MNT-001', None, 5, days_ago(4), days_ago(4)),
-            ('OUTBOUND', 'WBC-001', None, 4, days_ago(3), days_ago(3)),
-            ('OUTBOUND', 'TBL-001', None, 3, days_ago(2), days_ago(2)),
-            ('OUTBOUND', 'HDS-001', None, 4, days_ago(1), days_ago(1)),
-            ('WRITE_OFF','MNT-001', None, 1, days_ago(7), days_ago(7)),
-            ('ADJUSTMENT','SSD-002', None, 11, days_ago(2), days_ago(2)),
+            ('INBOUND',  'LPT-001', sup[0], 15, REAL_TODAY - timedelta(days=4), REAL_TODAY - timedelta(days=2)),
+            ('INBOUND',  'MNT-001', sup[1], 10, REAL_TODAY - timedelta(days=3), REAL_TODAY - timedelta(days=1)),
+            ('INBOUND',  'KBD-001', sup[2], 25, REAL_TODAY - timedelta(days=2), REAL_TODAY - timedelta(days=1)),
+            ('INBOUND',  'MOU-001', sup[6], 50, REAL_TODAY - timedelta(days=1), REAL_TODAY),
+            
+            # LIVRĂRI COPTUȘITE AZI (Apar pe dashboard ca "Deliveries Today" - 1 Iunie)
+            ('INBOUND',  'LPT-003', sup[5], 8,  REAL_TODAY - timedelta(days=1), REAL_TODAY),
+            ('INBOUND',  'DKS-001', sup[0], 12, REAL_TODAY - timedelta(days=2), REAL_TODAY),
+            
+            # Flux de ieșiri (Outbound/Write-Off) de ieri/azi
+            ('OUTBOUND', 'LPT-001', None, 4, REAL_TODAY - timedelta(days=1), REAL_TODAY - timedelta(days=1)),
+            ('OUTBOUND', 'MOU-001', None, 15, REAL_TODAY, REAL_TODAY),
+            ('WRITE_OFF', 'MNT-003', None, 2, REAL_TODAY - timedelta(days=2), REAL_TODAY - timedelta(days=2)),
         ]
 
-        all_specs = history + recent
+        # 3. VIITORUL APROPIAT (Următoarele zile + FIX PESTE 3 ZILE: 4 Iunie 2026)
+        future = [
+            ('INBOUND',  'MNT-002', sup[1], 7,  REAL_TODAY, REAL_TODAY + timedelta(days=1)), # Mâine (2 Iunie)
+            ('INBOUND',  'SSD-001', sup[4], 30, REAL_TODAY, REAL_TODAY + timedelta(days=2)), # Peste 2 zile (3 Iunie)
+            
+            # ────────────────────────────────────────────────────────
+            # !!! LIVRĂRI PROGRAMATE EXACT PESTE 3 ZILE (4 IUNIE 2026) !!!
+            # ────────────────────────────────────────────────────────
+            ('INBOUND',  'PRT-001', sup[3], 15, REAL_TODAY, REAL_TODAY + timedelta(days=3)), 
+            ('INBOUND',  'UPS-001', sup[4], 5,  REAL_TODAY, REAL_TODAY + timedelta(days=3)), 
+            ('INBOUND',  'HUB-001', sup[0], 40, REAL_TODAY, REAL_TODAY + timedelta(days=3)),
+            
+            # Livrări mai îndepărtate în Iunie
+            ('INBOUND',  'PRJ-001', sup[6], 4,  REAL_TODAY, REAL_TODAY + timedelta(days=10)),
+            ('INBOUND',  'SRV-001', sup[3], 2,  REAL_TODAY, REAL_TODAY + timedelta(days=14)),
+        ]
 
-        # bulk_create skips save() so stock_count is not auto-mutated
+        all_specs = history + recent + future
+
+        # Creare în masă
         StockMovement.objects.bulk_create([
             StockMovement(
                 movement_type=mtype,
@@ -419,15 +443,14 @@ class Command(BaseCommand):
             for mtype, sku, supplier, qty, _created, expected in all_specs
         ])
 
-        # Backdate created_at so the Sankey + StockMovementsPage timeline is realistic.
-        # Match each (type, sku, quantity) to its desired created_at.
+        # Sincronizare timestamps 'created_at' în DB pentru realism istoric
         for mtype, sku, supplier, qty, created, _expected in all_specs:
             qs = StockMovement.objects.filter(
                 movement_type=mtype, product=products[sku], quantity=qty,
             )
             if supplier is not None:
                 qs = qs.filter(supplier=supplier)
-            # Pick the first row that still has a "fresh" auto_now_add timestamp.
+            
             row = qs.filter(created_at__date__gt=date(2026, 1, 1) - timedelta(days=1)).order_by('id').first()
             if row and row.created_at.date() != created:
                 StockMovement.objects.filter(pk=row.pk).update(

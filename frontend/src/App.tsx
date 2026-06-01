@@ -11,9 +11,9 @@ import StockMovementsPage from './components/inventory/StockMovementsPage'
 import ProductsStockPage from './components/inventory/ProductsStockPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import UserDashboard from './components/dashboard/UserDashboard'
 import ItDashboard from './components/it/ItDashboard'
 import ItAssignedPage from './components/it/ItAssignedPage'
+import ItAssetsPage from './components/it/ItAssetsPage'
 import CreateTicketPage from './components/it/CreateTicketPage'
 import SalesDashboard from './components/sales/SalesDashboard'
 import SalesOrdersPage from './components/sales/SalesOrdersPage'
@@ -149,8 +149,8 @@ function App() {
             <Route
               path="/it/dashboard"
               element={
-                <ProtectedRoute requiredRole="IT">
-                  <UserDashboard />
+                <ProtectedRoute requiredRoles={['IT']}>
+                  <ItDashboard />
                 </ProtectedRoute>
               }
             />
@@ -158,7 +158,7 @@ function App() {
               path="/it/tickets"
               element={
                 <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
+                  <ItDashboard />
                 </ProtectedRoute>
               }
             />
@@ -171,18 +171,18 @@ function App() {
               }
             />
             <Route
-              path="/it/create"
+              path="/it/assets"
               element={
-                <ProtectedRoute>
-                  <CreateTicketPage />
+                <ProtectedRoute requiredRoles={['IT']}>
+                  <ItAssetsPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/it/assets"
+              path="/it/create"
               element={
-                <ProtectedRoute requiredRole="IT">
-                  <DashboardPage />
+                <ProtectedRoute>
+                  <CreateTicketPage />
                 </ProtectedRoute>
               }
             />
@@ -300,7 +300,7 @@ function App() {
               path="/inventory/dashboard"
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
-                  <DashboardPage />
+                  <InventoryDashboard />
                 </ProtectedRoute>
               }
             />
@@ -341,14 +341,6 @@ function App() {
               element={
                 <ProtectedRoute requiredRole="INVENTORY">
                   <StockMovementsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/inventory/low-stock-alert"
-              element={
-                <ProtectedRoute requiredRole="INVENTORY">
-                  <LowStockPage />
                 </ProtectedRoute>
               }
             />

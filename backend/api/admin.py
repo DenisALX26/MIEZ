@@ -9,7 +9,7 @@ admin.site.register(Customer)
 admin.site.register(Department)
 admin.site.register(Ticket)
 
-
+#test comment
 @admin.register(Workflow)
 class WorkflowAdmin(admin.ModelAdmin):
     list_display = ('name', 'trigger_type', 'is_active', 'updated_at')

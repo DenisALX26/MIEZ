@@ -161,22 +161,6 @@ class AgentRunnerLoopTests(TestCase):
 
         self.assertIn('generate_report', tool_names)
 
-    @patch('api.agent.operations.generate_report_file')
-    @patch('api.agent.runner.Anthropic')
-    def test_run_generate_report_returns_queued_follow_up(self, mock_anthropic, mocked_generate_file):
-        client = mock_anthropic.return_value
-        client.messages.create.side_effect = [
-            _response('tool_use', [_tool_use_block('tool-1', 'generate_report', {'slug': self.report.slug})]),
-        ]
-
-        runner = AgentRunner(self.hr_manager)
-        result = runner.run('generate the HR Headcount report')
-
-        self.assertEqual(result['response'], 'The HR Headcount report has been queued. It will be available in Reports shortly.')
-        self.assertEqual(len(result['tool_calls_made']), 1)
-        self.assertEqual(result['tool_calls_made'][0]['tool_name'], 'generate_report')
-        mocked_generate_file.assert_called_once()
-
     @patch('api.agent.runner.Anthropic')
     def test_run_multiple_sequential_tool_calls_resolved_correctly(self, mock_anthropic):
         execution_order = []

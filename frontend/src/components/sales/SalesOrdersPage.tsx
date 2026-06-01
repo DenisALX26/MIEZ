@@ -7,7 +7,7 @@ type OrderRow = {
   customer_name: string
   value_ron: string
   date: string
-  status: 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'PENDING' | 'RETURNED'
+  status: 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
   channel: 'EMAG' | 'WEBSITE' | 'DIRECT'
 }
 
@@ -50,9 +50,22 @@ const statusOptions: Array<{ label: string; value: string }> = [
   { label: 'Processing', value: 'PROCESSING' },
   { label: 'Shipped', value: 'SHIPPED' },
   { label: 'Delivered', value: 'DELIVERED' },
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Returned', value: 'RETURNED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
 ]
+
+const orderStatusLabels: Record<string, string> = {
+  PROCESSING: 'Processing',
+  SHIPPED: 'Shipped',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
+}
+
+const orderStatusTransitions: Record<string, string[]> = {
+  PROCESSING: ['SHIPPED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
+  DELIVERED: [],
+  CANCELLED: [],
+}
 
 const channelOptions: Array<{ label: string; value: string }> = [
   { label: 'All channels', value: '' },
@@ -65,8 +78,7 @@ const statusBadgeClass: Record<string, string> = {
   PROCESSING: 'bg-blue-50 text-blue-800 border border-blue-200',
   SHIPPED: 'bg-indigo-50 text-indigo-800 border border-indigo-200',
   DELIVERED: 'bg-emerald-50 text-emerald-800 border border-emerald-200',
-  PENDING: 'bg-amber-50 text-amber-800 border border-amber-200',
-  RETURNED: 'bg-rose-50 text-rose-800 border border-rose-200',
+  CANCELLED: 'bg-rose-50 text-rose-800 border border-rose-200',
 }
 
 const channelBadgeClass: Record<string, string> = {
@@ -93,6 +105,12 @@ const formatDate = (value: string) => {
   return date.toLocaleDateString('ro-RO')
 }
 
+const resolveStatusOptions = (currentStatus: string) => {
+  const next = orderStatusTransitions[currentStatus] ?? []
+  const combined = [currentStatus, ...next].filter(Boolean)
+  return combined.filter((value, index) => combined.indexOf(value) === index)
+}
+
 const SalesOrdersPage = () => {
   const [orders, setOrders] = useState<OrderRow[]>([])
   const [loadingOrders, setLoadingOrders] = useState(true)
@@ -111,6 +129,10 @@ const SalesOrdersPage = () => {
   const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [detailError, setDetailError] = useState('')
+  const [isEditingStatus, setIsEditingStatus] = useState(false)
+  const [statusDraft, setStatusDraft] = useState('')
+  const [statusSaving, setStatusSaving] = useState(false)
+  const [statusError, setStatusError] = useState('')
 
   useEffect(() => {
     setPage(1)
@@ -165,6 +187,7 @@ const SalesOrdersPage = () => {
     try {
       setLoadingDetail(true)
       setDetailError('')
+      setStatusError('')
       setSelectedOrder(null)
 
       const response = await fetch(`/api/orders/${orderId}/`, {
@@ -177,6 +200,8 @@ const SalesOrdersPage = () => {
 
       const detail = (await response.json()) as OrderDetail
       setSelectedOrder(detail)
+      setStatusDraft(detail.status || '')
+      setIsEditingStatus(false)
     } catch (error) {
       console.error('Failed to load order detail:', error)
       setDetailError('Could not load order details.')
@@ -188,6 +213,64 @@ const SalesOrdersPage = () => {
   const closeModal = () => {
     setSelectedOrder(null)
     setDetailError('')
+    setIsEditingStatus(false)
+    setStatusDraft('')
+    setStatusError('')
+  }
+
+  const startStatusEdit = () => {
+    if (!selectedOrder) {
+      return
+    }
+    setStatusDraft(selectedOrder.status)
+    setIsEditingStatus(true)
+    setStatusError('')
+  }
+
+  const cancelStatusEdit = () => {
+    if (selectedOrder) {
+      setStatusDraft(selectedOrder.status)
+    }
+    setIsEditingStatus(false)
+    setStatusError('')
+  }
+
+  const saveStatusUpdate = async () => {
+    if (!selectedOrder) {
+      return
+    }
+
+    try {
+      setStatusSaving(true)
+      setStatusError('')
+
+      const response = await fetch(`/api/orders/${selectedOrder.id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status: statusDraft }),
+      })
+
+      if (!response.ok) {
+        const message = await response.text()
+        throw new Error(message || `Status update failed with ${response.status}`)
+      }
+
+      const updated = (await response.json()) as OrderDetail
+      setSelectedOrder(updated)
+      setStatusDraft(updated.status || '')
+      setIsEditingStatus(false)
+      setOrders((prev) =>
+        prev.map((order) => (order.id === updated.id ? { ...order, status: updated.status as OrderRow['status'] } : order))
+      )
+    } catch (error) {
+      console.error('Failed to update order status:', error)
+      setStatusError('Could not update the order status.')
+    } finally {
+      setStatusSaving(false)
+    }
   }
 
   const averageOrderValue = useMemo(() => {
@@ -365,8 +448,54 @@ const SalesOrdersPage = () => {
               <div className="space-y-4 mt-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="rounded-xl border border-[var(--border)] p-3">
-                    <p className="text-xs uppercase tracking-wide text-black/50">Status</p>
-                    <p className="text-sm font-semibold mt-1">{selectedOrder.status}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs uppercase tracking-wide text-black/50">Status</p>
+                      {!isEditingStatus && (
+                        <button
+                          type="button"
+                          onClick={startStatusEdit}
+                          className="text-[11px] font-semibold text-blue-600 hover:text-blue-700"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                    {isEditingStatus ? (
+                      <div className="mt-2 space-y-2">
+                        <select
+                          value={statusDraft}
+                          onChange={(event) => setStatusDraft(event.target.value)}
+                          className="w-full rounded-lg border border-[var(--border)] bg-white px-2.5 py-1.5 text-sm"
+                        >
+                          {resolveStatusOptions(selectedOrder.status).map((status) => (
+                            <option key={status} value={status}>
+                              {orderStatusLabels[status] ?? status}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveStatusUpdate}
+                            disabled={statusSaving || statusDraft === selectedOrder.status}
+                            className="rounded-lg border border-[var(--border)] bg-black text-white px-3 py-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {statusSaving ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelStatusEdit}
+                            disabled={statusSaving}
+                            className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {statusError && <p className="text-xs text-red-600">{statusError}</p>}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-semibold mt-1">{orderStatusLabels[selectedOrder.status] ?? selectedOrder.status}</p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-[var(--border)] p-3">
                     <p className="text-xs uppercase tracking-wide text-black/50">Channel</p>

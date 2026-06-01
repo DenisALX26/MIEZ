@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import { useAuth } from '../../context/AuthContext'
 
 type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'REMOTE' | 'LEAVE' | null
@@ -17,65 +18,66 @@ type AttendanceResponse = {
   grid: AttendanceGridRow[]
 }
 
-const statusMeta: Record<Exclude<AttendanceStatus, null>, { label: string; short: string; className: string }> = {
+const statusMeta: Record<Exclude<AttendanceStatus, null>, { label: string; short: string; dot: string; cell: string }> = {
   PRESENT: {
     label: 'Present',
     short: 'P',
-    className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    dot: 'bg-emerald-500',
+    cell: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   },
   REMOTE: {
     label: 'Remote',
-    short: 'P',
-    className: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    short: 'R',
+    dot: 'bg-sky-500',
+    cell: 'bg-sky-50 text-sky-700 border-sky-200',
   },
   ABSENT: {
     label: 'Absent',
     short: 'A',
-    className: 'bg-rose-100 text-rose-700 border-rose-200',
+    dot: 'bg-rose-500',
+    cell: 'bg-rose-50 text-rose-700 border-rose-200',
   },
   LEAVE: {
     label: 'Leave',
     short: 'L',
-    className: 'bg-amber-100 text-amber-700 border-amber-200',
+    dot: 'bg-amber-500',
+    cell: 'bg-amber-50 text-amber-700 border-amber-200',
   },
 }
 
 const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 const isWeekend = (dateValue: string) => {
-  const date = new Date(dateValue)
-  const day = date.getDay()
-  return day === 0 || day === 6
+  const d = new Date(dateValue)
+  return d.getDay() === 0 || d.getDay() === 6
 }
 
 const formatDateShort = (dateValue: string) => {
-  const date = new Date(dateValue)
-  if (Number.isNaN(date.getTime())) {
-    return dateValue
-  }
-
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+  const d = new Date(dateValue)
+  return Number.isNaN(d.getTime()) ? dateValue : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
 }
 
-const getMondayOfWeek = (dateValue: Date) => {
-  const date = new Date(dateValue)
+const getMondayOfWeek = (d: Date) => {
+  const date = new Date(d)
   const day = date.getDay()
-  const diff = day === 0 ? -6 : 1 - day
-  date.setDate(date.getDate() + diff)
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day))
   date.setHours(0, 0, 0, 0)
   return date
 }
 
-const addDays = (dateValue: Date, days: number) => {
-  const date = new Date(dateValue)
+const addDays = (d: Date, days: number) => {
+  const date = new Date(d)
   date.setDate(date.getDate() + days)
   return date
 }
 
-const formatWeekTitle = (weekStart: Date) => {
-  const monthYear = weekStart.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
-  const weekNumber = Math.ceil(weekStart.getDate() / 7)
-  return `${monthYear} — Week ${weekNumber}`
+const formatWeekRange = (weekStart: Date) => {
+  const weekEnd = addDays(weekStart, 6)
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }
+  if (weekStart.getFullYear() !== weekEnd.getFullYear()) {
+    return `${weekStart.toLocaleDateString('en-GB', { ...opts, year: 'numeric' })} – ${weekEnd.toLocaleDateString('en-GB', { ...opts, year: 'numeric' })}`
+  }
+  return `${weekStart.toLocaleDateString('en-GB', opts)} – ${weekEnd.toLocaleDateString('en-GB', { ...opts, year: 'numeric' })}`
 }
 
 const HrAttendancePage = () => {
@@ -84,210 +86,216 @@ const HrAttendancePage = () => {
   const [data, setData] = useState<AttendanceResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState('ALL')
 
   useEffect(() => {
-    const loadAttendance = async () => {
+    const load = async () => {
       try {
         setIsLoading(true)
         setError('')
-
         const weekParam = selectedWeekStart.toISOString().slice(0, 10)
-        const response = await fetch(`/api/attendance/?week=${weekParam}`, {
-          credentials: 'include',
-        })
-
-        if (!response.ok) {
-          throw new Error(`Attendance request failed: ${response.status}`)
-        }
-
-        const payload = (await response.json()) as AttendanceResponse
-        setData(payload)
-      } catch (fetchError) {
-        console.error('Failed to load attendance grid', fetchError)
-        setError('Could not load attendance data right now.')
+        const res = await fetch(`/api/attendance/?week=${weekParam}`, { credentials: 'include' })
+        if (!res.ok) throw new Error(`${res.status}`)
+        setData((await res.json()) as AttendanceResponse)
+      } catch {
+        setError('Could not load attendance data.')
         setData(null)
       } finally {
         setIsLoading(false)
       }
     }
-
-    loadAttendance()
+    load()
   }, [selectedWeekStart])
 
-  const dayInfo = useMemo(() => {
-    return (data?.days ?? []).map((dayValue, index) => ({
-      value: dayValue,
-      label: weekdayLabels[index] ?? '',
-      isWeekend: isWeekend(dayValue),
-    }))
-  }, [data?.days])
+  const dayInfo = useMemo(
+    () => (data?.days ?? []).map((v, i) => ({ value: v, label: weekdayLabels[i] ?? '', isWeekend: isWeekend(v) })),
+    [data?.days]
+  )
+
+  const departments = useMemo(() => {
+    const names = (data?.grid ?? []).map(r => r.department ?? 'Unassigned')
+    return ['ALL', ...Array.from(new Set(names)).sort()]
+  }, [data?.grid])
+
+  const filteredGrid = useMemo(
+    () =>
+      (data?.grid ?? []).filter(
+        r => selectedDepartment === 'ALL' || (r.department ?? 'Unassigned') === selectedDepartment
+      ),
+    [data?.grid, selectedDepartment]
+  )
 
   const summary = useMemo(() => {
-    const rows = data?.grid ?? []
-    const weekdays = dayInfo.filter(day => !day.isWeekend)
+    const weekdays = dayInfo.filter(d => !d.isWeekend)
     const workdayCount = Math.max(weekdays.length, 1)
-    const totalPossible = rows.length * workdayCount
-
+    const totalPossible = filteredGrid.length * workdayCount
     let presentCount = 0
     let absentCount = 0
-
-    for (const row of rows) {
+    for (const row of filteredGrid) {
       for (const day of weekdays) {
-        const status = row.statuses[day.value]
-        if (status === 'PRESENT') {
-          presentCount += 1
-        } else if (status === 'ABSENT') {
-          absentCount += 1
-        }
+        const s = row.statuses[day.value]
+        if (s === 'PRESENT' || s === 'REMOTE') presentCount++
+        else if (s === 'ABSENT') absentCount++
       }
     }
-
     return {
       avgAttendance: totalPossible > 0 ? Math.round((presentCount / totalPossible) * 1000) / 10 : 0,
-      onLeaveEmployees: rows.filter(row => weekdays.some(day => row.statuses[day.value] === 'LEAVE')).length,
-      unexcusedAbsences: absentCount,
+      onLeave: filteredGrid.filter(r => weekdays.some(d => r.statuses[d.value] === 'LEAVE')).length,
+      absences: absentCount,
     }
-  }, [data?.grid, dayInfo])
+  }, [filteredGrid, dayInfo])
 
-  const presentCountForRow = (row: AttendanceGridRow) => {
-    return dayInfo.filter(day => !day.isWeekend && (row.statuses[day.value] === 'PRESENT' || row.statuses[day.value] === 'REMOTE')).length
-  }
-
-  const currentWeekLabel = formatWeekTitle(selectedWeekStart)
-  const weekStartIso = selectedWeekStart.toISOString().slice(0, 10)
+  const presentDays = (row: AttendanceGridRow) =>
+    dayInfo.filter(d => !d.isWeekend && (row.statuses[d.value] === 'PRESENT' || row.statuses[d.value] === 'REMOTE')).length
 
   if (user?.role !== 'HR' && user?.role !== 'CEO') {
     return (
       <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-        <h2 className="text-[1.1rem] font-semibold">Attendance</h2>
-        <p className="text-[0.92rem] text-[var(--muted-foreground)] mt-1">This page is available for HR and CEO only.</p>
+        <p className="text-[0.92rem] text-[var(--muted-foreground)]">This page is available for HR and CEO only.</p>
       </section>
     )
   }
 
   return (
-    <section className="flex flex-col gap-4">
-      <header className="flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h2 className="text-[1.22rem] font-semibold">Attendance & Timesheets</h2>
-            <p className="text-[0.92rem] text-[var(--muted-foreground)]">
-              Weekly attendance grid per employee with presence and leave at a glance.
-            </p>
-          </div>
+    <div className="flex flex-col gap-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-[1.15rem] font-semibold tracking-tight">Attendance</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-0.5">Weekly presence grid</p>
+        </div>
 
-          <div className="inline-flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Department filter */}
+          <select
+            value={selectedDepartment}
+            onChange={e => setSelectedDepartment(e.target.value)}
+            className="h-9 px-3 text-[0.875rem] rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+          >
+            {departments.map(dep => (
+              <option key={dep} value={dep}>{dep === 'ALL' ? 'All departments' : dep}</option>
+            ))}
+          </select>
+
+          {/* Week navigation */}
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              className="min-h-[40px] rounded-[10px] border border-[var(--border)] bg-[var(--card)] px-3 font-semibold"
-              onClick={() => setSelectedWeekStart(current => addDays(current, -7))}
+              onClick={() => setSelectedWeekStart(w => addDays(w, -7))}
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] transition-colors"
+              aria-label="Previous week"
             >
-              Previous week
+              <FiChevronLeft className="w-4 h-4" />
             </button>
-            <div className="min-h-[40px] px-4 rounded-[10px] border border-[var(--border)] bg-[var(--card)] flex items-center font-semibold">
-              {currentWeekLabel}
+            <div className="h-9 px-3 flex items-center text-[0.875rem] font-medium rounded-lg border border-[var(--border)] bg-[var(--card)] whitespace-nowrap">
+              {formatWeekRange(selectedWeekStart)}
             </div>
             <button
               type="button"
-              className="min-h-[40px] rounded-[10px] border border-[var(--border)] bg-[var(--card)] px-3 font-semibold"
-              onClick={() => setSelectedWeekStart(current => addDays(current, 7))}
+              onClick={() => setSelectedWeekStart(w => addDays(w, 7))}
+              className="h-9 w-9 flex items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] transition-colors"
+              aria-label="Next week"
             >
-              Next week
+              <FiChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="text-sm text-[var(--muted-foreground)]">Week start: {weekStartIso}</div>
-      </header>
-
-      <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
-        <div className="flex items-center gap-4 flex-wrap text-sm">
-          <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-emerald-500" /> Present</span>
-          <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-amber-500" /> Leave</span>
-          <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-rose-500" /> Absent</span>
-          <span className="inline-flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-slate-400" /> Weekend</span>
+      {/* Stats */}
+      {!isLoading && !error && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+            <p className="text-[0.78rem] text-[var(--muted-foreground)] uppercase tracking-wide">Attendance rate</p>
+            <p className="text-[1.75rem] font-bold mt-1 leading-none">{summary.avgAttendance}<span className="text-base font-normal text-[var(--muted-foreground)]">%</span></p>
+          </div>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+            <p className="text-[0.78rem] text-[var(--muted-foreground)] uppercase tracking-wide">On leave</p>
+            <p className="text-[1.75rem] font-bold mt-1 leading-none">{summary.onLeave}</p>
+          </div>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+            <p className="text-[0.78rem] text-[var(--muted-foreground)] uppercase tracking-wide">Absences</p>
+            <p className="text-[1.75rem] font-bold mt-1 leading-none">{summary.absences}</p>
+          </div>
         </div>
-      </section>
+      )}
 
+      {/* Grid */}
       {isLoading ? (
-        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">Loading attendance grid...</section>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 text-[0.875rem] text-[var(--muted-foreground)]">Loading…</div>
       ) : error ? (
-        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 text-red-600">{error}</section>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-6 text-[0.875rem] text-rose-600">{error}</div>
       ) : (
-        <>
-          <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-            <div className="overflow-auto">
-              <table className="min-w-full border-collapse">
-                <thead>
-                  <tr className="bg-[var(--muted)]/30">
-                    <th className="sticky left-0 z-10 bg-[var(--card)] text-left px-4 py-3 border-b border-[var(--border)] min-w-[220px]">Employee</th>
-                    <th className="sticky left-[220px] z-10 bg-[var(--card)] text-left px-4 py-3 border-b border-[var(--border)] min-w-[180px]">Department</th>
-                    {dayInfo.map(day => (
-                      <th key={day.value} className="text-center px-3 py-3 border-b border-[var(--border)] min-w-[84px]">
-                        <div className="text-[0.82rem] font-semibold">{day.label}</div>
-                        <div className="text-[0.75rem] text-[var(--muted-foreground)]">{formatDateShort(day.value)}</div>
-                      </th>
-                    ))}
-                    <th className="text-center px-4 py-3 border-b border-[var(--border)] min-w-[120px]">Present count</th>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+          {/* Legend */}
+          <div className="flex items-center gap-4 px-4 py-2.5 border-b border-[var(--border)] text-[0.78rem] text-[var(--muted-foreground)]">
+            {Object.entries(statusMeta).map(([key, meta]) => (
+              <span key={key} className="inline-flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
+                {meta.label}
+              </span>
+            ))}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-slate-300" />
+              Weekend
+            </span>
+          </div>
+
+          <div className="overflow-auto">
+            <table className="min-w-full border-collapse text-[0.875rem]">
+              <thead>
+                <tr className="border-b border-[var(--border)]">
+                  <th className="sticky left-0 z-10 bg-[var(--card)] text-left px-4 py-2.5 text-[0.78rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide min-w-[200px]">Employee</th>
+                  <th className="sticky left-[200px] z-10 bg-[var(--card)] text-left px-4 py-2.5 text-[0.78rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide min-w-[160px]">Department</th>
+                  {dayInfo.map(day => (
+                    <th key={day.value} className={`text-center px-2 py-2.5 min-w-[72px] text-[0.78rem] font-semibold uppercase tracking-wide ${day.isWeekend ? 'text-slate-400' : 'text-[var(--muted-foreground)]'}`}>
+                      <div>{day.label}</div>
+                      <div className="font-normal normal-case tracking-normal text-[0.72rem] mt-0.5">{formatDateShort(day.value)}</div>
+                    </th>
+                  ))}
+                  <th className="text-center px-4 py-2.5 text-[0.78rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide min-w-[80px]">Days in</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredGrid.length === 0 ? (
+                  <tr>
+                    <td colSpan={dayInfo.length + 3} className="px-4 py-6 text-center text-[var(--muted-foreground)]">
+                      No employees found.
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {(data?.grid ?? []).map(row => (
-                    <tr key={row.employee_id} className="hover:bg-black/5 transition-colors">
-                      <td className="sticky left-0 z-10 bg-[var(--card)] px-4 py-3 border-b border-[var(--border)] font-medium">{row.employee_name}</td>
-                      <td className="sticky left-[220px] z-10 bg-[var(--card)] px-4 py-3 border-b border-[var(--border)] text-[0.92rem] text-[var(--muted-foreground)]">{row.department ?? 'Unassigned'}</td>
+                ) : (
+                  filteredGrid.map(row => (
+                    <tr key={row.employee_id} className="border-b border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors">
+                      <td className="sticky left-0 z-10 bg-[var(--card)] px-4 py-2.5 font-medium">{row.employee_name}</td>
+                      <td className="sticky left-[200px] z-10 bg-[var(--card)] px-4 py-2.5 text-[var(--muted-foreground)]">{row.department ?? 'Unassigned'}</td>
                       {dayInfo.map(day => {
                         if (day.isWeekend) {
-                          return (
-                            <td key={day.value} className="px-3 py-3 border-b border-[var(--border)] text-center text-slate-400 font-semibold">
-                              —
-                            </td>
-                          )
+                          return <td key={day.value} className="px-2 py-2.5 text-center text-slate-300">—</td>
                         }
-
                         const status = row.statuses[day.value]
                         if (!status) {
-                          return (
-                            <td key={day.value} className="px-3 py-3 border-b border-[var(--border)] text-center text-slate-400 font-semibold">
-                              —
-                            </td>
-                          )
+                          return <td key={day.value} className="px-2 py-2.5 text-center text-[var(--muted-foreground)]/40">—</td>
                         }
-
                         const meta = statusMeta[status]
                         return (
-                          <td key={day.value} className="px-3 py-3 border-b border-[var(--border)] text-center">
-                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full border text-[0.82rem] font-bold ${meta.className}`} title={meta.label}>
-                              {meta.short}
-                            </span>
+                          <td key={day.value} className="px-2 py-2.5 text-center">
+                            <span
+                              className={`inline-block w-2.5 h-2.5 rounded-full ${meta.dot}`}
+                              title={meta.label}
+                            />
                           </td>
                         )
                       })}
-                      <td className="px-4 py-3 border-b border-[var(--border)] text-center font-semibold">{presentCountForRow(row)}</td>
+                      <td className="px-4 py-2.5 text-center font-semibold text-[var(--muted-foreground)]">{presentDays(row)}</td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <article className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
-              <span className="text-[0.82rem] text-[var(--muted-foreground)]">Avg Attendance This Week (%)</span>
-              <strong className="block text-[1.6rem] mt-1">{summary.avgAttendance}%</strong>
-            </article>
-            <article className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
-              <span className="text-[0.82rem] text-[var(--muted-foreground)]">Employees on Leave</span>
-              <strong className="block text-[1.6rem] mt-1">{summary.onLeaveEmployees}</strong>
-            </article>
-            <article className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
-              <span className="text-[0.82rem] text-[var(--muted-foreground)]">Unexcused Absences</span>
-              <strong className="block text-[1.6rem] mt-1">{summary.unexcusedAbsences}</strong>
-            </article>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-        </>
+        </div>
       )}
-    </section>
+    </div>
   )
 }
 

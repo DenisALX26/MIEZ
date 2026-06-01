@@ -694,6 +694,56 @@ class EmployeeDepartmentCrudTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('email', response.data['field_errors'])
 
+    def test_patch_employee_updates_department_and_role_for_hr_and_ceo(self):
+        employee = baker.make(
+            User,
+            role=User.Role.SALES,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Popescu',
+            phone='+40111111111',
+            position='Sales Representative',
+            is_active=True,
+        )
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.patch(
+            f'/api/employees/{employee.id}/',
+            {
+                'first_name': 'Anca',
+                'last_name': 'Pop',
+                'position': 'IT Specialist',
+                'department': self.it_department.id,
+                'phone': '+40222222222',
+                'is_active': False,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['first_name'], 'Anca')
+        self.assertEqual(response.data['last_name'], 'Pop')
+        self.assertEqual(response.data['position'], 'IT Specialist')
+        self.assertEqual(response.data['phone'], '+40222222222')
+        self.assertFalse(response.data['is_active'])
+        self.assertEqual(response.data['department']['id'], self.it_department.id)
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.role, User.Role.IT)
+
+    def test_patch_employee_denied_for_non_hr_or_ceo(self):
+        employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
+        sales_user = baker.make(User, role=User.Role.SALES)
+        self.client.force_authenticate(user=sales_user)
+
+        response = self.client.patch(
+            f'/api/employees/{employee.id}/',
+            {'first_name': 'Blocked'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_get_employees_returns_paginated_list_with_correct_count(self):
         baker.make(User, _quantity=3, department=self.hr_department, role=User.Role.SALES)
         self.client.force_authenticate(user=self.ceo_user)
@@ -838,7 +888,7 @@ class OrderListViewTests(APITestCase):
             customer=self.customer_acme,
             created_by=self.sales_user,
             value_ron=Decimal('40.00'),
-            status=Order.Status.PENDING,
+            status=Order.Status.PROCESSING,
             channel=Order.Channel.DIRECT,
         )
 
@@ -925,7 +975,7 @@ class SalesDashboardKpiTests(APITestCase):
             channel=Order.Channel.WEBSITE,
         )
 
-    def test_sales_dashboard_kpis_uses_today_yesterday_and_weekly_returns(self):
+    def test_sales_dashboard_kpis_uses_today_yesterday_and_weekly_cancellations(self):
         self.client.force_authenticate(user=self.sales_user)
 
         today = timezone.localdate()
@@ -934,13 +984,13 @@ class SalesDashboardKpiTests(APITestCase):
         week_return_date = today - timedelta(days=1) if today.weekday() >= 1 else today
 
         self._create_order(amount='120.00', order_date=today, status_value=Order.Status.PROCESSING)
-        self._create_order(amount='80.00', order_date=today, status_value=Order.Status.PENDING)
-        self._create_order(amount='30.00', order_date=today, status_value=Order.Status.RETURNED)
+        self._create_order(amount='80.00', order_date=today, status_value=Order.Status.PROCESSING)
+        self._create_order(amount='30.00', order_date=today, status_value=Order.Status.CANCELLED)
 
         self._create_order(amount='100.00', order_date=yesterday, status_value=Order.Status.DELIVERED)
 
-        self._create_order(amount='15.00', order_date=week_return_date, status_value=Order.Status.RETURNED)
-        self._create_order(amount='22.00', order_date=start_of_week - timedelta(days=1), status_value=Order.Status.RETURNED)
+        self._create_order(amount='15.00', order_date=week_return_date, status_value=Order.Status.CANCELLED)
+        self._create_order(amount='22.00', order_date=start_of_week - timedelta(days=1), status_value=Order.Status.CANCELLED)
 
         response = self.client.get('/api/sales/dashboard/')
 
@@ -948,8 +998,9 @@ class SalesDashboardKpiTests(APITestCase):
         today_revenue = Order.objects.filter(date=today).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
         yesterday_orders = Order.objects.filter(date=yesterday).count()
         yesterday_revenue = Order.objects.filter(date=yesterday).aggregate(total=Sum('value_ron'))['total'] or Decimal('0')
+        processing_orders = Order.objects.filter(status=Order.Status.PROCESSING).count()
         returns_week = Order.objects.filter(
-            status=Order.Status.RETURNED,
+            status=Order.Status.CANCELLED,
             date__gte=start_of_week,
             date__lte=today,
         ).count()
@@ -964,7 +1015,7 @@ class SalesDashboardKpiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['orders_today'], today_orders)
         self.assertEqual(Decimal(response.data['revenue_today_ron']), today_revenue)
-        self.assertEqual(response.data['pending_orders'], 1)
+        self.assertEqual(response.data['pending_orders'], processing_orders)
         self.assertEqual(response.data['returns_this_week'], returns_week)
         self.assertEqual(response.data['pct_changes']['orders'], pct_change(today_orders, yesterday_orders))
         self.assertEqual(response.data['pct_changes']['revenue'], pct_change(today_revenue, yesterday_revenue))
@@ -1146,7 +1197,7 @@ class InvoiceListViewTests(APITestCase):
             'customer': self.customer.id,
             'value_ron': '450.00',
             'date': timezone.localdate().isoformat(),
-            'status': Order.Status.PENDING,
+            'status': Order.Status.PROCESSING,
             'channel': Order.Channel.WEBSITE,
         }, format='json')
 
@@ -1166,9 +1217,9 @@ class CustomerListViewTests(APITestCase):
         self.customer_a = Customer.objects.create(name='Alpha Corp', tier=Customer.Tier.GOLD)
         self.customer_b = Customer.objects.create(name='Beta Ltd', tier=Customer.Tier.SILVER)
 
-        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('500.00'), status=Order.Status.PENDING)
-        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('300.00'), status=Order.Status.PENDING)
-        Order.objects.create(customer=self.customer_b, created_by=self.sales_user, value_ron=Decimal('100.00'), status=Order.Status.PENDING)
+        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('500.00'), status=Order.Status.PROCESSING)
+        Order.objects.create(customer=self.customer_a, created_by=self.sales_user, value_ron=Decimal('300.00'), status=Order.Status.PROCESSING)
+        Order.objects.create(customer=self.customer_b, created_by=self.sales_user, value_ron=Decimal('100.00'), status=Order.Status.PROCESSING)
 
     def test_customer_list_returns_orders_count_and_tier(self):
         self.client.force_authenticate(user=self.sales_user)

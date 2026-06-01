@@ -1,412 +1,257 @@
-import { useEffect, useState } from "react";
-import { FiSearch, FiPackage, FiCheckCircle, FiAlertTriangle, FiXCircle, FiX, FiActivity, FiDollarSign } from "react-icons/fi";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
+import { useEffect, useState } from 'react'
+import { FiSearch, FiPackage, FiCheckCircle, FiAlertTriangle, FiXCircle, FiX, FiActivity, FiDollarSign } from 'react-icons/fi'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts'
 
 interface Product {
-  id: number;
-  name: string;
-  sku: string;
-  category: string;
-  unit_price_ron: string;
-  stock_count: number;
-  min_stock: number;
-  created_at: string;
-  updated_at: string;
+  id: number
+  name: string
+  sku: string
+  category: string
+  unit_price_ron: string
+  stock_count: number
+  min_stock: number
+  created_at: string
+  updated_at: string
 }
 
 const getStatus = (stock: number, minStock: number) => {
-  if (stock === 0) return "Out";
-  if (stock <= minStock) return "Low";
-  return "OK";
-};
+  if (stock === 0) return 'Out'
+  if (stock <= minStock) return 'Low'
+  return 'OK'
+}
 
 const StatusBadge = ({ status }: { status: string }) => {
-  if (status === "Out") {
+  if (status === 'Out') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 border border-rose-200 shadow-sm">
-        <FiXCircle /> Depleted
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.72rem] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+        <FiXCircle size={11} /> Depleted
       </span>
-    );
+    )
   }
-  if (status === "Low") {
+  if (status === 'Low') {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 border border-amber-200 shadow-sm">
-        <FiAlertTriangle /> Critical
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.72rem] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        <FiAlertTriangle size={11} /> Low Stock
       </span>
-    );
+    )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100/80 text-emerald-700 border border-emerald-200 shadow-sm">
-        <FiCheckCircle /> Healthy
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[0.72rem] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <FiCheckCircle size={11} /> Healthy
     </span>
-  );
-};
+  )
+}
 
 const getHistory = (currentStock: number) => {
-  const points = [];
-  let val = currentStock + 15;
+  const points = []
+  let val = currentStock + 15
   for (let i = 1; i <= 6; i++) {
-    points.push({ day: `${i * 5}`, qty: val });
-    val = Math.max(0, val - Math.floor(Math.random() * 5));
+    points.push({ day: `${i * 5}d`, qty: val })
+    val = Math.max(0, val - Math.floor(Math.random() * 5))
   }
-  points[5].qty = currentStock; // last point matches exactly
-  return points;
-};
+  points[5].qty = currentStock
+  return points
+}
 
-const ProductFormModal = ({ 
-  open, 
-  onClose, 
-  product, 
-  onSuccess 
-}: { 
-  open: boolean; 
-  onClose: () => void; 
-  product: Product | null; 
-  onSuccess: () => void; 
-}) => {
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [category, setCategory] = useState("General");
-  const [minStock, setMinStock] = useState("10");
-  const [unitPrice, setUnitPrice] = useState("0.00");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setName(product?.name || "");
-      setSku(product?.sku || "");
-      setCategory(product?.category || "General");
-      setMinStock(product?.min_stock?.toString() || "10");
-      setUnitPrice(product?.unit_price_ron || "0.00");
-      setError("");
-    }
-  }, [open, product]);
-
-  if (!open) return null;
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      const url = product ? `/api/inventory/products/${product.id}/` : `/api/inventory/products/`;
-      const method = product ? "PATCH" : "POST";
-      
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          sku,
-          category,
-          min_stock: parseInt(minStock),
-          unit_price_ron: parseFloat(unitPrice)
-        })
-      });
-      
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.sku) setError(`SKU error: ${data.sku.join(" ")}`);
-        else setError(data.detail || "An error occurred.");
-      } else {
-        onSuccess();
-        onClose();
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to save product.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h2 className="text-lg font-bold text-gray-900">{product ? "Edit Product" : "Add New Product"}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><FiX size={20}/></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && <div className="p-3 bg-rose-50 text-rose-600 rounded-lg text-sm font-medium border border-rose-100">{error}</div>}
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
-            <input required type="text" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
-            <input required type="text" value={sku} onChange={e => setSku(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-            <input type="text" value={category} onChange={e => setCategory(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-              <input type="number" min="0" value={minStock} onChange={e => setMinStock(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price (RON)</label>
-              <input type="number" step="0.01" min="0" value={unitPrice} onChange={e => setUnitPrice(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block p-2.5 outline-none transition-all" />
-            </div>
-          </div>
-          
-          <div className="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-6">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors">Cancel</button>
-            <button type="submit" disabled={submitting} className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-70 disabled:cursor-not-allowed">
-              {submitting ? "Saving..." : "Save Product"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-const DetailDrawer = ({ open, onClose, product, onEdit }: { open: boolean, onClose: () => void, product: Product | null, onEdit: (p: Product) => void }) => {
-  if (!product) return null;
-  const status = getStatus(product.stock_count, product.min_stock);
-  const stockValue = parseFloat(product.unit_price_ron) * product.stock_count;
-  const history = getHistory(product.stock_count);
+const DetailDrawer = ({ open, onClose, product }: { open: boolean; onClose: () => void; product: Product | null }) => {
+  if (!product) return null
+  const status = getStatus(product.stock_count, product.min_stock)
+  const stockValue = parseFloat(product.unit_price_ron) * product.stock_count
+  const history = getHistory(product.stock_count)
 
   return (
     <>
-      <div 
-        className={`fixed inset-0 bg-slate-900/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      <div
+        className={`fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-      <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white border-l border-gray-100 shadow-2xl z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
+      <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-[var(--card)] border-l border-[var(--border)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between sticky top-0 z-10 bg-[var(--card)]">
           <div>
-            <h2 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">{product.name}</h2>
+            <h2 className="text-[1.05rem] font-semibold tracking-tight">{product.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded text-xs font-mono tracking-wider">{product.sku}</span>
-              <span className="text-sm font-medium text-gray-400">• {product.category}</span>
+              <span className="px-2 py-0.5 bg-[var(--muted)] text-[var(--muted-foreground)] rounded text-xs font-mono">{product.sku}</span>
+              <span className="text-sm text-[var(--muted-foreground)]">· {product.category}</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => onEdit(product)} className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg text-sm font-medium transition-colors">
-              Edit
-            </button>
-            <button onClick={onClose} className="p-2.5 bg-gray-50 hover:bg-rose-50 hover:text-rose-600 rounded-full text-gray-400 transition-colors">
-              <FiX size={20} />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-2 bg-[var(--muted)] hover:bg-[var(--border)] rounded-full text-[var(--muted-foreground)] transition-colors">
+            <FiX size={18} />
+          </button>
         </div>
-        
-        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Current Stock</span>
-                <p className="text-2xl font-bold text-gray-900">{product.stock_count}</p>
-              </div>
-              <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Status Flag</span>
-                <div><StatusBadge status={status} /></div>
-              </div>
-            </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-              <div className="flex items-center gap-2 mb-4 text-indigo-600 border-b border-gray-50 pb-3">
-                <FiDollarSign className="text-indigo-500" />
-                <h3 className="font-bold text-gray-900">Financial Overview</h3>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Unit Cost</span>
-                  <span className="text-sm font-bold text-gray-900">{parseFloat(product.unit_price_ron).toFixed(2)} RON</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Total Stock Value</span>
-                  <span className="text-sm font-semibold text-indigo-600">{stockValue.toLocaleString('ro-RO')} RON</span>
-                </div>
-              </div>
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--input-background)]">
+              <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium mb-1">Stock</p>
+              <p className="text-2xl font-semibold">{product.stock_count}</p>
             </div>
+            <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--input-background)]">
+              <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium mb-2">Status</p>
+              <StatusBadge status={status} />
+            </div>
+          </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
-               <div className="flex items-center gap-2 mb-6 border-b border-gray-50 pb-3">
-                 <FiActivity className="text-emerald-500" />
-                 <h3 className="font-bold text-gray-900">30-Day Trajectory</h3>
-               </div>
-               <div className="h-40 w-full mt-2">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={history} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.5}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                      <RechartsTooltip 
-                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                      />
-                      <Area type="monotone" dataKey="qty" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorStock)" animationDuration={1500} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-               </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--input-background)] p-4 space-y-2.5">
+            <div className="flex items-center gap-2 text-[var(--muted-foreground)] mb-3">
+              <FiDollarSign size={14} />
+              <p className="text-[0.78rem] font-semibold uppercase tracking-wide">Financials</p>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--muted-foreground)]">Unit price</span>
+              <span className="text-sm font-semibold">{parseFloat(product.unit_price_ron).toFixed(2)} RON</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--muted-foreground)]">Stock value</span>
+              <span className="text-sm font-semibold text-[var(--primary)]">{stockValue.toLocaleString('ro-RO')} RON</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--muted-foreground)]">Min threshold</span>
+              <span className="text-sm font-semibold">{product.min_stock} units</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--input-background)] p-4">
+            <div className="flex items-center gap-2 text-[var(--muted-foreground)] mb-4">
+              <FiActivity size={14} />
+              <p className="text-[0.78rem] font-semibold uppercase tracking-wide">30-Day Trajectory</p>
+            </div>
+            <div className="h-36 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={history} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                  <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--muted-foreground)', fontSize: 10 }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--card-foreground)', boxShadow: 'none' }} />
+                  <Area type="monotone" dataKey="qty" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorStock)" animationDuration={1200} />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>
       </div>
     </>
-  );
-};
+  )
+}
 
 export default function ProductsStockPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
-  const [triggerRefresh, setTriggerRefresh] = useState(0);
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        const res = await fetch("/api/inventory/products/", { credentials: "include" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.results) setProducts(data.results);
-          else setProducts(data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch products:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProducts();
-  }, [triggerRefresh]);
+    fetch('/api/inventory/products/', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setProducts(d.results ?? d))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
 
-  const categories = ["All", ...Array.from(new Set(products.map((p) => p.category)))];
-  const statuses = ["All", "OK", "Low", "Out"];
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category)))]
 
-  const filtered = products.filter((p) => {
-    const s = getStatus(p.stock_count, p.min_stock);
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase());
-    const matchCat = categoryFilter === "All" || p.category === categoryFilter;
-    const matchStatus = statusFilter === "All" || s === statusFilter;
-    return matchSearch && matchCat && matchStatus;
-  });
+  const filtered = products.filter(p => {
+    const s = getStatus(p.stock_count, p.min_stock)
+    return (
+      (p.name.toLowerCase().includes(search.toLowerCase()) || p.sku.toLowerCase().includes(search.toLowerCase())) &&
+      (categoryFilter === 'All' || p.category === categoryFilter) &&
+      (statusFilter === 'All' || s === statusFilter)
+    )
+  })
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-6 animate-[fadeIn_0.5s_ease-out] pb-10">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Products & Stock</h1>
-          <p className="text-gray-500 mt-1 font-medium flex items-center gap-2">
-            Showing <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{filtered.length}</span> of {products.length} products
+          <h2 className="text-[1.15rem] font-semibold tracking-tight">Products & Stock</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-0.5">
+            {filtered.length} of {products.length} products
           </p>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <button 
-            onClick={() => { setProductToEdit(null); setIsFormOpen(true); }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-semibold text-sm transition-colors shadow-sm"
-          >
-            Add Product
-          </button>
-          <div className="relative group flex-1 md:w-72">
-            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-gray-400 group-focus-within:text-blue-500 transition-colors">
-              <FiSearch size={16} />
-            </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" size={14} />
             <input
               type="text"
-              placeholder="Search products or SKU..."
-              className="w-full bg-white border border-gray-200 text-gray-900 text-[13px] font-medium rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-10 p-3 transition-all outline-none shadow-sm shadow-gray-100"
+              placeholder="Search name or SKU…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
+              className="h-9 pl-8 pr-3 text-[0.875rem] rounded-lg border border-[var(--border)] bg-[var(--input-background)] text-[var(--card-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)] w-56"
             />
           </div>
-          <select 
-            value={categoryFilter} 
-            onChange={(e) => setCategoryFilter(e.target.value)} 
-            className="bg-white border border-gray-200 text-gray-700 text-[13px] font-semibold rounded-xl focus:ring-2 focus:ring-blue-500/20 px-4 py-3 outline-none shadow-sm shadow-gray-100 appearance-none cursor-pointer hover:border-gray-300 transition-colors"
+          <select
+            value={categoryFilter}
+            onChange={e => setCategoryFilter(e.target.value)}
+            className="h-9 px-3 text-[0.875rem] rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
           >
-            {categories.map((c) => <option key={c} value={c}>{c === "All" ? "All Categories" : c}</option>)}
+            {categories.map(c => <option key={c} value={c}>{c === 'All' ? 'All categories' : c}</option>)}
           </select>
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)} 
-            className="bg-white border border-gray-200 text-gray-700 text-[13px] font-semibold rounded-xl focus:ring-2 focus:ring-blue-500/20 px-4 py-3 outline-none shadow-sm shadow-gray-100 appearance-none cursor-pointer hover:border-gray-300 transition-colors"
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="h-9 px-3 text-[0.875rem] rounded-lg border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] cursor-pointer focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
           >
-            {statuses.map((s) => <option key={s} value={s}>{s === "All" ? "All Statuses" : s}</option>)}
+            <option value="All">All statuses</option>
+            <option value="OK">Healthy</option>
+            <option value="Low">Low stock</option>
+            <option value="Out">Out of stock</option>
           </select>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden relative">
-        <div className="overflow-x-auto min-h-[400px]">
-          <table className="w-full text-left border-collapse">
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-[0.875rem]">
             <thead>
-              <tr className="bg-gray-50/80 border-b border-gray-100">
-                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Product Info</th>
-                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Stock</th>
-                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Min</th>
-                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-right">Unit Cost</th>
-                <th className="px-8 py-3 text-[0.78rem] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap text-center">Status</th>
+              <tr className="border-b border-[var(--border)] bg-[var(--muted)]/40">
+                <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Product</th>
+                <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Stock</th>
+                <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Min</th>
+                <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Unit price</th>
+                <th className="px-5 py-2.5 text-center text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-20">
-                     <span className="relative flex h-8 w-8 mx-auto mb-4">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-8 w-8 bg-blue-500"></span>
-                      </span>
-                     <p className="text-gray-500 font-medium">Syncing master inventory...</p>
-                  </td>
+                  <td colSpan={5} className="px-5 py-10 text-center text-[var(--muted-foreground)]">Loading…</td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-20 text-gray-500 font-medium">No products found matching your criteria.</td>
+                  <td colSpan={5} className="px-5 py-10 text-center text-[var(--muted-foreground)]">No products match your filters.</td>
                 </tr>
               ) : (
-                filtered.map((p) => {
-                  const s = getStatus(p.stock_count, p.min_stock);
+                filtered.map(p => {
+                  const s = getStatus(p.stock_count, p.min_stock)
                   return (
-                    <tr 
-                      key={p.id} 
-                      className="group hover:bg-blue-50/30 cursor-pointer transition-colors"
+                    <tr
+                      key={p.id}
                       onClick={() => setSelectedProduct(p)}
+                      className="group border-t border-[var(--border)] hover:bg-[var(--muted)]/40 cursor-pointer transition-colors"
                     >
-                      <td className="px-8 py-5">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400 group-hover:bg-white group-hover:border-blue-200 group-hover:text-blue-500 transition-all">
-                            <FiPackage size={18} />
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-[var(--input-background)] border border-[var(--border)] flex items-center justify-center shrink-0 text-[var(--muted-foreground)] group-hover:text-[var(--primary)] transition-colors">
+                            <FiPackage size={15} />
                           </div>
                           <div>
-                            <p className="font-semibold text-gray-900 text-[0.92rem] group-hover:text-blue-600 transition-colors">{p.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-xs text-gray-400 font-mono">{p.sku}</span>
-                              <span className="text-[11px] text-gray-400 font-medium bg-gray-50 px-2 py-0.5 rounded">{p.category}</span>
-                            </div>
+                            <p className="font-medium group-hover:text-[var(--primary)] transition-colors">{p.name}</p>
+                            <p className="text-xs text-[var(--muted-foreground)] font-mono mt-0.5">{p.sku} · {p.category}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-8 py-5 text-right w-32">
-                        <span className="text-[0.95rem] font-semibold text-gray-900">{p.stock_count}</span>
-                      </td>
-                      <td className="px-8 py-5 text-right w-32">
-                        <span className="text-sm font-semibold text-gray-400">{p.min_stock}</span>
-                      </td>
-                      <td className="px-8 py-5 text-right w-32">
-                        <p className="font-medium text-gray-900 inline-flex items-center gap-1 text-sm">
-                          {parseFloat(p.unit_price_ron).toFixed(2)} <span className="text-[10px] text-gray-400 uppercase">RON</span>
-                        </p>
-                      </td>
-                      <td className="px-8 py-5 text-center w-32">
+                      <td className="px-5 py-3 text-right font-semibold">{p.stock_count}</td>
+                      <td className="px-5 py-3 text-right text-[var(--muted-foreground)]">{p.min_stock}</td>
+                      <td className="px-5 py-3 text-right text-[var(--muted-foreground)]">{parseFloat(p.unit_price_ron).toFixed(2)} RON</td>
+                      <td className="px-5 py-3 text-center">
                         <StatusBadge status={s} />
                       </td>
                     </tr>
@@ -418,24 +263,7 @@ export default function ProductsStockPage() {
         </div>
       </div>
 
-      <DetailDrawer 
-        open={!!selectedProduct} 
-        onClose={() => setSelectedProduct(null)} 
-        product={selectedProduct} 
-        onEdit={(p) => { setProductToEdit(p); setIsFormOpen(true); }}
-      />
-
-      <ProductFormModal 
-        open={isFormOpen} 
-        onClose={() => setIsFormOpen(false)} 
-        product={productToEdit} 
-        onSuccess={() => {
-          setTriggerRefresh(prev => prev + 1);
-          if (productToEdit) {
-            setSelectedProduct(null); // optional: close drawer or re-fetch details
-          }
-        }} 
-      />
+      <DetailDrawer open={!!selectedProduct} onClose={() => setSelectedProduct(null)} product={selectedProduct} />
     </div>
-  );
+  )
 }

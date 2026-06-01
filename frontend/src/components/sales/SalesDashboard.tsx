@@ -9,7 +9,7 @@ type OrderRow = {
   customer_name: string
   value_ron: string
   date: string
-  status: 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'PENDING' | 'RETURNED'
+  status: 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED'
   channel: 'EMAG' | 'WEBSITE' | 'DIRECT'
 }
 
@@ -85,8 +85,7 @@ const statusOptions: Array<{ label: string; value: string }> = [
   { label: 'Processing', value: 'PROCESSING' },
   { label: 'Shipped', value: 'SHIPPED' },
   { label: 'Delivered', value: 'DELIVERED' },
-  { label: 'Pending', value: 'PENDING' },
-  { label: 'Returned', value: 'RETURNED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
 ]
 
 const channelOptions: Array<{ label: string; value: string }> = [
@@ -100,8 +99,7 @@ const statusBadgeClass: Record<string, string> = {
   PROCESSING: 'bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]',
   SHIPPED: 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20',
   DELIVERED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  PENDING: 'bg-amber-50 text-amber-700 border border-amber-200',
-  RETURNED: 'bg-rose-50 text-rose-700 border border-rose-200',
+  CANCELLED: 'bg-rose-50 text-rose-700 border border-rose-200',
 }
 
 const channelBadgeClass: Record<string, string> = {
@@ -334,8 +332,8 @@ const SalesDashboard = () => {
     ? [
         { title: 'Orders Today', value: kpis.orders_today, sub: `${kpis.pct_changes.orders}% vs yesterday`, Icon: FiShoppingCart },
         { title: 'Revenue Today', value: formatCurrencyRon(kpis.revenue_today_ron), sub: `${kpis.pct_changes.revenue}% vs yesterday`, Icon: FiDollarSign },
-        { title: 'Pending Orders', value: kpis.pending_orders, sub: 'awaiting fulfilment', Icon: FiClock },
-        { title: 'Returns This Week', value: kpis.returns_this_week, sub: 'last 7 days', Icon: FiRotateCcw },
+        { title: 'Processing Orders', value: kpis.pending_orders, sub: 'awaiting fulfilment', Icon: FiClock },
+        { title: 'Cancelled This Week', value: kpis.returns_this_week, sub: 'last 7 days', Icon: FiRotateCcw },
         { title: 'Orders In View', value: totalCount, sub: 'after filters', Icon: FiList },
       ]
     : []

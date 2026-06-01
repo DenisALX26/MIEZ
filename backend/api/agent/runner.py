@@ -49,7 +49,7 @@ Tone and behaviour:
 You have access to tools scoped to this user's role. Do not attempt actions outside the provided tools."""
 
     MODEL_NAME = 'claude-haiku-4-5-20251001'
-    MAX_ITERATIONS = 5
+    MAX_ITERATIONS = 10
     
     # Role-to-permissions mapping
     ROLE_PERMISSIONS = {
@@ -82,7 +82,6 @@ You have access to tools scoped to this user's role. Do not attempt actions outs
             'view_it_dashboard',
             'manage_tickets',
             'view_system_status',
-            'manage_tickets',
         ],
         User.Role.INVENTORY: [
             'view_inventory_dashboard',

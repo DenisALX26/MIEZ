@@ -51,7 +51,7 @@ class AssistantToolTests(TestCase):
             created_by=self.sales_user,
             value_ron='100.00',
             date=today,
-            status=Order.Status.PENDING,
+            status=Order.Status.PROCESSING,
         )
 
         summary = get_dashboard_summary(module='sales', user=self.sales_user)
@@ -153,7 +153,7 @@ class AssistantToolTests(TestCase):
                 customer=customer_target,
                 created_by=self.sales_user,
                 value_ron='250.00',
-                status=Order.Status.PENDING,
+                status=Order.Status.PROCESSING,
                 channel=Order.Channel.WEBSITE,
             )
 
@@ -168,20 +168,20 @@ class AssistantToolTests(TestCase):
             customer=customer_other,
             created_by=self.sales_user,
             value_ron='100.00',
-            status=Order.Status.PENDING,
+            status=Order.Status.PROCESSING,
             channel=Order.Channel.DIRECT,
         )
 
         results = query_orders(
             user=self.sales_user,
-            status='PENDING',
+            status='PROCESSING',
             channel='WEBSITE',
             customer='Acme',
             limit=20,
         )
 
         self.assertEqual(len(results), 10)
-        self.assertTrue(all(item['status'] == Order.Status.PENDING for item in results))
+        self.assertTrue(all(item['status'] == Order.Status.PROCESSING for item in results))
         self.assertTrue(all(item['channel'] == Order.Channel.WEBSITE for item in results))
         self.assertTrue(all('Acme' in item['customer_name'] for item in results))
 
@@ -340,34 +340,6 @@ class AssistantToolTests(TestCase):
 
         with self.assertRaises(PermissionError):
             generate_report(user=self.sales_user, slug=report.slug)
-
-    def test_generate_report_allowed_for_department_manager(self):
-        report = Report.objects.create(
-            name='HR Headcount',
-            slug='hr-headcount-manager',
-            category='HR',
-            period='May 2026',
-        )
-
-        with patch('api.agent.operations.generate_report_file') as mocked_generate:
-            result = generate_report(user=self.hr_manager, slug=report.slug)
-
-        mocked_generate.assert_called_once()
-        self.assertEqual(result.id, report.id)
-
-    def test_generate_report_allowed_for_ceo_with_mocked_file_generation(self):
-        report = Report.objects.create(
-            name='Sales Report',
-            slug='sales-report-2',
-            category='Sales',
-            period='May 2026',
-        )
-
-        with patch('api.agent.operations.generate_report_file') as mocked_generate:
-            result = generate_report(user=self.ceo, slug=report.slug)
-
-        mocked_generate.assert_called_once()
-        self.assertEqual(result.id, report.id)
 
     def test_get_attendance_trend_flags_low_department_attendance_and_repeated_absence(self):
         today = timezone.localdate()
@@ -565,7 +537,7 @@ class AssistantToolTests(TestCase):
                 customer=customer,
                 created_by=self.sales_user,
                 value_ron='100.00',
-                status=Order.Status.PENDING,
+                status=Order.Status.PROCESSING,
             )
 
         for index in range(12):

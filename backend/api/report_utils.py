@@ -3,74 +3,83 @@ from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
 
-_MOCK_HEADERS = {
-    'Sales': 'Date,Product,Channel,Revenue,Units',
-    'Finance': 'Period,Revenue,Costs,Gross_Profit,Net_Profit,Margin_pct',
-    'Inventory': 'SKU,Product,Opening_Stock,Inbound,Outbound,Closing_Stock,Value',
-    'HR': 'Employee_ID,Name,Department,Status,Days_Present,Days_Absent',
-    'IT': 'Ticket_ID,Priority,Category,Opened,Resolved,SLA_Met',
-}
 
-_MOCK_ROWS = {
-    'monthly-revenue': [
-        '2026-02-01,Product A,Online,12400,87',
-        '2026-02-08,Product B,Retail,9800,54',
-        '2026-02-15,Product C,Online,11200,62',
-        '2026-02-22,Product D,Partner,11800,71',
-    ],
-    'quarterly-pl': [
-        'Q1 FY26,310000,198000,112000,89000,28.7',
-        'Q2 FY26,340000,212000,128000,101000,29.7',
-        'Q3 FY26,380000,235000,145000,116000,30.5',
-    ],
-    'inventory-stock': [
-        'SKU-001,Widget A,200,150,180,170,8500',
-        'SKU-002,Widget B,80,60,70,70,3500',
-        'SKU-003,Gadget X,45,30,40,35,5250',
-    ],
-    'hr-headcount': [
-        'EMP-001,Alice Smith,Engineering,Active,20,0',
-        'EMP-002,Bob Jones,Sales,Active,19,1',
-        'EMP-003,Carol White,HR,Active,20,0',
-    ],
-    'it-ticket-sla': [
-        'TKT-001,High,Network,2026-02-03,2026-02-03,Yes',
-        'TKT-002,Medium,Software,2026-02-05,2026-02-07,Yes',
-        'TKT-003,Low,Hardware,2026-02-10,2026-02-15,No',
-    ],
-    'sales-channel-analysis': [
-        '2026-01-01,Product A,Online,41200,298',
-        '2026-01-01,Product B,Retail,38900,241',
-        '2026-01-01,Product C,Partner,55500,187',
-    ],
-    'employee-attendance': [
-        'EMP-001,Alice Smith,Engineering,Active,20,0',
-        'EMP-004,Dave Brown,Marketing,Active,18,2',
-        'EMP-005,Eve Davis,Finance,Active,19,1',
-    ],
-    'top-customers': [
-        '2026-01-01,Acme Corp,Online,28400,14',
-        '2026-01-01,Globex Ltd,Retail,19800,8',
-        '2026-01-01,Initech,Partner,15600,6',
-    ],
-    'annual-tax-summary': [
-        'FY25,1240000,820000,420000,336000,27.1',
-    ],
-}
+def _build_html_with_claude(report, directives='', context_data=''):
+    try:
+        from anthropic import Anthropic
+        client = Anthropic()
+        today = timezone.now().strftime('%B %d, %Y')
+        directives_line = f'\nSpecial focus / additional instructions: {directives}' if directives else ''
+        data_section = (
+            f'\n\nReal data from the app — use these exact figures in the report:\n{context_data}'
+            if context_data else
+            '\n\nNo live data was provided. Generate realistic placeholder figures.'
+        )
+
+        prompt = f"""Generate a professional business report as a complete, self-contained HTML document.
+
+Report: {report.name}
+Category: {report.category}
+Period: {report.period}
+Generated: {today}{directives_line}{data_section}
+
+Requirements:
+- Return a complete HTML document (<!DOCTYPE html> through </html>), nothing else
+- All CSS must be inside a <style> tag in <head> — no external stylesheets
+- White background, clean typography, print-friendly layout
+- Header section: company name "MIEZ Corp", report title, generated date, category badge
+- KPI summary row: 3–4 metric cards derived from the provided data
+- One or more detailed data tables populated with the provided data
+- A short executive summary paragraph (2–3 sentences) based on the actual data
+- All monetary values must be in RON (Romanian Leu) — never use USD, EUR, or $ symbols
+- Accent colour #D1353B for headings and badges; table headers #f3f4f6; borders #e5e7eb
+- Font: system-ui, -apple-system, sans-serif
+- No JavaScript, no external resources, no fixed heights that break printing
+
+Return ONLY the HTML document. No markdown, no code fences, no explanation."""
+
+        message = client.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=4096,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        return message.content[0].text
+    except Exception:
+        return _fallback_html(report)
 
 
-def generate_report_file(report, user=None):
+def _fallback_html(report):
+    today = timezone.now().strftime('%B %d, %Y')
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{report.name}</title>
+<style>
+  body {{ font-family: system-ui, sans-serif; margin: 48px; color: #111; }}
+  h1 {{ color: #D1353B; margin-bottom: 4px; font-size: 24px; }}
+  .meta {{ color: #666; font-size: 13px; margin-bottom: 32px; }}
+</style>
+</head>
+<body>
+  <h1>{report.name}</h1>
+  <p class="meta">MIEZ Corp · {report.category} · {report.period} · {today}</p>
+  <p>Report content unavailable. Please try regenerating.</p>
+</body>
+</html>"""
+
+
+def generate_report_file(report, user=None, directives='', context_data=''):
     reports_dir = Path(settings.BASE_DIR) / 'reports'
     reports_dir.mkdir(exist_ok=True)
 
-    header = _MOCK_HEADERS.get(report.category, 'Field1,Field2,Field3')
-    rows = _MOCK_ROWS.get(report.slug, ['mock,data,row'])
-    content = '\n'.join([header] + rows) + '\n'
+    html_content = _build_html_with_claude(report, directives=directives, context_data=context_data)
 
-    file_path = reports_dir / f'{report.slug}.csv'
-    file_path.write_text(content, encoding='utf-8')
+    file_path = reports_dir / f'{report.slug}.html'
+    file_path.write_text(html_content, encoding='utf-8')
 
-    size_kb = max(1, file_path.stat().st_size // 1024) if file_path.stat().st_size >= 1024 else 1
+    size_bytes = file_path.stat().st_size
+    size_kb = max(1, size_bytes // 1024)
     report.file_path = str(file_path)
     report.file_size_kb = size_kb
     report.generated_at = timezone.now()
