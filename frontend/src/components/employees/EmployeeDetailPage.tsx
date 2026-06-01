@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
+
+type Department = {
+  id: number
+  name: string
+  slug: string
+}
 
 type Employee = {
   id: number
@@ -15,11 +22,16 @@ type Employee = {
   address: string
   role: string
   is_active: boolean
-  department: null | {
-    id: number
-    name: string
-    slug: string
-  }
+  department: null | Department
+}
+
+type EmployeeEditFormData = {
+  first_name: string
+  last_name: string
+  position: string
+  phone: string
+  department: string
+  is_active: boolean
 }
 
 const formatRole = (role: string) => {
@@ -34,12 +46,47 @@ const formatContract = (employmentType: Employee['employment_type']) => {
   return 'Contract'
 }
 
+const createEditFormData = (employee: Employee): EmployeeEditFormData => ({
+  first_name: employee.first_name,
+  last_name: employee.last_name,
+  position: employee.position,
+  phone: employee.phone,
+  department: employee.department ? String(employee.department.id) : '',
+  is_active: employee.is_active,
+})
+
+const normalizeErrors = (data: unknown) => {
+  if (!data || typeof data !== 'object') {
+    return { non_field_errors: ['Could not save employee. Please try again.'] }
+  }
+
+  const record = data as Record<string, unknown>
+  if ('field_errors' in record && record.field_errors && typeof record.field_errors === 'object') {
+    return record.field_errors as Record<string, string[]>
+  }
+
+  return record as Record<string, string[]>
+}
+
 const EmployeeDetailPage = () => {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const { id } = useParams()
   const [employee, setEmployee] = useState<Employee | null>(null)
+  const [departments, setDepartments] = useState<Department[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [editFormData, setEditFormData] = useState<EmployeeEditFormData>({
+    first_name: '',
+    last_name: '',
+    position: '',
+    phone: '',
+    department: '',
+    is_active: true,
+  })
+  const [editErrors, setEditErrors] = useState<Record<string, string[]>>({})
 
   useEffect(() => {
     const fetchEmployee = async () => {
@@ -74,6 +121,28 @@ const EmployeeDetailPage = () => {
     fetchEmployee()
   }, [id])
 
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await fetch('/api/departments/', {
+          credentials: 'include',
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to load departments: ${response.status}`)
+        }
+
+        const data = (await response.json()) as Department[]
+        setDepartments(data)
+      } catch (fetchError) {
+        console.error('Failed to load departments', fetchError)
+        setDepartments([])
+      }
+    }
+
+    fetchDepartments()
+  }, [])
+
   const displayName = useMemo(() => {
     if (!employee) {
       return ''
@@ -82,6 +151,85 @@ const EmployeeDetailPage = () => {
     const fullName = `${employee.first_name} ${employee.last_name}`.trim()
     return fullName || employee.username
   }, [employee])
+
+  const canEditEmployee = user?.role === 'CEO' || user?.role === 'HR'
+
+  const openEditForm = () => {
+    if (!employee) {
+      return
+    }
+
+    setEditFormData(createEditFormData(employee))
+    setEditErrors({})
+    setIsEditing(true)
+  }
+
+  const handleEditFieldChange = (field: keyof EmployeeEditFormData, value: string | boolean) => {
+    setEditFormData(current => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (!id) {
+      return
+    }
+
+    setIsSaving(true)
+    setEditErrors({})
+
+    try {
+      const payload = {
+        first_name: editFormData.first_name,
+        last_name: editFormData.last_name,
+        position: editFormData.position,
+        phone: editFormData.phone,
+        department: editFormData.department ? Number(editFormData.department) : null,
+        is_active: editFormData.is_active,
+      }
+
+      const response = await fetch(`/api/employees/${id}/`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (response.status === 400) {
+        const data = await response.json()
+        setEditErrors(normalizeErrors(data))
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to update employee: ${response.status}`)
+      }
+
+      const updatedEmployee = (await response.json()) as Employee
+      setEmployee(updatedEmployee)
+      setEditFormData(createEditFormData(updatedEmployee))
+      setIsEditing(false)
+    } catch (saveError) {
+      console.error('Failed to update employee', saveError)
+      setEditErrors({ non_field_errors: ['Could not save employee. Please try again.'] })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const renderEditError = (field: keyof EmployeeEditFormData | 'non_field_errors') => {
+    const errors = editErrors[field]
+    if (!errors || errors.length === 0) {
+      return null
+    }
+
+    return <p className="text-[0.82rem] text-red-600">{errors[0]}</p>
+  }
 
   if (isLoading) {
     return <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">Loading employee details...</section>
@@ -109,14 +257,124 @@ const EmployeeDetailPage = () => {
           <h2 className="text-[1.18rem] font-semibold">{displayName}</h2>
           <p className="text-[0.92rem] text-[var(--muted-foreground)]">Employee details</p>
         </div>
-        <button
-          type="button"
-          className="border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold"
-          onClick={() => navigate(-1)}
-        >
-          Back to list
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canEditEmployee && (
+            <button
+              type="button"
+              className="border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold"
+              onClick={() => {
+                if (isEditing) {
+                  setIsEditing(false)
+                  setEditErrors({})
+                  return
+                }
+
+                openEditForm()
+              }}
+            >
+              {isEditing ? 'Close edit form' : 'Edit'}
+            </button>
+          )}
+          <button
+            type="button"
+            className="border border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)] rounded-[10px] px-3 py-[0.45rem] cursor-pointer font-semibold"
+            onClick={() => navigate(-1)}
+          >
+            Back to list
+          </button>
+        </div>
       </div>
+
+      {isEditing && (
+        <section className="border border-[var(--border)] rounded-xl p-4 bg-[var(--card)]">
+          <h3 className="text-[1rem] font-semibold mb-3">Edit employee</h3>
+
+          <form className="grid grid-cols-1 md:grid-cols-2 gap-3" onSubmit={handleEditSubmit}>
+            <input
+              className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]"
+              value={editFormData.first_name}
+              onChange={event => handleEditFieldChange('first_name', event.target.value)}
+              placeholder="First name"
+              required
+            />
+            <input
+              className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]"
+              value={editFormData.last_name}
+              onChange={event => handleEditFieldChange('last_name', event.target.value)}
+              placeholder="Last name"
+              required
+            />
+            <input
+              className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]"
+              value={editFormData.position}
+              onChange={event => handleEditFieldChange('position', event.target.value)}
+              placeholder="Position"
+              required
+            />
+            <input
+              className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]"
+              value={editFormData.phone}
+              onChange={event => handleEditFieldChange('phone', event.target.value)}
+              placeholder="Phone (+40...)"
+              required
+            />
+
+            <select
+              className="min-h-[40px] border border-[var(--border)] rounded-[10px] px-[0.7rem] bg-[var(--card)] text-[var(--card-foreground)]"
+              value={editFormData.department}
+              onChange={event => handleEditFieldChange('department', event.target.value)}
+            >
+              <option value="">No department</option>
+              {departments.map(department => (
+                <option key={department.id} value={String(department.id)}>
+                  {department.name}
+                </option>
+              ))}
+            </select>
+
+            <label className="inline-flex items-center gap-[0.45rem] text-[0.92rem] text-[var(--muted-foreground)]">
+              <input
+                className="w-4 h-4"
+                type="checkbox"
+                checked={editFormData.is_active}
+                onChange={event => handleEditFieldChange('is_active', event.target.checked)}
+              />
+              Active employee
+            </label>
+
+            <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+              {renderEditError('first_name')}
+              {renderEditError('last_name')}
+              {renderEditError('position')}
+              {renderEditError('phone')}
+              {renderEditError('department')}
+              {renderEditError('is_active')}
+              {renderEditError('non_field_errors')}
+            </div>
+
+            <div className="md:col-span-2 flex justify-end gap-2 mt-1">
+              <button
+                type="button"
+                className="min-h-[40px] border border-[var(--border)] rounded-[10px] bg-[var(--card)] text-[var(--card-foreground)] px-[0.9rem] font-semibold cursor-pointer"
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditErrors({})
+                  setEditFormData(createEditFormData(employee))
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="min-h-[40px] rounded-[10px] bg-[var(--primary)] text-[var(--primary-foreground)] px-[0.95rem] font-bold cursor-pointer inline-flex items-center justify-center border-none disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <article className="border border-[var(--border)] rounded-xl p-4">

@@ -82,7 +82,27 @@ class EmployeeListSerializer(serializers.ModelSerializer):
         }
 
 
-class EmployeeCreateSerializer(serializers.ModelSerializer):
+class EmployeeDepartmentRoleMixin:
+    @staticmethod
+    def get_role_for_department(department, default_role):
+        if department is None:
+            return default_role
+
+        department_slug = (getattr(department, 'slug', '') or '').strip().lower()
+        department_name = (getattr(department, 'name', '') or '').strip().lower()
+
+        if 'it' in department_slug or 'it' in department_name:
+            return User.Role.IT
+        if 'sales' in department_slug or 'sales' in department_name:
+            return User.Role.SALES
+        if 'hr' in department_slug or 'hr' in department_name:
+            return User.Role.HR
+        if 'inventory' in department_slug or 'inventory' in department_name:
+            return User.Role.INVENTORY
+        return default_role
+
+
+class EmployeeCreateSerializer(EmployeeDepartmentRoleMixin, serializers.ModelSerializer):
     email = serializers.EmailField(
         validators=[
             UniqueValidator(
@@ -143,19 +163,7 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         validated_data['full_time'] = employment_type == User.EmploymentType.FULL_TIME
 
         department = validated_data.get('department')
-        role = User.Role.SALES
-        if department is not None:
-            department_slug = (getattr(department, 'slug', '') or '').strip().lower()
-            department_name = (getattr(department, 'name', '') or '').strip().lower()
-
-            if 'it' in department_slug or 'it' in department_name:
-                role = User.Role.IT
-            elif 'sales' in department_slug or 'sales' in department_name:
-                role = User.Role.SALES
-            elif 'hr' in department_slug or 'hr' in department_name:
-                role = User.Role.HR
-            elif 'inventory' in department_slug or 'inventory' in department_name:
-                role = User.Role.INVENTORY
+        role = self.get_role_for_department(department, User.Role.SALES)
 
         if explicit_role:
             role = explicit_role
@@ -170,6 +178,40 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         user.set_unusable_password()
         user.save(update_fields=['password'])
         return user
+
+
+class EmployeeUpdateSerializer(EmployeeDepartmentRoleMixin, serializers.ModelSerializer):
+    department = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'first_name',
+            'last_name',
+            'position',
+            'department',
+            'phone',
+            'is_active',
+        ]
+
+    def validate_phone(self, value):
+        if value and not value.startswith('+40'):
+            raise serializers.ValidationError('Phone number must start with +40.')
+        return value
+
+    def update(self, instance, validated_data):
+        department = validated_data.get('department', instance.department)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.role = self.get_role_for_department(department, instance.role)
+        instance.save()
+        return instance
 
 
 class ProductSerializer(serializers.ModelSerializer):

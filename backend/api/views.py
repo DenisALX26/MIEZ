@@ -40,6 +40,7 @@ from .serializers import (
     DepartmentSerializer,
     EmployeeCreateSerializer,
     EmployeeListSerializer,
+    EmployeeUpdateSerializer,
     InvoiceDetailSerializer,
     InvoiceListSerializer,
     OrderCreateSerializer,
@@ -375,6 +376,16 @@ class EmployeeDetailView(APIView):
         employee = get_object_or_404(User.objects.select_related('department'), id=id)
         serializer = EmployeeListSerializer(employee)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can update employee details."}, status=status.HTTP_403_FORBIDDEN)
+
+        employee = get_object_or_404(User.objects.select_related('department'), id=id)
+        serializer = EmployeeUpdateSerializer(employee, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(EmployeeListSerializer(employee).data, status=status.HTTP_200_OK)
 
 
 class EmployeeStatsView(APIView):

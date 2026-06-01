@@ -694,6 +694,56 @@ class EmployeeDepartmentCrudTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('email', response.data['field_errors'])
 
+    def test_patch_employee_updates_department_and_role_for_hr_and_ceo(self):
+        employee = baker.make(
+            User,
+            role=User.Role.SALES,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Popescu',
+            phone='+40111111111',
+            position='Sales Representative',
+            is_active=True,
+        )
+        self.client.force_authenticate(user=self.hr_user)
+
+        response = self.client.patch(
+            f'/api/employees/{employee.id}/',
+            {
+                'first_name': 'Anca',
+                'last_name': 'Pop',
+                'position': 'IT Specialist',
+                'department': self.it_department.id,
+                'phone': '+40222222222',
+                'is_active': False,
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['first_name'], 'Anca')
+        self.assertEqual(response.data['last_name'], 'Pop')
+        self.assertEqual(response.data['position'], 'IT Specialist')
+        self.assertEqual(response.data['phone'], '+40222222222')
+        self.assertFalse(response.data['is_active'])
+        self.assertEqual(response.data['department']['id'], self.it_department.id)
+
+        employee.refresh_from_db()
+        self.assertEqual(employee.role, User.Role.IT)
+
+    def test_patch_employee_denied_for_non_hr_or_ceo(self):
+        employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
+        sales_user = baker.make(User, role=User.Role.SALES)
+        self.client.force_authenticate(user=sales_user)
+
+        response = self.client.patch(
+            f'/api/employees/{employee.id}/',
+            {'first_name': 'Blocked'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_get_employees_returns_paginated_list_with_correct_count(self):
         baker.make(User, _quantity=3, department=self.hr_department, role=User.Role.SALES)
         self.client.force_authenticate(user=self.ceo_user)
