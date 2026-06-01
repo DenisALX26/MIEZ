@@ -276,6 +276,49 @@ class TestHrContractsEndpoint(HrEndpointsTestCase):
         self.assertEqual(len(response.data['contracts']), 1)
         self.assertEqual(response.data['contracts'][0]['status'], 'EXPIRING')
 
+    def test_get_contract_detail_returns_full_contract_payload(self):
+        today = timezone.localdate()
+        employee = baker.make(
+            User,
+            role=User.Role.SALES,
+            department=self.hr_department,
+            first_name='Ana',
+            last_name='Pop',
+            username='ana.pop',
+        )
+        contract = baker.make(
+            Contract,
+            contract_number='CTR-301',
+            employee=employee,
+            department=self.hr_department,
+            type=Contract.Type.CONTRACTOR,
+            start_date=today - timedelta(days=10),
+            end_date=today + timedelta(days=20),
+            salary_ron=Decimal('7250.50'),
+        )
+
+        response = self.hr_client.get(f'/api/contracts/{contract.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['id'], contract.id)
+        self.assertEqual(response.data['employee_name'], 'Ana Pop')
+        self.assertEqual(response.data['department'], self.hr_department.name)
+        self.assertEqual(response.data['type'], Contract.Type.CONTRACTOR)
+        self.assertEqual(response.data['start_date'], contract.start_date.isoformat())
+        self.assertEqual(response.data['end_date'], contract.end_date.isoformat())
+        self.assertEqual(response.data['salary_ron'], '7250.50')
+        self.assertEqual(response.data['status'], 'EXPIRING')
+
+    def test_get_contract_detail_requires_hr_or_ceo(self):
+        employee = baker.make(User, role=User.Role.SALES, department=self.hr_department)
+        contract = baker.make(Contract, employee=employee, department=self.hr_department)
+        client = APITestCase.client_class()
+        client.force_authenticate(user=employee)
+
+        response = client.get(f'/api/contracts/{contract.id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class TestHrUpcomingEventsEndpoint(HrEndpointsTestCase):
     def test_get_upcoming_events_returns_chronological_db_driven_rows(self):
