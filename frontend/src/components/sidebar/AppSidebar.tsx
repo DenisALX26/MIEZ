@@ -50,10 +50,10 @@ const HR_NAV: NavItem[] = [
 
 const IT_NAV: NavItem[] = [
   { label: 'Dashboard', to: '/it/dashboard', icon: FiGrid, roles: ['IT'] },
+  { label: 'Assets', to: '/it/assets', icon: FiPackage, roles: ['IT'] },
   { label: 'All Tickets', to: '/it/tickets', icon: FiFileText, roles: ['IT'] },
   { label: 'My Assigned', to: '/it/assigned', icon: FiUsers, roles: ['IT'] },
   { label: 'Create Ticket', to: '/it/create', icon: FiUserPlus, roles: ['IT'] },
-  { label: 'Assets', to: '/it/assets', icon: FiMonitor, roles: ['IT'] },
 ]
 
 const SALES_NAV: NavItem[] = [
@@ -173,17 +173,21 @@ const AppSidebar = () => {
     >
       <div className="px-2 pt-4 pb-2 gap-3 flex flex-row items-center">
         <button
-          className="border border-[var(--sidebar-border)] bg-[var(--sidebar-accent)] text-[var(--sidebar-foreground)] w-12 h-12 rounded-[12px] cursor-pointer grid place-items-center"
+          className="border border-[var(--sidebar-border)] bg-[var(--sidebar-accent)] text-[var(--sidebar-foreground)] w-12 h-12 rounded-[12px] cursor-pointer grid place-items-center shrink-0"
           type="button"
           onClick={() => setIsCollapsed(current => !current)}
           aria-label="Toggle sidebar"
         >
           <FiMenu aria-hidden="true" />
         </button>
-        <div className="w-10 h-10 rounded-lg bg-[#D1353B] flex items-center justify-center">
-          <span className="text-white text-[17px]" style={{ fontWeight: 700 }}>M</span>
-        </div>
-        <div>M.I.E.Z</div>
+        {!isCollapsed && (
+          <>
+            <div className="w-10 h-10 rounded-lg bg-[#D1353B] flex items-center justify-center shrink-0">
+              <span className="text-white text-[17px]" style={{ fontWeight: 700 }}>M</span>
+            </div>
+            <div className="font-semibold tracking-wide">M.I.E.Z</div>
+          </>
+        )}
       </div>
 
       <nav className="flex-1 py-3 flex flex-col gap-1 px-2 overflow-y-auto" aria-label="Main navigation">

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
+import Markdown from "../common/Markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -342,13 +343,17 @@ const MiezAssistant = () => {
                   messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                       <div
-                        className={`max-w-[80%] text-sm px-3 py-2 rounded-xl whitespace-pre-wrap ${
+                        className={`max-w-[85%] text-sm px-3 py-2 rounded-xl ${
                           m.role === "user"
-                            ? "bg-gray-900 text-white rounded-br-sm"
+                            ? "bg-gray-900 text-white rounded-br-sm whitespace-pre-wrap"
                             : "bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm"
                         }`}
                       >
-                        {m.content}
+                        {m.role === "assistant" ? (
+                          <Markdown variant="chat">{m.content}</Markdown>
+                        ) : (
+                          m.content
+                        )}
                       </div>
                     </div>
                   ))

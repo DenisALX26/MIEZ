@@ -31,6 +31,28 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 HR_HEADCOUNT_WORKLOAD_WARNING_THRESHOLD = int(os.environ.get('HR_HEADCOUNT_WORKLOAD_WARNING_THRESHOLD', '5'))
 HR_HEADCOUNT_WORKLOAD_CRITICAL_THRESHOLD = int(os.environ.get('HR_HEADCOUNT_WORKLOAD_CRITICAL_THRESHOLD', '10'))
 
+# Email (SMTP) configuration
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.environ.get('SMTP_HOST', '')
+EMAIL_PORT = int(os.environ.get('SMTP_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('SMTP_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('SMTP_USE_TLS', 'True') == 'True'
+EMAIL_USE_SSL = os.environ.get('SMTP_USE_SSL', 'False') == 'True'
+EMAIL_TIMEOUT = int(os.environ.get('SMTP_TIMEOUT', '10'))
+
+_email_from_address = os.environ.get('EMAIL_FROM', EMAIL_HOST_USER)
+_email_from_name = os.environ.get('EMAIL_FROM_NAME', '')
+DEFAULT_FROM_EMAIL = (
+    f'{_email_from_name} <{_email_from_address}>'
+    if _email_from_name and _email_from_address
+    else _email_from_address
+)
+SERVER_EMAIL = _email_from_address
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
@@ -56,7 +78,7 @@ INSTALLED_APPS = [
 
 CRONJOBS = [
     # Swap 'generate_hr_report' ↔ 'run_hr_agent' to toggle DB-only vs AI mode
-    ('0 6 * * 1', 'django.core.management.call_command', ['generate_hr_report']),
+    ('0 6 * * 1', 'django.core.management.call_command', ['run_hr_agent']),
 ]
 
 MIDDLEWARE = [

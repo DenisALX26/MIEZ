@@ -1,6 +1,9 @@
 import React from 'react'
+import { FiUsers, FiCalendar, FiBriefcase, FiTrendingUp, FiZap, FiCheckCircle, FiAlertTriangle } from 'react-icons/fi'
+import { CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar } from 'recharts'
 import { useAuth } from '../../context/AuthContext'
 import UpcomingEventsWidget from './UpcomingEventsWidget'
+import Markdown from '../common/Markdown'
 
 type HrKpiResponse = {
   total_employees: number
@@ -65,19 +68,13 @@ type Employee = {
   start_date: string
 }
 
-const UsersIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-  </svg>
-)
-
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('ro-RO')
 
-const roleBadge: Record<string, string> = {
-  CEO:       'bg-rose-50 text-rose-700 border border-rose-200',
-  HR:        'bg-purple-50 text-purple-700 border border-purple-200',
-  IT:        'bg-blue-50 text-blue-700 border border-blue-200',
+const roleBadge: Record<string, string> =  {
+  CEO:       'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20',
+  HR:        'bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]',
+  IT:        'bg-[var(--input-background)] text-[var(--foreground)] border border-[var(--border)]',
   SALES:     'bg-emerald-50 text-emerald-700 border border-emerald-200',
   INVENTORY: 'bg-amber-50 text-amber-700 border border-amber-200',
 }
@@ -235,10 +232,10 @@ const HrDashboard = () => {
   )
 
   const kpiCards = [
-    { title: 'Total Employees',   value: kpis?.total_employees ?? 0,         sub: `+${kpis?.new_hires_this_month ?? 0} this month`,             color: 'text-blue-600',   bg: 'bg-blue-50' },
-    { title: 'Leave Requests',    value: kpis?.leave_requests_this_month ?? 0, sub: `${kpis?.pending_leave_requests ?? 0} pending approval`,     color: 'text-orange-600', bg: 'bg-orange-50' },
-    { title: 'Full-Time',         value: kpis?.full_time_employees ?? 0,      sub: `${kpis?.non_full_time_employees ?? 0} non full-time`,         color: 'text-purple-600', bg: 'bg-purple-50' },
-    { title: 'Retention Rate',    value: `${(kpis?.retention_rate ?? 0).toFixed(1)}%`, sub: `${kpis?.active_employees ?? 0}/${kpis?.total_employees ?? 0} active`, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { title: 'Total Employees', value: kpis?.total_employees ?? 0, sub: `+${kpis?.new_hires_this_month ?? 0} this month`, Icon: FiUsers },
+    { title: 'Leave Requests', value: kpis?.leave_requests_this_month ?? 0, sub: `${kpis?.pending_leave_requests ?? 0} pending approval`, Icon: FiCalendar },
+    { title: 'Full-Time', value: kpis?.full_time_employees ?? 0, sub: `${kpis?.non_full_time_employees ?? 0} non full-time`, Icon: FiBriefcase },
+    { title: 'Retention Rate', value: `${(kpis?.retention_rate ?? 0).toFixed(1)}%`, sub: `${kpis?.active_employees ?? 0}/${kpis?.total_employees ?? 0} active`, Icon: FiTrendingUp },
   ]
 
   const formatReportDate = (iso: string) =>
@@ -248,18 +245,21 @@ const HrDashboard = () => {
     <div className="space-y-6">
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-[var(--border)]">
+      <div className="flex gap-6 border-b border-[var(--border)]">
         {(['overview', 'agent-reports'] as Tab[]).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors cursor-pointer ${
+            className={`relative px-1 pb-3 text-sm font-medium transition-colors cursor-pointer ${
               activeTab === tab
-                ? 'bg-[var(--card)] border border-b-white border-[var(--border)] -mb-px text-gray-900'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'text-[var(--foreground)]'
+                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]'
             }`}
           >
             {tab === 'overview' ? 'Overview' : 'Agent Reports'}
+            {activeTab === tab && (
+              <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[var(--primary)] rounded-full" />
+            )}
           </button>
         ))}
       </div>
@@ -268,20 +268,18 @@ const HrDashboard = () => {
         <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-semibold">HR Agent Reports</h2>
-              <p className="text-sm text-black/60 mt-1">Weekly digests generated by the autonomous HR Insights Agent.</p>
-              {triggerError && <p className="text-sm text-red-600 mt-1">{triggerError}</p>}
+              <h2 className="text-[1.05rem] font-semibold tracking-tight">HR Agent Reports</h2>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">Weekly digests generated by the autonomous HR Insights Agent.</p>
+              {triggerError && <p className="text-sm text-[var(--destructive)] mt-1">{triggerError}</p>}
             </div>
             {(isCeo || isHr) && (
               <button
                 onClick={triggerAgent}
                 disabled={isPolling}
-                className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors flex items-center gap-2 ${
-                  isPolling ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-                }`}
+                className="shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-semibold bg-[var(--primary)] text-[var(--primary-foreground)] transition-opacity hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isPolling && (
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -291,33 +289,31 @@ const HrDashboard = () => {
             )}
           </div>
           {loadingReports ? (
-            <p className="text-sm text-black/60">Loading reports…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Loading reports…</p>
           ) : agentReports.length === 0 ? (
-            <p className="text-sm text-black/60">No HR agent reports yet. The agent runs every Monday at 06:00.</p>
+            <p className="text-sm text-[var(--muted-foreground)]">No HR agent reports yet. The agent runs every Monday at 06:00.</p>
           ) : (
             <ul className="space-y-3">
               {agentReports.map(report => (
-                <li key={report.id} className="rounded-xl border border-[var(--border)] bg-white overflow-hidden">
+                <li key={report.id} className="rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
                   <button
                     onClick={() => setExpandedReport(expandedReport === report.id ? null : report.id)}
-                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-[var(--input-background)] transition-colors cursor-pointer"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-gray-800">{report.name}</p>
-                      <p className="text-xs text-black/50 mt-0.5">
+                      <p className="text-sm font-semibold">{report.name}</p>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-0.5">
                         {report.period} · Generated {formatReportDate(report.generated_at)}
                         {report.digest_data?.tool_calls != null && ` · ${report.digest_data.tool_calls} tool calls`}
                       </p>
                     </div>
-                    <span className="text-gray-400 text-sm ml-4 shrink-0">
+                    <span className="text-[var(--muted-foreground)] text-sm ml-4 shrink-0">
                       {expandedReport === report.id ? '▲' : '▼'}
                     </span>
                   </button>
                   {expandedReport === report.id && report.digest_data?.content && (
-                    <div className="px-4 pb-4 pt-0 border-t border-[var(--border)]">
-                      <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed pt-3">
-                        {report.digest_data.content}
-                      </pre>
+                    <div className="px-4 pb-4 pt-3 border-t border-[var(--border)]">
+                      <Markdown>{report.digest_data.content}</Markdown>
                     </div>
                   )}
                 </li>
@@ -334,18 +330,20 @@ const HrDashboard = () => {
       {(isCeo || isHr) && (
         <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-lg font-semibold text-indigo-900 flex items-center gap-2">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                Weekly HR Insights
-              </h2>
-              <p className="text-sm text-black/60 mt-0.5">
-                {latestDigest ? `Generated ${formatReportDate(latestDigest.generated_at)}` : 'Loading...'}
-              </p>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                <FiZap size={18} />
+              </div>
+              <div>
+                <h2 className="text-[1.05rem] font-semibold tracking-tight">Weekly HR Insights</h2>
+                <p className="text-sm text-[var(--muted-foreground)] mt-0.5">
+                  {latestDigest ? `Generated ${formatReportDate(latestDigest.generated_at)}` : 'Loading...'}
+                </p>
+              </div>
             </div>
-            <button 
-              onClick={() => setActiveTab('agent-reports')} 
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            <button
+              onClick={() => setActiveTab('agent-reports')}
+              className="text-sm text-[var(--primary)] hover:opacity-80 font-medium transition-opacity"
             >
               View full report &rarr;
             </button>
@@ -353,22 +351,22 @@ const HrDashboard = () => {
 
           {latestDigest?.digest_data ? (
             <div className="space-y-4">
-              <p className="text-sm font-medium text-gray-800 bg-indigo-50 border border-indigo-100 rounded-lg p-3">
+              <p className="text-sm font-medium bg-[var(--input-background)] border border-[var(--border)] rounded-lg p-3">
                 {latestDigest.digest_data.summary_line || 'No summary available.'}
               </p>
-              
+
               {(() => {
                 const data = latestDigest.digest_data as any;
-                const critical = Array.isArray(data.critical) ? data.critical : [];
-                const warning = Array.isArray(data.warning) ? data.warning : [];
-                
+                const critical: any[] = Array.isArray(data.critical) ? data.critical : [];
+                const warning: any[] = Array.isArray(data.warning) ? data.warning : [];
+
                 if (critical.length === 0 && warning.length === 0) {
                   return (
                     <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                        <FiCheckCircle size={18} />
                       </div>
-                      <p className="text-sm font-semibold text-emerald-800">No issues detected this week ✓</p>
+                      <p className="text-sm font-semibold text-emerald-800">No issues detected this week</p>
                     </div>
                   );
                 }
@@ -383,14 +381,26 @@ const HrDashboard = () => {
                     {itemsToShow.map((insight, idx) => {
                       const isCritical = insight.level === 'CRITICAL';
                       return (
-                        <div key={idx} className={`rounded-xl border bg-white p-4 flex flex-col border-l-4 shadow-sm ${isCritical ? 'border-l-rose-500 border-rose-200' : 'border-l-amber-500 border-amber-200'}`}>
-                           <h4 className={`text-[11px] font-bold ${isCritical ? 'text-rose-700' : 'text-amber-700'} uppercase tracking-wider mb-1.5`}>{insight.level}</h4>
-                           <h3 className="text-sm font-semibold text-gray-900 mb-1.5 leading-tight">{insight.title}</h3>
-                           <p className="text-sm text-gray-600 mb-3 flex-1">{insight.description}</p>
-                           <div className="mt-auto bg-gray-50/80 p-2.5 rounded border border-gray-100 text-xs">
-                             <span className="font-semibold text-gray-700 block mb-0.5">Suggested Action:</span>
-                             <span className="text-gray-600">{insight.suggested_action}</span>
-                           </div>
+                        <div
+                          key={idx}
+                          className={`rounded-xl border bg-[var(--card)] p-4 flex flex-col border-l-4 ${
+                            isCritical ? 'border-l-rose-500 border-rose-200' : 'border-l-amber-500 border-amber-200'
+                          }`}
+                        >
+                          <h4
+                            className={`text-[11px] font-bold uppercase tracking-[0.14em] mb-1.5 inline-flex items-center gap-1.5 ${
+                              isCritical ? 'text-rose-700' : 'text-amber-700'
+                            }`}
+                          >
+                            <FiAlertTriangle size={12} />
+                            {insight.level}
+                          </h4>
+                          <h3 className="text-sm font-semibold mb-1.5 leading-tight">{insight.title}</h3>
+                          <p className="text-sm text-[var(--muted-foreground)] mb-3 flex-1">{insight.description}</p>
+                          <div className="mt-auto bg-[var(--input-background)] p-2.5 rounded border border-[var(--border)] text-xs">
+                            <span className="font-semibold block mb-0.5">Suggested Action:</span>
+                            <span className="text-[var(--muted-foreground)]">{insight.suggested_action}</span>
+                          </div>
                         </div>
                       )
                     })}
@@ -399,29 +409,40 @@ const HrDashboard = () => {
               })()}
             </div>
           ) : (
-             <p className="text-sm text-black/50 italic py-2">No recent insights available.</p>
+            <p className="text-sm text-[var(--muted-foreground)] italic py-2">No recent insights available.</p>
           )}
         </section>
       )}
 
       {/* KPI Cards */}
       <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
-        <h2 className="text-lg font-semibold">HR Dashboard</h2>
-        <p className="text-sm text-black/60 mt-1">Human resources metrics and headcount overview.</p>
+        <h2 className="text-[1.05rem] font-semibold tracking-tight">HR Dashboard</h2>
+        <p className="text-sm text-[var(--muted-foreground)] mt-1">Human resources metrics and headcount overview.</p>
 
         {loadingKpis ? (
-          <p className="text-sm text-black/60 mt-3">Loading KPI data…</p>
+          <p className="text-sm text-[var(--muted-foreground)] mt-3">Loading KPI data…</p>
         ) : kpisError ? (
-          <p className="text-sm text-red-600 mt-3">{kpisError}</p>
+          <p className="text-sm text-[var(--destructive)] mt-3">{kpisError}</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-            {kpiCards.map(card => (
-              <div key={card.title} className="rounded-xl border border-[var(--border)] bg-white p-4">
-                <p className="text-xs uppercase tracking-wide text-black/50">{card.title}</p>
-                <p className="text-2xl font-semibold mt-1">{card.value}</p>
-                <p className="text-xs mt-1 text-black/60">{card.sub}</p>
-              </div>
-            ))}
+            {kpiCards.map(card => {
+              const Icon = card.Icon
+              return (
+                <article
+                  key={card.title}
+                  className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-start justify-between gap-3"
+                >
+                  <div className="flex flex-col">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{card.title}</p>
+                    <p className="text-2xl font-semibold mt-1 tracking-tight">{card.value}</p>
+                    <p className="text-xs text-[var(--muted-foreground)] mt-1">{card.sub}</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                    <Icon size={18} />
+                  </div>
+                </article>
+              )
+            })}
           </div>
         )}
       </section>
@@ -433,40 +454,40 @@ const HrDashboard = () => {
         <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold">Department Overview</h3>
-              <p className="text-sm text-black/60 mt-1">Headcount and 6-week attendance rate by department.</p>
+              <h3 className="text-[1.05rem] font-semibold tracking-tight">Department Overview</h3>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">Headcount and 6-week attendance rate by department.</p>
             </div>
           </div>
 
           {loadingSummary ? (
-            <p className="text-sm text-black/60 mt-3">Loading summary…</p>
+            <p className="text-sm text-[var(--muted-foreground)] mt-3">Loading summary…</p>
           ) : (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-5 mt-4">
 
               {/* Department headcount table */}
-              <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-white overflow-hidden">
-                <p className="text-xs uppercase tracking-wide text-black/50 px-4 pt-4 pb-2">Headcount by department</p>
+              <div className="xl:col-span-2 rounded-xl border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium px-4 pt-4 pb-2">Headcount by department</p>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-t border-[var(--border)]">
+                    <tr className="border-t border-[var(--border)] bg-[var(--input-background)]">
                       {['Department', 'Total', 'Active', 'On Leave', 'Utilisation'].map(h => (
-                        <th key={h} className="text-left px-4 py-2 text-xs font-medium text-black/50">{h}</th>
+                        <th key={h} className="text-left px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {(ceoSummary?.department_headcount ?? []).map(row => (
-                      <tr key={row.department} className="border-t border-[var(--border)] hover:bg-gray-50">
+                      <tr key={row.department} className="border-t border-[var(--border)] hover:bg-[var(--input-background)] transition-colors">
                         <td className="px-4 py-2.5 font-medium">{row.department}</td>
                         <td className="px-4 py-2.5">{row.total}</td>
-                        <td className="px-4 py-2.5 text-emerald-700">{row.active}</td>
-                        <td className="px-4 py-2.5 text-orange-600">{row.on_leave}</td>
+                        <td className="px-4 py-2.5 text-emerald-700 font-medium">{row.active}</td>
+                        <td className="px-4 py-2.5 text-amber-700 font-medium">{row.on_leave}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-gray-100 rounded-full h-1.5">
+                            <div className="flex-1 bg-[var(--input-background)] rounded-full h-1.5 overflow-hidden">
                               <div
-                                className="bg-blue-500 h-1.5 rounded-full"
-                                style={{ width: `${row.utilisation_pct}%` }}
+                                className="h-1.5 rounded-full bg-[var(--primary)]"
+                                style={{ width: `${Math.max(0, Math.min(100, row.utilisation_pct))}%` }}
                               />
                             </div>
                             <span className="text-xs font-semibold w-10 text-right">{row.utilisation_pct}%</span>
@@ -479,23 +500,27 @@ const HrDashboard = () => {
               </div>
 
               {/* Attendance rate 6-week trend */}
-              <div className="rounded-xl border border-[var(--border)] bg-white p-4">
-                <p className="text-xs uppercase tracking-wide text-black/50 mb-3">Attendance rate — last 6 weeks</p>
-                <div className="h-44 flex items-end gap-1.5">
-                  {(ceoSummary?.attendance_rate_weeks ?? []).map(week => {
-                    const height = (week.attendance_rate / maxAttendance) * 100
-                    const label = new Date(week.week_start).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-                    return (
-                      <div key={week.week_start} className="flex-1 flex flex-col items-center justify-end h-full">
-                        <span className="text-[9px] text-black/50 mb-1">{week.attendance_rate}%</span>
-                        <div
-                          className="w-full rounded-t-md bg-purple-400/80 border border-purple-500/20"
-                          style={{ height: `${Math.max(height, 4)}%` }}
-                        />
-                        <span className="text-[9px] text-black/50 mt-1 text-center">{label}</span>
-                      </div>
-                    )
-                  })}
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+                <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium mb-3">Attendance rate — last 6 weeks</p>
+                <div className="h-44">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={(ceoSummary?.attendance_rate_weeks ?? []).map(week => ({
+                        label: new Date(week.week_start).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+                        attendance: week.attendance_rate,
+                      }))}
+                      margin={{ top: 8, right: 4, left: -16, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0, Math.max(maxAttendance, 100)]} tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }} axisLine={false} tickLine={false} unit="%" />
+                      <Tooltip
+                        formatter={(value: number) => [`${value}%`, 'Attendance']}
+                        contentStyle={{ borderRadius: 8, border: '1px solid var(--border)' }}
+                      />
+                      <Bar dataKey="attendance" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
             </div>
@@ -507,53 +532,55 @@ const HrDashboard = () => {
       {isCeo && (
         <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <UsersIcon />
-                All Employees
-              </h3>
-              <p className="text-sm text-black/60 mt-1">Full roster across all departments.</p>
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+                <FiUsers size={18} />
+              </div>
+              <div>
+                <h3 className="text-[1.05rem] font-semibold tracking-tight">All Employees</h3>
+                <p className="text-sm text-[var(--muted-foreground)] mt-1">Full roster across all departments.</p>
+              </div>
             </div>
-            <span className="text-sm text-black/50">{filteredEmployees.length} of {employees.length}</span>
+            <span className="text-sm text-[var(--muted-foreground)]">{filteredEmployees.length} of {employees.length}</span>
           </div>
 
           <input
             value={empSearch}
             onChange={e => setEmpSearch(e.target.value)}
             placeholder="Search by name, position, or role…"
-            className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+            className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-sm"
           />
 
           {loadingEmployees ? (
-            <p className="text-sm text-black/60">Loading employees…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Loading employees…</p>
           ) : employeesError ? (
-            <p className="text-sm text-red-600">{employeesError}</p>
+            <p className="text-sm text-[var(--destructive)]">{employeesError}</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-1.5">
+            <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+              <table className="min-w-full text-sm">
                 <thead>
-                  <tr>
+                  <tr className="bg-[var(--input-background)]">
                     {['Name', 'Position', 'Department', 'Role', 'Type', 'Start Date'].map(h => (
-                      <th key={h} className="text-left text-xs uppercase tracking-wide text-black/50 px-3">{h}</th>
+                      <th key={h} className="text-left text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-semibold px-4 py-2.5">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredEmployees.map(emp => (
-                    <tr key={emp.id} className="bg-white border border-[var(--border)]">
-                      <td className="px-3 py-2.5">
+                    <tr key={emp.id} className="border-t border-[var(--border)] hover:bg-[var(--input-background)] transition-colors">
+                      <td className="px-4 py-2.5">
                         <p className="text-sm font-semibold">{emp.first_name} {emp.last_name}</p>
-                        <p className="text-xs text-black/50">{emp.email}</p>
+                        <p className="text-xs text-[var(--muted-foreground)]">{emp.email}</p>
                       </td>
-                      <td className="px-3 py-2.5 text-sm">{emp.position || '—'}</td>
-                      <td className="px-3 py-2.5 text-sm">{emp.department?.name ?? '—'}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleBadge[emp.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <td className="px-4 py-2.5 text-sm">{emp.position || '—'}</td>
+                      <td className="px-4 py-2.5 text-sm">{emp.department?.name ?? '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${roleBadge[emp.role] ?? 'bg-[var(--input-background)] text-[var(--muted-foreground)] border border-[var(--border)]'}`}>
                           {emp.role}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-sm text-black/60">{emp.employment_type?.replace('_', ' ') ?? '—'}</td>
-                      <td className="px-3 py-2.5 text-sm text-black/60">{formatDate(emp.start_date)}</td>
+                      <td className="px-4 py-2.5 text-sm text-[var(--muted-foreground)]">{emp.employment_type?.replace('_', ' ') ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-sm text-[var(--muted-foreground)]">{formatDate(emp.start_date)}</td>
                     </tr>
                   ))}
                 </tbody>

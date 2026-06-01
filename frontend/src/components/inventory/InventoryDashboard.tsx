@@ -77,38 +77,38 @@ function LogisticsOverview({ data }: { data: FlowData }) {
     .map(([name, pd]) => ({ name, ...pd }))
     .sort((a, b) => (b.totalIn + b.totalOut) - (a.totalIn + a.totalOut));
 
-  const renderTraceCard = (title: string, icon: any, list: any[], colorClass: string, bgClass: string, mode: 'in' | 'out' | 'prod') => {
+  const renderTraceCard = (title: string, icon: any, list: any[], accentText: string, accentBg: string, mode: 'in' | 'out' | 'prod') => {
     const Icon = icon;
     return (
-      <div className="flex-1 bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm flex flex-col max-h-[600px]">
-        <div className={`px-5 py-4 border-b border-gray-100 flex items-center gap-3 shrink-0 ${bgClass}`}>
-          <div className={`p-2 rounded-lg bg-white shadow-sm ${colorClass}`}>
+      <div className="flex-1 bg-[var(--card)] rounded-2xl border border-[var(--border)] overflow-hidden flex flex-col max-h-[600px]">
+        <div className="px-5 py-4 border-b border-[var(--border)] flex items-center gap-3 shrink-0 bg-[var(--input-background)]">
+          <div className={`w-10 h-10 rounded-xl bg-[var(--card)] border border-[var(--border)] grid place-items-center ${accentText}`}>
             <Icon size={18} />
           </div>
           <div>
-            <h3 className={`text-sm font-bold uppercase tracking-widest ${colorClass}`}>{title}</h3>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">{list.length} active records</p>
+            <h3 className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)]">{title}</h3>
+            <p className="text-sm font-semibold mt-0.5">{list.length} active records</p>
           </div>
         </div>
-        
-        <div className="divide-y divide-gray-100 overflow-y-auto flex-1 slim-scroll">
+
+        <div className="divide-y divide-[var(--border)] overflow-y-auto flex-1 slim-scroll">
           {list.length > 0 ? list.map((item, i) => (
-            <div key={i} className="p-5 hover:bg-gray-50 transition-colors">
+            <div key={i} className="p-4 hover:bg-[var(--input-background)] transition-colors">
               {mode !== 'prod' ? (
                 <>
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="text-sm font-bold text-gray-800">{mode === 'out' ? item.destination : item.supplier}</h4>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${bgClass} ${colorClass}`}>
+                  <div className="flex justify-between items-start mb-2.5 gap-3">
+                    <h4 className="text-sm font-semibold">{mode === 'out' ? item.destination : item.supplier}</h4>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${accentBg} ${accentText} border border-current/20`}>
                       {item.volume.toLocaleString()} units
                     </span>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                  <div className="bg-[var(--input-background)] rounded-lg p-2.5 border border-[var(--border)]">
+                    <p className="text-[10px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] mb-1.5">
                       {mode === 'out' ? 'Items Sent' : 'Items Received'}
                     </p>
-                    <ul className="space-y-1.5">
+                    <ul className="space-y-1">
                       {item.details.map((detail: string, j: number) => (
-                        <li key={j} className="text-xs text-gray-600 font-medium flex items-start gap-2">
+                        <li key={j} className="text-xs text-[var(--muted-foreground)] flex items-start gap-2">
                           <span className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${mode === 'out' ? 'bg-rose-400' : 'bg-emerald-400'}`} />
                           {detail}
                         </li>
@@ -118,32 +118,31 @@ function LogisticsOverview({ data }: { data: FlowData }) {
                 </>
               ) : (
                 <>
-                  {/* Product Mode */}
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="text-sm font-bold text-gray-800">{item.name}</h4>
-                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${bgClass} ${colorClass}`}>
-                      {(item.totalIn + item.totalOut).toLocaleString()} total moved
+                  <div className="flex justify-between items-start mb-2.5 gap-3">
+                    <h4 className="text-sm font-semibold">{item.name}</h4>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${accentBg} ${accentText} border border-current/20`}>
+                      {(item.totalIn + item.totalOut).toLocaleString()} moved
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="bg-emerald-50/50 rounded-lg p-2 border border-emerald-100/50">
-                      <p className="text-[9px] font-bold text-emerald-600 uppercase mb-1">In ({item.totalIn})</p>
+                    <div className="bg-emerald-50 rounded-lg p-2 border border-emerald-200/60">
+                      <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-[0.14em] mb-1">In ({item.totalIn})</p>
                       {item.inbound.length > 0 ? item.inbound.map((inc: any, j: number) => (
-                        <p key={j} className="text-[10px] text-gray-600 truncate" title={inc.s}>• {inc.s} ({inc.v})</p>
-                      )) : <p className="text-[10px] text-gray-400 italic">None</p>}
+                        <p key={j} className="text-[11px] text-[var(--muted-foreground)] truncate" title={inc.s}>• {inc.s} ({inc.v})</p>
+                      )) : <p className="text-[11px] text-[var(--muted-foreground)] italic">None</p>}
                     </div>
-                    <div className="bg-rose-50/50 rounded-lg p-2 border border-rose-100/50">
-                      <p className="text-[9px] font-bold text-rose-600 uppercase mb-1">Out ({item.totalOut})</p>
+                    <div className="bg-rose-50 rounded-lg p-2 border border-rose-200/60">
+                      <p className="text-[10px] font-semibold text-rose-700 uppercase tracking-[0.14em] mb-1">Out ({item.totalOut})</p>
                       {item.outbound.length > 0 ? item.outbound.map((outc: any, j: number) => (
-                        <p key={j} className="text-[10px] text-gray-600 truncate" title={outc.d}>• {outc.d} ({outc.v})</p>
-                      )) : <p className="text-[10px] text-gray-400 italic">None</p>}
+                        <p key={j} className="text-[11px] text-[var(--muted-foreground)] truncate" title={outc.d}>• {outc.d} ({outc.v})</p>
+                      )) : <p className="text-[11px] text-[var(--muted-foreground)] italic">None</p>}
                     </div>
                   </div>
                 </>
               )}
             </div>
           )) : (
-            <div className="text-sm text-gray-400 py-8 text-center italic">No movement data available</div>
+            <div className="text-sm text-[var(--muted-foreground)] py-8 text-center italic">No movement data available</div>
           )}
         </div>
       </div>
@@ -160,39 +159,35 @@ function LogisticsOverview({ data }: { data: FlowData }) {
           background: transparent;
         }
         .slim-scroll::-webkit-scrollbar-thumb {
-          background-color: #e2e8f0;
+          background-color: var(--border);
           border-radius: 20px;
-        }
-        .slim-scroll:hover::-webkit-scrollbar-thumb {
-          background-color: #cbd5e1;
         }
         .slim-scroll {
           scrollbar-width: thin;
-          scrollbar-color: #e2e8f0 transparent;
+          scrollbar-color: var(--border) transparent;
         }
       `}</style>
       <div className="flex flex-col lg:flex-row gap-4 h-[600px]">
-        {renderTraceCard('Suppliers Trace', FiTruck, inboundList, 'text-emerald-600', 'bg-emerald-50', 'in')}
-        {renderTraceCard('Product Trace', FiPackage, productList, 'text-violet-600', 'bg-violet-50', 'prod')}
-        {renderTraceCard('Destinations Trace', FiArrowRight, outboundList, 'text-rose-600', 'bg-rose-50', 'out')}
+        {renderTraceCard('Suppliers Trace', FiTruck, inboundList, 'text-emerald-700', 'bg-emerald-50', 'in')}
+        {renderTraceCard('Product Trace', FiPackage, productList, 'text-[var(--primary)]', 'bg-[var(--primary)]/10', 'prod')}
+        {renderTraceCard('Destinations Trace', FiArrowRight, outboundList, 'text-rose-700', 'bg-rose-50', 'out')}
       </div>
     </div>
   );
 }
 
 // --- UI COMPONENTS ---
-const KPICard = ({ label, value, icon: Icon, iconColor }: any) => (
-  <div className="p-5 rounded-xl border border-gray-200 bg-white hover:border-gray-300 transition-colors">
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
-      </div>
-      <div className={`p-3 rounded-xl bg-gray-50 border border-gray-100 ${iconColor}`}>
-        <Icon size={24} strokeWidth={2.5} />
-      </div>
+const KPICard = ({ label, value, sub, icon: Icon }: any) => (
+  <article className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-4 flex items-start justify-between gap-3">
+    <div className="flex flex-col">
+      <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium">{label}</p>
+      <p className="text-2xl font-semibold mt-1 tracking-tight">{value}</p>
+      {sub && <p className="text-xs text-[var(--muted-foreground)] mt-1">{sub}</p>}
     </div>
-  </div>
+    <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+      <Icon size={18} />
+    </div>
+  </article>
 );
 
 const StatusBadge = ({ status }: { status: string }) => {
@@ -205,8 +200,8 @@ const StatusBadge = ({ status }: { status: string }) => {
   const icons: Record<string, any> = { OK: FiCheck, LOW: FiAlertTriangle, OUT: FiXCircle };
   const Icon = icons[status] || FiBox;
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${styles[status] ?? "bg-gray-50 text-gray-600"}`}>
-      <Icon size={12} strokeWidth={3} />
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${styles[status] ?? "bg-[var(--input-background)] text-[var(--muted-foreground)] border-[var(--border)]"}`}>
+      <Icon size={12} />
       {label[status] ?? status}
     </span>
   );
@@ -216,50 +211,50 @@ const DetailDrawer = ({ open, onClose, product }: { open: boolean, onClose: () =
   return (
     <>
       <div
-        className={`fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
       />
-      <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white border-l border-gray-200 z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
+      <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-[var(--card)] border-l border-[var(--border)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${open ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between sticky top-0 z-10 bg-[var(--card)]">
           <div>
-            <h2 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">{product?.name}</h2>
-            <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
-              <span className="bg-gray-100 px-2 py-0.5 rounded text-xs font-mono">{product?.sku}</span>
-              • {product?.category}
+            <h2 className="text-[1.05rem] font-semibold tracking-tight">{product?.name}</h2>
+            <p className="text-sm text-[var(--muted-foreground)] flex items-center gap-2 mt-1">
+              <span className="bg-[var(--input-background)] px-2 py-0.5 rounded text-xs font-mono">{product?.sku}</span>
+              · {product?.category}
             </p>
           </div>
-          <button onClick={onClose} className="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-            <FiX size={20} />
+          <button onClick={onClose} className="p-2 bg-[var(--input-background)] hover:bg-[var(--border)] rounded-full text-[var(--muted-foreground)] transition-colors">
+            <FiX size={18} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-white">
+        <div className="flex-1 overflow-y-auto p-5">
           {product && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
-                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Current Stock</p>
-                  <p className="text-2xl font-bold text-gray-900">{product.stock_count}</p>
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--input-background)]">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium mb-1">Current Stock</p>
+                  <p className="text-2xl font-semibold tracking-tight">{product.stock_count}</p>
                 </div>
-                <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50">
-                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</p>
+                <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--input-background)]">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] font-medium mb-1">Status</p>
                   <div className="mt-2"><StatusBadge status={product.status} /></div>
                 </div>
               </div>
 
-              <div className="space-y-3 py-4 border-t border-b border-gray-100">
+              <div className="space-y-2.5 py-4 border-t border-b border-[var(--border)]">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Minimum Threshold</span>
-                  <span className="text-sm font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">{product.min_stock} units</span>
+                  <span className="text-sm text-[var(--muted-foreground)]">Minimum Threshold</span>
+                  <span className="text-sm font-semibold">{product.min_stock} units</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-gray-500 font-medium">Unit Price</span>
-                  <span className="text-sm font-bold text-gray-900">{(product.unit_price_ron || 0).toFixed(2)} RON</span>
+                  <span className="text-sm text-[var(--muted-foreground)]">Unit Price</span>
+                  <span className="text-sm font-semibold">{(product.unit_price_ron || 0).toFixed(2)} RON</span>
                 </div>
                 {product.status !== 'OK' && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-500 font-medium">Shortfall</span>
-                    <span className="text-sm font-bold text-rose-700 bg-rose-50 px-2 py-1 rounded">{product.shortfall} units</span>
+                    <span className="text-sm text-[var(--muted-foreground)]">Shortfall</span>
+                    <span className="text-sm font-semibold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">{product.shortfall} units</span>
                   </div>
                 )}
               </div>
@@ -331,102 +326,99 @@ export default function InventoryDashboard() {
   }, []);
 
   return (
-    <div className="max-w-[1400px] mx-auto space-y-8 pb-10">
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-gray-200 pb-6">
-        <div>
-          <h1 className="text-[1.18rem] font-semibold text-gray-900 tracking-tight">Intelligence Center</h1>
-          <p className="text-gray-500 mt-1 font-medium">Real-time inventory metrics and forecasting.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">Live Sync Active</span>
-        </div>
-      </div>
+    <div className="space-y-6">
 
       {/* KPI GRID */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <KPICard
-          label="Total Products"
-          value={loading ? "..." : (kpis?.total_products ?? 0)}
-          icon={FiBox}
-          iconColor="text-blue-600"
-        />
-        <KPICard
-          label="Low Stock Items"
-          value={loading ? "..." : (kpis?.low_stock_count ?? 0)}
-          icon={FiAlertTriangle}
-          iconColor="text-amber-600"
-        />
-        <KPICard
-          label="Out of Stock"
-          value={loading ? "..." : (kpis?.out_of_stock_count ?? 0)}
-          icon={FiXCircle}
-          iconColor="text-rose-600"
-        />
-        <KPICard
-          label="Deliveries Expected Today"
-          value={loading ? "..." : (kpis?.deliveries_today ?? 0)}
-          icon={FiTruck}
-          iconColor="text-emerald-600"
-        />
-      </div>
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+        <header className="mb-4">
+          <h2 className="text-[1.05rem] font-semibold tracking-tight">Inventory Dashboard</h2>
+          <p className="text-sm text-[var(--muted-foreground)] mt-1">Real-time inventory metrics and forecasting.</p>
+        </header>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard
+            label="Total Products"
+            value={loading ? "…" : (kpis?.total_products ?? 0)}
+            sub="active SKUs"
+            icon={FiBox}
+          />
+          <KPICard
+            label="Low Stock Items"
+            value={loading ? "…" : (kpis?.low_stock_count ?? 0)}
+            sub="below threshold"
+            icon={FiAlertTriangle}
+          />
+          <KPICard
+            label="Out of Stock"
+            value={loading ? "…" : (kpis?.out_of_stock_count ?? 0)}
+            sub="needs restock"
+            icon={FiXCircle}
+          />
+          <KPICard
+            label="Deliveries Today"
+            value={loading ? "…" : (kpis?.deliveries_today ?? 0)}
+            sub="expected arrivals"
+            icon={FiTruck}
+          />
+        </div>
+      </section>
 
       {/* STOCK MOVEMENT FLOW */}
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-4 px-1">
-          <div className="flex items-center gap-2">
-            <FiRepeat className="text-gray-400" />
-            <h2 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Stock Movement Flow</h2>
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
+        <header className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+              <FiRepeat size={18} />
+            </div>
+            <div>
+              <h2 className="text-[1.05rem] font-semibold tracking-tight">Stock Movement Flow</h2>
+              <p className="text-sm text-[var(--muted-foreground)] mt-1">Inbound suppliers, product traces and outbound destinations.</p>
+            </div>
           </div>
           {flowData?.date_range && (
-            <span className="text-[10px] font-bold tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 uppercase">
+            <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] bg-[var(--input-background)] px-2.5 py-1 rounded-full border border-[var(--border)] whitespace-nowrap">
               {new Date(flowData.date_range.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(flowData.date_range.end).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </span>
           )}
-        </div>
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          {flowData && flowData.nodes && flowData.nodes.length > 0 ? (
-            <LogisticsOverview data={flowData} />
-          ) : (
-            <div className="flex items-center justify-center h-40 text-gray-400 font-medium animate-pulse">Loading logistics...</div>
-          )}
-        </div>
-      </div>
+        </header>
+        {flowData && flowData.nodes && flowData.nodes.length > 0 ? (
+          <LogisticsOverview data={flowData} />
+        ) : (
+          <div className="flex items-center justify-center h-40 text-[var(--muted-foreground)] animate-pulse">Loading logistics...</div>
+        )}
+      </section>
 
       {/* PRODUCTS TABLE */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-5 flex items-center justify-between border-b border-gray-200 bg-gray-50/30">
+      <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+        <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--border)]">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-              <FiPackage size={20} />
+            <div className="w-10 h-10 rounded-xl bg-[var(--input-background)] grid place-items-center text-[var(--primary)] shrink-0">
+              <FiPackage size={18} />
             </div>
-            <h4 className="text-[1rem] font-semibold text-gray-900 tracking-tight">Active Inventory</h4>
+            <div>
+              <h3 className="text-[1.05rem] font-semibold tracking-tight">Active Inventory</h3>
+              <p className="text-sm text-[var(--muted-foreground)] mt-0.5">Filter and inspect every SKU.</p>
+            </div>
           </div>
-          <div className="text-[11px] font-bold text-gray-500 uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border border-gray-200 shadow-sm">
+          <div className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)] bg-[var(--input-background)] px-2.5 py-1 rounded-full border border-[var(--border)] whitespace-nowrap">
             {totalProducts} SKUs
           </div>
         </div>
 
-        <div className="px-6 py-4 flex flex-col sm:flex-row gap-4 border-b border-gray-200 bg-white">
+        <div className="px-5 py-4 flex flex-col sm:flex-row gap-3 border-b border-[var(--border)]">
           <div className="relative flex-1">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]" />
             <input
               type="text"
               placeholder="Search by product name or SKU..."
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+              className="w-full pl-9 pr-4 py-2 bg-[var(--input-background)] border border-[var(--border)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 transition-all"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="relative">
               <select
-                className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-2 pl-4 pr-10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="appearance-none bg-[var(--input-background)] border border-[var(--border)] py-2 pl-3 pr-9 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 cursor-pointer"
                 value={category}
                 onChange={(e) => { setCategory(e.target.value); setPage(1); }}
               >
@@ -439,11 +431,11 @@ export default function InventoryDashboard() {
                 <option value="Lighting">Lighting</option>
                 <option value="Accessories">Accessories</option>
               </select>
-              <FiFilter className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+              <FiFilter className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" size={14} />
             </div>
             <div className="relative">
               <select
-                className="appearance-none bg-gray-50 border border-gray-200 text-gray-700 py-2 pl-4 pr-10 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 cursor-pointer"
+                className="appearance-none bg-[var(--input-background)] border border-[var(--border)] py-2 pl-3 pr-9 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/30 cursor-pointer"
                 value={statusFilter}
                 onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               >
@@ -452,29 +444,27 @@ export default function InventoryDashboard() {
                 <option value="LOW">Low Stock</option>
                 <option value="OUT">Out of Stock</option>
               </select>
-              <FiFilter className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+              <FiFilter className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] pointer-events-none" size={14} />
             </div>
           </div>
         </div>
 
         {loadingProducts ? (
-          <p className="px-6 py-8 text-sm text-gray-400">Loading products…</p>
+          <p className="px-5 py-8 text-sm text-[var(--muted-foreground)]">Loading products…</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Product ID</th>
-                  <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                  <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Stock</th>
-                  <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Min Stock</th>
-                  <th className="text-left px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Health</th>
+                <tr className="bg-[var(--input-background)]">
+                  {['Product', 'Category', 'Stock', 'Min Stock', 'Health'].map(h => (
+                    <th key={h} className="text-left px-5 py-2.5 text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--muted-foreground)]">{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-400 font-medium">
+                    <td colSpan={5} className="px-5 py-8 text-center text-[var(--muted-foreground)]">
                       No products found matching the criteria.
                     </td>
                   </tr>
@@ -483,24 +473,22 @@ export default function InventoryDashboard() {
                     <tr
                       key={p.id}
                       onClick={() => setSelectedProduct(p)}
-                      className="group hover:bg-gray-50 cursor-pointer transition-colors"
+                      className="group border-t border-[var(--border)] hover:bg-[var(--input-background)] cursor-pointer transition-colors"
                     >
-                      <td className="px-6 py-4">
-                        <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{p.name}</p>
-                        <p className="text-xs text-gray-400 font-mono mt-1">{p.sku}</p>
+                      <td className="px-5 py-3">
+                        <p className="font-semibold group-hover:text-[var(--primary)] transition-colors">{p.name}</p>
+                        <p className="text-xs text-[var(--muted-foreground)] font-mono mt-0.5">{p.sku}</p>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-600 text-[11px] font-bold">
+                      <td className="px-5 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--input-background)] text-[var(--muted-foreground)] text-[11px] font-medium border border-[var(--border)]">
                           {p.category}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-[0.95rem] font-semibold text-gray-900">{p.stock_count}</span>
+                      <td className="px-5 py-3">
+                        <span className="font-semibold">{p.stock_count}</span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="text-[14px] text-gray-500 font-semibold">{p.min_stock}</span>
-                      </td>
-                      <td className="px-6 py-4">
+                      <td className="px-5 py-3 text-[var(--muted-foreground)]">{p.min_stock}</td>
+                      <td className="px-5 py-3">
                         <StatusBadge status={p.status} />
                       </td>
                     </tr>
@@ -512,29 +500,29 @@ export default function InventoryDashboard() {
         )}
 
         {!loadingProducts && products.length > 0 && (
-          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-            <span className="text-sm text-gray-500 font-medium">
+          <div className="px-5 py-3.5 border-t border-[var(--border)] bg-[var(--input-background)] flex items-center justify-between">
+            <span className="text-sm text-[var(--muted-foreground)]">
               Showing {(page - 1) * 10 + 1} to {Math.min(page * 10, totalProducts || 0)} of {totalProducts || 0} items
             </span>
             <div className="flex gap-2">
               <button
                 disabled={page === 1}
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                className="px-3 py-1.5 text-sm font-medium border border-gray-200 rounded-lg bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors shadow-sm text-gray-700"
+                className="px-3 py-1.5 text-sm font-medium border border-[var(--border)] rounded-lg bg-[var(--card)] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--input-background)] transition-colors"
               >
                 Previous
               </button>
               <button
                 disabled={page * 10 >= (totalProducts || 0)}
                 onClick={() => setPage(p => p + 1)}
-                className="px-3 py-1.5 text-sm font-medium border border-gray-200 rounded-lg bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors shadow-sm text-gray-700"
+                className="px-3 py-1.5 text-sm font-medium border border-[var(--border)] rounded-lg bg-[var(--card)] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[var(--input-background)] transition-colors"
               >
                 Next
               </button>
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       <DetailDrawer
         open={!!selectedProduct}

@@ -23,6 +23,28 @@ type InvoiceListResponse = {
   overdue_total: string
 }
 
+type InvoiceLineItem = {
+  id: number
+  product: number
+  product_name: string
+  quantity: number
+  unit_price_ron: string
+  subtotal_ron: string
+}
+
+type InvoiceDetail = {
+  id: number
+  invoice_number: string
+  order: number
+  order_number: string
+  customer_name: string
+  issued_date: string
+  due_date: string | null
+  status: string
+  amount_ron: string
+  line_items: InvoiceLineItem[]
+}
+
 type StatusFilter = '' | 'PAID' | 'ISSUED' | 'OVERDUE'
 
 const STATUS_TABS: { label: string; value: StatusFilter }[] = [
@@ -94,6 +116,12 @@ const SalesInvoicesPage = () => {
   const [pendingTotal, setPendingTotal] = useState('0.00')
   const [overdueTotal, setOverdueTotal] = useState('0.00')
 
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [markingPaid, setMarkingPaid] = useState(false)
+
   useEffect(() => {
     setPage(1)
   }, [statusFilter])
@@ -134,46 +162,117 @@ const SalesInvoicesPage = () => {
     loadInvoices()
   }, [statusFilter, page])
 
-  return (
-    <div className="space-y-6">
-      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Invoices</h2>
-            <p className="text-sm text-black/60 mt-1">Track billing status across all sales orders.</p>
-          </div>
-          <div className="text-right text-sm text-black/60">
-            <p>{totalCount} invoices</p>
-          </div>
-        </div>
-      </section>
+  const openInvoiceDetail = async (invoiceId: number) => {
+    try {
+      setDrawerOpen(true)
+      setDetailLoading(true)
+      setDetailError('')
+      setSelectedInvoice(null)
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Paid</p>
-          <p className="text-2xl font-bold text-emerald-600 mt-1">{formatCurrencyRon(paidTotal)}</p>
-        </section>
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Pending</p>
-          <p className="text-2xl font-bold text-amber-600 mt-1">{formatCurrencyRon(pendingTotal)}</p>
-        </section>
-        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-          <p className="text-xs uppercase tracking-wide text-black/50 font-semibold">Overdue</p>
-          <p className="text-2xl font-bold text-rose-600 mt-1">{formatCurrencyRon(overdueTotal)}</p>
-        </section>
+      const response = await fetch(`/api/invoices/${invoiceId}/`, {
+        credentials: 'include',
+      })
+
+      if (!response.ok) {
+        throw new Error(`Invoice detail request failed with status ${response.status}`)
+      }
+
+      const detail = (await response.json()) as InvoiceDetail
+      setSelectedInvoice(detail)
+    } catch (err) {
+      console.error('Failed to load invoice detail:', err)
+      setDetailError('Could not load invoice details.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  const closeDrawer = () => {
+    setDrawerOpen(false)
+    setSelectedInvoice(null)
+    setDetailError('')
+  }
+
+  const markInvoicePaid = async () => {
+    if (!selectedInvoice || markingPaid) {
+      return
+    }
+
+    try {
+      setMarkingPaid(true)
+      const response = await fetch(`/api/invoices/${selectedInvoice.id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status: 'PAID' }),
+      })
+
+      if (!response.ok) {
+        const message = await response.text()
+        throw new Error(message || `Invoice update failed with status ${response.status}`)
+      }
+
+      const updated = (await response.json()) as InvoiceDetail
+      setSelectedInvoice(updated)
+      setInvoices((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...row,
+                status: updated.status,
+                effective_status: updated.status,
+              }
+            : row
+        )
+      )
+    } catch (err) {
+      console.error('Failed to mark invoice paid:', err)
+      setDetailError('Could not update invoice status.')
+    } finally {
+      setMarkingPaid(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="text-[1.15rem] font-semibold tracking-tight">Invoices</h2>
+          <p className="text-[0.875rem] text-[var(--muted-foreground)] mt-0.5">Billing status across all sales orders.</p>
+        </div>
+        <span className="text-[0.78rem] text-[var(--muted-foreground)] bg-[var(--muted)] px-2.5 py-0.5 rounded-full border border-[var(--border)]">
+          {totalCount} total
+        </span>
       </div>
 
-      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5 space-y-4">
-        <div className="flex gap-2">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Paid</p>
+          <p className="text-[1.6rem] font-bold text-emerald-600 mt-1 leading-none">{formatCurrencyRon(paidTotal)}</p>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Pending</p>
+          <p className="text-[1.6rem] font-bold text-amber-600 mt-1 leading-none">{formatCurrencyRon(pendingTotal)}</p>
+        </div>
+        <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4">
+          <p className="text-[0.72rem] uppercase tracking-wide text-[var(--muted-foreground)] font-medium">Overdue</p>
+          <p className="text-[1.6rem] font-bold text-rose-600 mt-1 leading-none">{formatCurrencyRon(overdueTotal)}</p>
+        </div>
+      </div>
+
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-[var(--border)] flex items-center gap-2">
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
               type="button"
               onClick={() => setStatusFilter(tab.value)}
-              className={`rounded-lg px-3 py-1.5 text-sm border transition-colors ${
+              className={`h-7 px-3 text-[0.8rem] rounded-md border transition-colors ${
                 statusFilter === tab.value
-                  ? 'bg-black text-white border-black'
-                  : 'bg-white text-black/70 border-[var(--border)] hover:bg-black/[0.04]'
+                  ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                  : 'bg-transparent text-[var(--muted-foreground)] border-[var(--border)] hover:bg-[var(--muted)]'
               }`}
             >
               {tab.label}
@@ -182,50 +281,54 @@ const SalesInvoicesPage = () => {
         </div>
 
         {loading ? (
-          <p className="text-sm text-black/60">Loading invoices...</p>
+          <p className="px-5 py-8 text-[0.875rem] text-[var(--muted-foreground)]">Loading…</p>
         ) : error ? (
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="px-5 py-8 text-[0.875rem] text-rose-600">{error}</p>
         ) : invoices.length === 0 ? (
-          <p className="text-sm text-black/60">No invoices found.</p>
+          <p className="px-5 py-8 text-[0.875rem] text-[var(--muted-foreground)]">No invoices found.</p>
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
+              <table className="w-full text-[0.875rem]">
                 <thead>
-                  <tr>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Invoice</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Order</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Customer</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Issued</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Due</th>
-                    <th className="text-left text-xs uppercase tracking-wide text-black/50 px-3">Status</th>
-                    <th className="text-right text-xs uppercase tracking-wide text-black/50 px-3">Amount</th>
+                  <tr className="border-b border-[var(--border)] bg-[var(--muted)]/40">
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Invoice</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Order</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Customer</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Issued</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Due</th>
+                    <th className="px-5 py-2.5 text-left text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Status</th>
+                    <th className="px-5 py-2.5 text-right text-[0.72rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map((invoice) => (
-                    <tr key={invoice.id} className="bg-white border border-[var(--border)]">
-                      <td className="px-3 py-2 text-sm font-semibold font-mono">{invoice.invoice_number}</td>
-                      <td className="px-3 py-2 text-sm text-black/60 font-mono">{invoice.order_number}</td>
-                      <td className="px-3 py-2 text-sm">{invoice.customer_name}</td>
-                      <td className="px-3 py-2 text-sm text-black/60">{formatDate(invoice.issued_date)}</td>
-                      <td className="px-3 py-2 text-sm text-black/60">{formatDate(invoice.due_date)}</td>
-                      <td className="px-3 py-2 text-sm">{effectiveStatusBadge(invoice.effective_status)}</td>
-                      <td className="px-3 py-2 text-sm text-right font-semibold">{formatCurrencyRon(invoice.amount_ron)}</td>
+                    <tr
+                      key={invoice.id}
+                      className="border-t border-[var(--border)] hover:bg-[var(--muted)]/40 transition-colors cursor-pointer"
+                      onClick={() => openInvoiceDetail(invoice.id)}
+                    >
+                      <td className="px-5 py-3 font-semibold font-mono text-[0.8rem]">{invoice.invoice_number}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)] font-mono text-[0.8rem]">{invoice.order_number}</td>
+                      <td className="px-5 py-3">{invoice.customer_name}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)]">{formatDate(invoice.issued_date)}</td>
+                      <td className="px-5 py-3 text-[var(--muted-foreground)]">{formatDate(invoice.due_date)}</td>
+                      <td className="px-5 py-3">{effectiveStatusBadge(invoice.effective_status)}</td>
+                      <td className="px-5 py-3 text-right font-semibold">{formatCurrencyRon(invoice.amount_ron)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-sm text-black/60">Page {page} · {totalCount} total</p>
+            <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--muted)]/20 flex items-center justify-between">
+              <p className="text-[0.78rem] text-[var(--muted-foreground)]">Page {page} · {totalCount} total</p>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={!previousPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-8 px-3 text-[0.8rem] rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
@@ -233,7 +336,7 @@ const SalesInvoicesPage = () => {
                   type="button"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!nextPageUrl}
-                  className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="h-8 px-3 text-[0.8rem] rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
@@ -241,7 +344,105 @@ const SalesInvoicesPage = () => {
             </div>
           </>
         )}
-      </section>
+      </div>
+
+      <div
+        className={`fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-300 ${drawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={closeDrawer}
+      />
+      <div
+        className={`fixed inset-y-0 right-0 w-full max-w-xl bg-[var(--card)] border-l border-[var(--border)] z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col ${drawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="p-5 border-b border-[var(--border)] flex items-center justify-between">
+          <div>
+            <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Invoice</p>
+            <h3 className="text-lg font-semibold mt-1">{selectedInvoice?.invoice_number ?? 'Invoice Detail'}</h3>
+            {selectedInvoice && (
+              <p className="text-sm text-[var(--muted-foreground)]">Order {selectedInvoice.order_number}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={closeDrawer}
+            className="h-8 px-3 text-[0.8rem] rounded-lg border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--muted)] transition-colors"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {detailLoading ? (
+            <p className="text-[0.875rem] text-[var(--muted-foreground)]">Loading invoice details...</p>
+          ) : detailError ? (
+            <p className="text-[0.875rem] text-rose-600">{detailError}</p>
+          ) : selectedInvoice ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-[var(--border)] p-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Customer</p>
+                  <p className="text-sm font-semibold mt-1">{selectedInvoice.customer_name}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)] p-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Status</p>
+                  <p className="text-sm font-semibold mt-1">{selectedInvoice.status}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)] p-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Issued</p>
+                  <p className="text-sm font-semibold mt-1">{formatDate(selectedInvoice.issued_date)}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)] p-3">
+                  <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Due</p>
+                  <p className="text-sm font-semibold mt-1">{formatDate(selectedInvoice.due_date)}</p>
+                </div>
+                <div className="rounded-xl border border-[var(--border)] p-3 sm:col-span-2">
+                  <p className="text-[0.7rem] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">Total</p>
+                  <p className="text-lg font-semibold mt-1">{formatCurrencyRon(selectedInvoice.amount_ron)}</p>
+                </div>
+              </div>
+
+              {selectedInvoice.status !== 'PAID' && (
+                <button
+                  type="button"
+                  onClick={markInvoicePaid}
+                  disabled={markingPaid}
+                  className="h-10 px-4 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {markingPaid ? 'Updating...' : 'Mark as Paid'}
+                </button>
+              )}
+
+              <div>
+                <h4 className="text-sm font-semibold">Line Items</h4>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full text-[0.85rem]">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] bg-[var(--muted)]/40">
+                        <th className="px-3 py-2 text-left text-[0.7rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Product</th>
+                        <th className="px-3 py-2 text-right text-[0.7rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Qty</th>
+                        <th className="px-3 py-2 text-right text-[0.7rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Unit</th>
+                        <th className="px-3 py-2 text-right text-[0.7rem] font-semibold text-[var(--muted-foreground)] uppercase tracking-wide">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedInvoice.line_items.map((item) => (
+                        <tr key={item.id} className="border-b border-[var(--border)]">
+                          <td className="px-3 py-2">{item.product_name}</td>
+                          <td className="px-3 py-2 text-right">{item.quantity}</td>
+                          <td className="px-3 py-2 text-right">{formatCurrencyRon(item.unit_price_ron)}</td>
+                          <td className="px-3 py-2 text-right font-semibold">{formatCurrencyRon(item.subtotal_ron)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-[0.875rem] text-[var(--muted-foreground)]">Select an invoice to view details.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
