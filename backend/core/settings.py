@@ -181,6 +181,8 @@ SIMPLE_JWT = {
     'AUTH_COOKIE_HTTP_ONLY': True,
     'AUTH_COOKIE_PATH': '/',
     'AUTH_COOKIE_SAMESITE': 'Lax',
+    # Send auth cookies over HTTPS only outside local development.
+    'AUTH_COOKIE_SECURE': not DEBUG,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', 'miez-jwt-key-min-32-bytes-long-very-secure'),
 }

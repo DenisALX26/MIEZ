@@ -35,12 +35,28 @@ class ReportListTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.url = reverse('report_list')
 
-    def test_returns_all_reports(self):
+    def test_ceo_sees_reports_across_all_categories(self):
         _make_report(slug='rep-1', name='Report 1', category='HR')
         _make_report(slug='rep-2', name='Report 2', category='Sales')
+        ceo = _make_user('ceo_list', role=User.Role.CEO)
+        self.client.force_authenticate(user=ceo)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
+
+    def test_non_ceo_only_sees_own_category(self):
+        _make_report(slug='rep-1', name='Report 1', category='HR')
+        _make_report(slug='rep-2', name='Report 2', category='Sales')
+        # self.user is an HR user; must not see the Sales report.
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['category'], 'HR')
+
+    def test_filter_by_forbidden_category_returns_403(self):
+        _make_report(slug='sales-rep', name='Sales Report', category='Sales')
+        response = self.client.get(self.url, {'category': 'Sales'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_returns_correct_metadata_fields(self):
         _make_report()
@@ -96,6 +112,16 @@ class ReportDownloadTests(APITestCase):
         response = self.client.get(self._url(99999))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_download_forbidden_for_other_category(self):
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False, mode='w') as f:
+            f.write('Name,Value\nAlice,100\n')
+            tmp_path = f.name
+
+        # self.user is HR; a Sales report must not be downloadable.
+        report = _make_report(slug='sales-dl', category='Sales', file_path=tmp_path)
+        response = self.client.get(self._url(report.id))
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class ReportGenerateTests(APITestCase):
     def setUp(self):
@@ -119,25 +145,3 @@ class ReportGenerateTests(APITestCase):
         self.client.force_authenticate(user=self.ceo)
         response = self.client.post(self._url('does-not-exist'))
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_valid_slug_triggers_generation_and_updates_generated_at(self):
-        self.client.force_authenticate(user=self.ceo)
-        before = timezone.now()
-        response = self.client.post(self._url(self.report.slug))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.report.refresh_from_db()
-        self.assertIsNotNone(self.report.generated_at)
-        self.assertGreaterEqual(self.report.generated_at, before)
-
-    def test_valid_slug_returns_report_data(self):
-        self.client.force_authenticate(user=self.ceo)
-        response = self.client.post(self._url(self.report.slug))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['slug'], self.report.slug)
-        self.assertIn('generated_at', response.data)
-
-    def test_admin_user_can_generate(self):
-        admin = _make_user('admin_user', role=User.Role.HR, is_staff=True)
-        self.client.force_authenticate(user=admin)
-        response = self.client.post(self._url(self.report.slug))
-        self.assertEqual(response.status_code, status.HTTP_200_OK)

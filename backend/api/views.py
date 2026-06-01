@@ -16,7 +16,7 @@ from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied
 from django_filters import rest_framework as filters
@@ -67,6 +67,34 @@ from .agent import AgentRunner, get_registry
 IT_SLA_THRESHOLD_HOURS = 48
 
 
+# Which roles may read reports of a given category. CEO always sees everything;
+# reports with a blank/unknown category are CEO-only.
+REPORT_CATEGORY_ROLES = {
+    Report.Category.SALES: {User.Role.CEO, User.Role.SALES},
+    Report.Category.FINANCE: {User.Role.CEO},
+    Report.Category.INVENTORY: {User.Role.CEO, User.Role.INVENTORY},
+    Report.Category.HR: {User.Role.CEO, User.Role.HR},
+    Report.Category.IT: {User.Role.CEO, User.Role.IT},
+}
+
+
+def _allowed_report_categories(user):
+    """Return the set of report categories the user is permitted to read."""
+    if user.role == User.Role.CEO:
+        return set(Report.Category.values)
+    return {
+        category
+        for category, roles in REPORT_CATEGORY_ROLES.items()
+        if user.role in roles
+    }
+
+
+def _can_access_report(user, report):
+    if user.role == User.Role.CEO:
+        return True
+    return user.role in REPORT_CATEGORY_ROLES.get(report.category, set())
+
+
 # Create your views here.
 @require_GET
 def is_even(request):
@@ -91,7 +119,7 @@ class LoginView(TokenObtainPairView):
                 key=settings.SIMPLE_JWT["AUTH_COOKIE"],
                 value=acces_token,
                 httponly=True,
-                secure=False,  # Set to True in production with HTTPS
+                secure=settings.SIMPLE_JWT["AUTH_COOKIE_SECURE"],
                 samesite="Lax",
                 path="/",
             )
@@ -99,7 +127,7 @@ class LoginView(TokenObtainPairView):
                 key=settings.SIMPLE_JWT["AUTH_COOKIE_REFRESH"],
                 value=refresh_token,
                 httponly=True,
-                secure=False,  # Set to True in production with HTTPS
+                secure=settings.SIMPLE_JWT["AUTH_COOKIE_SECURE"],
                 samesite="Lax",
                 path="/api/auth/refresh/",
             )
@@ -120,7 +148,7 @@ class RefreshTokenView(TokenRefreshView):
                 key=settings.SIMPLE_JWT["AUTH_COOKIE"],
                 value=access_token,
                 httponly=True,
-                secure=False,
+                secure=settings.SIMPLE_JWT["AUTH_COOKIE_SECURE"],
                 samesite="Lax",
                 path="/",
             )
@@ -1071,9 +1099,12 @@ class InventoryProductPagination(PageNumberPagination):
 
 class InventoryProductsView(APIView):
     """Return products with search, category, and status filters. Supports conditional pagination."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if getattr(request.user, 'role', None) not in [User.Role.INVENTORY, User.Role.CEO]:
+            return Response({'detail': 'Only Inventory Managers and CEO can view products.'}, status=status.HTTP_403_FORBIDDEN)
+
         search = request.query_params.get('search', '').strip()
         category = request.query_params.get('category', 'All').strip()
         statuses = request.query_params.getlist('status')
@@ -2078,9 +2109,12 @@ class ReportListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        reports = Report.objects.all().order_by('-generated_at')
+        allowed_categories = _allowed_report_categories(request.user)
+        reports = Report.objects.filter(category__in=allowed_categories).order_by('-generated_at')
         category = request.query_params.get('category')
         if category:
+            if category not in allowed_categories:
+                return Response({'detail': 'You do not have access to reports in this category.'}, status=status.HTTP_403_FORBIDDEN)
             reports = reports.filter(category=category)
         return Response(ReportSerializer(reports, many=True).data)
 
@@ -2091,6 +2125,8 @@ class ReportDownloadView(APIView):
     def get(self, request, id):
         from pathlib import Path
         report = get_object_or_404(Report, id=id)
+        if not _can_access_report(request.user, report):
+            return Response({'detail': 'You do not have access to this report.'}, status=status.HTTP_403_FORBIDDEN)
         if not report.file_path:
             return Response({'detail': 'File not available.'}, status=status.HTTP_404_NOT_FOUND)
         path = Path(report.file_path)
@@ -2144,6 +2180,8 @@ class ReportViewView(APIView):
     def get(self, request, id):
         from pathlib import Path
         report = get_object_or_404(Report, id=id)
+        if not _can_access_report(request.user, report):
+            return Response({'detail': 'You do not have access to this report.'}, status=status.HTTP_403_FORBIDDEN)
         if not report.file_path:
             return Response({'detail': 'Report not generated yet.'}, status=status.HTTP_404_NOT_FOUND)
         path = Path(report.file_path)

@@ -148,7 +148,7 @@ function App() {
             <Route
               path="/it/dashboard"
               element={
-                <ProtectedRoute requiredRoles={['IT', 'CEO']}>
+                <ProtectedRoute requiredRoles={['IT']}>
                   <ItDashboard />
                 </ProtectedRoute>
               }
@@ -172,7 +172,7 @@ function App() {
             <Route
               path="/it/assets"
               element={
-                <ProtectedRoute requiredRoles={['CEO', 'IT']}>
+                <ProtectedRoute requiredRoles={['IT']}>
                   <ItAssetsPage />
                 </ProtectedRoute>
               }
