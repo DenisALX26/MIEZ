@@ -33,19 +33,8 @@ import ReportsPage from './components/reports/ReportsPage'
 import WorkflowsPage from './components/workflows/WorkflowsPage'
 import SettingsPage from './components/settings/SettingsPage'
 
-type ModulePageProps = {
-  title: string
-  description: string
-}
 
-const ModulePage = ({ title, description }: ModulePageProps) => {
-  return (
-    <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
-      <h2>{title}</h2>
-      <p>{description}</p>
-    </section>
-  )
-}
+
 
 const UnauthorizedPage = () => {
   return (
