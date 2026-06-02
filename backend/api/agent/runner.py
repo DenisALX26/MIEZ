@@ -63,6 +63,19 @@ You have access to tools scoped to this user's role. Do not attempt actions outs
             'manage_tickets',
             'manage_stock',
             'process_leave_requests',
+            # Sales
+            'manage_customers',
+            'manage_invoices',
+            'manage_orders',
+            # Inventory
+            'manage_suppliers',
+            'view_stock_movements',
+            # IT
+            'view_it_dashboard',
+            'view_system_status',
+            # HR (operations already permit the CEO; grant the gating perms too)
+            'view_hr_dashboard',
+            'view_payroll',
         ],
         User.Role.HR: [
             'manage_employees',

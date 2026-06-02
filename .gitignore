@@ -84,3 +84,4 @@ credentials.yml.enc
 
 # report csv
 backend/reports/*.csv
+/build_deck.py

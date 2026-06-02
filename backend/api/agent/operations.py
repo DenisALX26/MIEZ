@@ -13,7 +13,26 @@ from django.db.models import Avg, Count, DurationField, ExpressionWrapper, F, Q,
 from django.db.models.functions import TruncWeek
 from django.utils import timezone
 
-from api.models import Attendance, Contract, Department, Invoice, LeaveRequest, Order, PayrollEntry, Product, Report, StockMovement, Ticket, User
+from api.models import (
+    Asset,
+    Attendance,
+    Contract,
+    Customer,
+    Department,
+    Invoice,
+    LeaveRequest,
+    Notification,
+    Order,
+    PayrollEntry,
+    Product,
+    Report,
+    StockMovement,
+    Supplier,
+    SystemStatus,
+    Ticket,
+    TicketComment,
+    User,
+)
 from api.report_utils import generate_report_file
 
 from .tools import Tool, agent_tool, get_registry, register_tool
@@ -102,6 +121,87 @@ def _serialize_inventory(product: Product) -> dict[str, Any]:
         'stock_count': product.stock_count,
         'min_stock': product.min_stock,
         'status': product.availability,
+    }
+
+
+def _serialize_customer(customer: Customer) -> dict[str, Any]:
+    return {
+        'id': customer.id,
+        'name': customer.name,
+        'contact_name': customer.contact_name,
+        'contact_email': customer.contact_email,
+        'tier': customer.tier,
+        'location': customer.location,
+    }
+
+
+def _serialize_invoice(invoice: Invoice) -> dict[str, Any]:
+    return {
+        'id': invoice.id,
+        'invoice_number': invoice.invoice_number,
+        'status': invoice.status,
+        'order_number': invoice.order.order_number if invoice.order else None,
+        'customer_name': invoice.order.customer.name if invoice.order and invoice.order.customer else None,
+        'amount_ron': f'{Decimal(str(invoice.amount_ron or 0)).quantize(Decimal("0.01")):.2f}',
+        'issued_date': invoice.issued_date.isoformat() if invoice.issued_date else None,
+        'due_date': invoice.due_date.isoformat() if invoice.due_date else None,
+    }
+
+
+def _serialize_supplier(supplier: Supplier) -> dict[str, Any]:
+    return {
+        'id': supplier.id,
+        'name': supplier.name,
+        'contact_email': supplier.contact_email,
+        'contact_phone': supplier.contact_phone,
+        'address': supplier.address,
+    }
+
+
+def _serialize_stock_movement(movement: StockMovement) -> dict[str, Any]:
+    return {
+        'id': movement.id,
+        'movement_type': movement.movement_type,
+        'product_name': movement.product.name if movement.product else None,
+        'sku': movement.product.sku if movement.product else None,
+        'supplier_name': movement.supplier.name if movement.supplier else None,
+        'quantity': movement.quantity,
+        'expected_date': movement.expected_date.isoformat() if movement.expected_date else None,
+        'created_at': movement.created_at.isoformat() if movement.created_at else None,
+    }
+
+
+def _serialize_asset(asset: Asset) -> dict[str, Any]:
+    return {
+        'id': asset.id,
+        'name': asset.name,
+        'serial_number': asset.serial_number,
+        'category': asset.category,
+        'status': asset.status,
+        'assigned_to_id': asset.assigned_to_id,
+        'assigned_to_username': asset.assigned_to.username if asset.assigned_to else None,
+    }
+
+
+def _serialize_system_status(status_row: SystemStatus) -> dict[str, Any]:
+    return {
+        'id': status_row.id,
+        'name': status_row.name,
+        'status': status_row.status,
+        'uptime_pct': f'{Decimal(str(status_row.uptime_pct or 0)).quantize(Decimal("0.01")):.2f}',
+        'last_incident_date': status_row.last_incident_date.isoformat() if status_row.last_incident_date else None,
+    }
+
+
+def _serialize_notification(notification: Notification) -> dict[str, Any]:
+    return {
+        'id': notification.id,
+        'type': notification.type,
+        'title': notification.title,
+        'body': notification.body,
+        'is_read': notification.is_read,
+        'link': notification.link,
+        'created_at': notification.created_at.isoformat() if notification.created_at else None,
     }
 
 
@@ -1131,6 +1231,420 @@ def get_payroll_anomalies(
     return anomalies
 
 
+# ---------------------------------------------------------------------------
+# Sales module — customers & invoices
+# ---------------------------------------------------------------------------
+
+
+@agent_tool(name='query_customers', description='Query sales customers, optionally filtered by tier or name.')
+def query_customers(
+    user: User,
+    tier: str | None = None,
+    name: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.SALES], 'Only CEO and Sales can query customers.')
+
+    queryset = Customer.objects.all()
+
+    if tier:
+        tier_input = tier.strip()
+        valid_tiers = {choice[0] for choice in Customer.Tier.choices}
+        matched = next((t for t in valid_tiers if t.lower() == tier_input.lower()), None)
+        if matched is None:
+            raise ValueError(f'Unsupported customer tier: {tier}')
+        queryset = queryset.filter(tier=matched)
+
+    if name:
+        queryset = queryset.filter(name__icontains=name)
+
+    customers = queryset.order_by('name')[:_normalized_limit(limit)]
+    return [_serialize_customer(customer) for customer in customers]
+
+
+@agent_tool(name='query_invoices', description='Query invoices by status or customer. Set overdue=true to list issued invoices past their due date.')
+def query_invoices(
+    user: User,
+    status: str | None = None,
+    customer: str | None = None,
+    overdue: bool | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.SALES], 'Only CEO and Sales can query invoices.')
+
+    queryset = Invoice.objects.select_related('order', 'order__customer').all()
+
+    if status:
+        status_name = status.strip().upper()
+        valid_statuses = {choice[0] for choice in Invoice.Status.choices}
+        if status_name not in valid_statuses:
+            raise ValueError(f'Unsupported invoice status: {status}')
+        queryset = queryset.filter(status=status_name)
+
+    if customer:
+        queryset = queryset.filter(order__customer__name__icontains=customer)
+
+    if overdue is True:
+        queryset = queryset.filter(
+            status=Invoice.Status.ISSUED,
+            due_date__isnull=False,
+            due_date__lt=timezone.localdate(),
+        )
+
+    invoices = queryset.order_by('-issued_date', '-id')[:_normalized_limit(limit)]
+    return [_serialize_invoice(invoice) for invoice in invoices]
+
+
+@agent_tool(
+    name='update_order_status',
+    description='Update the status of an order identified by its order number.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'order_number': {'type': 'string', 'description': 'Order number, e.g. ORD-00012'},
+            'status': {'type': 'string', 'enum': ['PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED']},
+        },
+        'required': ['order_number', 'status'],
+    },
+)
+def update_order_status(user: User, order_number: str, status: str) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.SALES], 'Only CEO and Sales can update orders.')
+
+    status_name = (status or '').strip().upper()
+    valid_statuses = {choice[0] for choice in Order.Status.choices}
+    if status_name not in valid_statuses:
+        raise ValueError(f'Unsupported order status: {status}')
+
+    order = Order.objects.select_related('customer').get(order_number=order_number)
+    order.status = status_name
+    order.save(update_fields=['status', 'updated_at'])
+    return {'order_number': order.order_number, 'status': order.status}
+
+
+@agent_tool(
+    name='mark_invoice_paid',
+    description='Mark an invoice as paid, identified by its invoice number.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'invoice_number': {'type': 'string', 'description': 'Invoice number, e.g. INV-00012'},
+        },
+        'required': ['invoice_number'],
+    },
+)
+def mark_invoice_paid(user: User, invoice_number: str) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.SALES], 'Only CEO and Sales can update invoices.')
+
+    invoice = Invoice.objects.get(invoice_number=invoice_number)
+    invoice.status = Invoice.Status.PAID
+    invoice.save(update_fields=['status', 'updated_at'])
+    return {'invoice_number': invoice.invoice_number, 'status': invoice.status}
+
+
+# ---------------------------------------------------------------------------
+# Inventory module — suppliers, stock movements
+# ---------------------------------------------------------------------------
+
+
+@agent_tool(name='query_suppliers', description='Query inventory suppliers, optionally filtered by name.')
+def query_suppliers(
+    user: User,
+    name: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.INVENTORY], 'Only CEO and Inventory can query suppliers.')
+
+    queryset = Supplier.objects.all()
+    if name:
+        queryset = queryset.filter(name__icontains=name)
+
+    suppliers = queryset.order_by('name')[:_normalized_limit(limit)]
+    return [_serialize_supplier(supplier) for supplier in suppliers]
+
+
+@agent_tool(name='query_stock_movements', description='Query recent stock movements, optionally filtered by movement type or product SKU.')
+def query_stock_movements(
+    user: User,
+    movement_type: str | None = None,
+    sku: str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.INVENTORY], 'Only CEO and Inventory can query stock movements.')
+
+    queryset = StockMovement.objects.select_related('product', 'supplier').all()
+
+    if movement_type:
+        type_name = movement_type.strip().upper()
+        valid_types = {choice[0] for choice in StockMovement.Type.choices}
+        if type_name not in valid_types:
+            raise ValueError(f'Unsupported movement type: {movement_type}')
+        queryset = queryset.filter(movement_type=type_name)
+
+    if sku:
+        queryset = queryset.filter(product__sku__iexact=sku.strip())
+
+    movements = queryset.order_by('-created_at')[:_normalized_limit(limit)]
+    return [_serialize_stock_movement(movement) for movement in movements]
+
+
+@agent_tool(
+    name='adjust_stock',
+    description=(
+        'Record a stock movement for a product (identified by SKU). The product stock is updated automatically. '
+        'For ADJUSTMENT, quantity is the new absolute stock count; for INBOUND/OUTBOUND/WRITE_OFF it is the delta.'
+    ),
+    schema={
+        'type': 'object',
+        'properties': {
+            'sku': {'type': 'string', 'description': 'Product SKU'},
+            'movement_type': {'type': 'string', 'enum': ['INBOUND', 'OUTBOUND', 'ADJUSTMENT', 'WRITE_OFF']},
+            'quantity': {'type': 'integer', 'minimum': 0},
+            'supplier': {'type': 'string', 'description': 'Supplier name (optional, mainly for inbound)'},
+            'notes': {'type': 'string', 'description': 'Optional notes'},
+        },
+        'required': ['sku', 'movement_type', 'quantity'],
+    },
+)
+def adjust_stock(
+    user: User,
+    sku: str,
+    movement_type: str,
+    quantity: int,
+    supplier: str | None = None,
+    notes: str = '',
+) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.INVENTORY], 'Only CEO and Inventory can adjust stock.')
+
+    type_name = (movement_type or '').strip().upper()
+    valid_types = {choice[0] for choice in StockMovement.Type.choices}
+    if type_name not in valid_types:
+        raise ValueError(f'Unsupported movement type: {movement_type}')
+
+    product = Product.objects.get(sku=sku.strip())
+
+    supplier_obj = None
+    if supplier:
+        supplier_obj = Supplier.objects.filter(name__iexact=supplier.strip()).first()
+        if supplier_obj is None:
+            raise ValueError(f'Unknown supplier: {supplier}')
+
+    movement = StockMovement.objects.create(
+        movement_type=type_name,
+        product=product,
+        supplier=supplier_obj,
+        quantity=max(0, int(quantity)),
+        notes=notes,
+        created_by=user,
+    )
+    product.refresh_from_db(fields=['stock_count'])
+    return {
+        'movement_id': movement.id,
+        'sku': product.sku,
+        'movement_type': movement.movement_type,
+        'new_stock_count': product.stock_count,
+    }
+
+
+# ---------------------------------------------------------------------------
+# IT module — assets, system status, ticket actions
+# ---------------------------------------------------------------------------
+
+
+@agent_tool(name='query_assets', description='Query IT assets, optionally filtered by status, category, or assignee.')
+def query_assets(
+    user: User,
+    status: str | None = None,
+    category: str | None = None,
+    assigned_to: int | str | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can query assets.')
+
+    queryset = Asset.objects.select_related('assigned_to').all()
+
+    if status:
+        status_name = status.strip().upper()
+        valid_statuses = {choice[0] for choice in Asset.Status.choices}
+        if status_name not in valid_statuses:
+            raise ValueError(f'Unsupported asset status: {status}')
+        queryset = queryset.filter(status=status_name)
+
+    if category:
+        category_name = category.strip().upper()
+        valid_categories = {choice[0] for choice in Asset.Category.choices}
+        if category_name not in valid_categories:
+            raise ValueError(f'Unsupported asset category: {category}')
+        queryset = queryset.filter(category=category_name)
+
+    if assigned_to is not None:
+        if isinstance(assigned_to, int) or (isinstance(assigned_to, str) and assigned_to.isdigit()):
+            queryset = queryset.filter(assigned_to_id=int(assigned_to))
+        elif isinstance(assigned_to, str):
+            queryset = queryset.filter(assigned_to__username=assigned_to)
+        else:
+            raise ValueError('assigned_to must be a user id or username')
+
+    assets = queryset.order_by('-created_at')[:_normalized_limit(limit)]
+    return [_serialize_asset(asset) for asset in assets]
+
+
+@agent_tool(name='query_system_status', description='List monitored systems with their current status and uptime.')
+def query_system_status(user: User, limit: int = 10) -> list[dict[str, Any]]:
+    _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can view system status.')
+
+    rows = SystemStatus.objects.order_by('name')[:_normalized_limit(limit)]
+    return [_serialize_system_status(row) for row in rows]
+
+
+@agent_tool(
+    name='update_ticket_status',
+    description='Update a ticket status (and optionally reassign it). Setting status to RESOLVED stamps the resolution time.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'ticket_number': {'type': 'string', 'description': 'Ticket number, e.g. TKT-00012'},
+            'status': {'type': 'string', 'enum': ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']},
+            'assigned_to': {'type': 'string', 'description': 'Optional user id or username to assign the ticket to'},
+        },
+        'required': ['ticket_number', 'status'],
+    },
+)
+def update_ticket_status(
+    user: User,
+    ticket_number: str,
+    status: str,
+    assigned_to: int | str | None = None,
+) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can update tickets.')
+
+    status_name = (status or '').strip().upper()
+    valid_statuses = {choice[0] for choice in Ticket.Status.choices}
+    if status_name not in valid_statuses:
+        raise ValueError(f'Unsupported ticket status: {status}')
+
+    ticket = Ticket.objects.get(ticket_number=ticket_number)
+    ticket.status = status_name
+
+    if assigned_to is not None:
+        if isinstance(assigned_to, int) or (isinstance(assigned_to, str) and assigned_to.isdigit()):
+            ticket.assigned_to = User.objects.get(id=int(assigned_to))
+        elif isinstance(assigned_to, str):
+            ticket.assigned_to = User.objects.get(username=assigned_to)
+        else:
+            raise ValueError('assigned_to must be a user id or username')
+
+    ticket.save()
+    return {
+        'ticket_number': ticket.ticket_number,
+        'status': ticket.status,
+        'assigned_to_username': ticket.assigned_to.username if ticket.assigned_to else None,
+        'resolved_at': ticket.resolved_at.isoformat() if ticket.resolved_at else None,
+    }
+
+
+@agent_tool(
+    name='add_ticket_comment',
+    description='Add a comment to a ticket identified by its ticket number.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'ticket_number': {'type': 'string', 'description': 'Ticket number, e.g. TKT-00012'},
+            'body': {'type': 'string', 'description': 'Comment text'},
+        },
+        'required': ['ticket_number', 'body'],
+    },
+)
+def add_ticket_comment(user: User, ticket_number: str, body: str) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.IT], 'Only CEO and IT can comment on tickets.')
+
+    if not (body or '').strip():
+        raise ValueError('Comment body cannot be empty.')
+
+    ticket = Ticket.objects.get(ticket_number=ticket_number)
+    comment = TicketComment.objects.create(ticket=ticket, author=user, body=body)
+    return {'comment_id': comment.id, 'ticket_number': ticket.ticket_number}
+
+
+# ---------------------------------------------------------------------------
+# HR module — leave request decisions
+# ---------------------------------------------------------------------------
+
+
+@agent_tool(
+    name='decide_leave_request',
+    description='Approve or reject a pending leave request, identified by its id.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'leave_request_id': {'type': 'integer', 'description': 'Leave request id'},
+            'decision': {'type': 'string', 'enum': ['approve', 'reject']},
+        },
+        'required': ['leave_request_id', 'decision'],
+    },
+)
+def decide_leave_request(user: User, leave_request_id: int, decision: str) -> dict[str, Any]:
+    _require_roles(user, [User.Role.CEO, User.Role.HR], 'Only CEO and HR can decide leave requests.')
+
+    decision_name = (decision or '').strip().lower()
+    decision_map = {
+        'approve': LeaveRequest.Status.APPROVED,
+        'reject': LeaveRequest.Status.REJECTED,
+    }
+    if decision_name not in decision_map:
+        raise ValueError("decision must be 'approve' or 'reject'.")
+
+    leave_request = LeaveRequest.objects.select_related('employee').get(id=int(leave_request_id))
+    if leave_request.status != LeaveRequest.Status.PENDING:
+        raise ValueError(f'Leave request {leave_request_id} is not pending (current status: {leave_request.status}).')
+
+    leave_request.status = decision_map[decision_name]
+    leave_request.approved_by = user
+    leave_request.save(update_fields=['status', 'approved_by', 'updated_at'])
+    return {
+        'id': leave_request.id,
+        'status': leave_request.status,
+        'employee_username': leave_request.employee.username if leave_request.employee else None,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting — notifications (scoped to the requesting user)
+# ---------------------------------------------------------------------------
+
+
+@agent_tool(name='query_notifications', description='List notifications for the current user. Set unread_only=true to return only unread ones.')
+def query_notifications(
+    user: User,
+    unread_only: bool | None = None,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    queryset = Notification.objects.filter(recipient=user)
+    if unread_only is True:
+        queryset = queryset.filter(is_read=False)
+
+    notifications = queryset.order_by('-created_at')[:_normalized_limit(limit)]
+    return [_serialize_notification(notification) for notification in notifications]
+
+
+@agent_tool(
+    name='mark_notification_read',
+    description='Mark one of the current user\'s notifications as read, identified by its id.',
+    schema={
+        'type': 'object',
+        'properties': {
+            'notification_id': {'type': 'integer', 'description': 'Notification id'},
+        },
+        'required': ['notification_id'],
+    },
+)
+def mark_notification_read(user: User, notification_id: int) -> dict[str, Any]:
+    notification = Notification.objects.get(id=int(notification_id), recipient=user)
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+    return {'id': notification.id, 'is_read': notification.is_read}
+
+
 def register_default_tools() -> None:
     registry = get_registry()
     if registry.get('get_dashboard_summary') is not None:
@@ -1153,3 +1667,27 @@ def register_default_tools() -> None:
     register_tool(Tool.from_callable(get_payroll_anomalies, required_permission='view_hr_dashboard'))
     register_tool(Tool.from_callable(query_contracts, required_permission='manage_employees'))
     register_tool(Tool.from_callable(query_payroll, required_permission='view_payroll'))
+
+    # Sales module
+    register_tool(Tool.from_callable(query_customers, required_permission='manage_customers'))
+    register_tool(Tool.from_callable(query_invoices, required_permission='manage_invoices'))
+    register_tool(Tool.from_callable(update_order_status, required_permission='manage_orders'))
+    register_tool(Tool.from_callable(mark_invoice_paid, required_permission='manage_invoices'))
+
+    # Inventory module
+    register_tool(Tool.from_callable(query_suppliers, required_permission='manage_suppliers'))
+    register_tool(Tool.from_callable(query_stock_movements, required_permission='view_stock_movements'))
+    register_tool(Tool.from_callable(adjust_stock, required_permission='manage_stock'))
+
+    # IT module
+    register_tool(Tool.from_callable(query_assets, required_permission='view_it_dashboard'))
+    register_tool(Tool.from_callable(query_system_status, required_permission='view_system_status'))
+    register_tool(Tool.from_callable(update_ticket_status, required_permission='manage_tickets'))
+    register_tool(Tool.from_callable(add_ticket_comment, required_permission='manage_tickets'))
+
+    # HR module
+    register_tool(Tool.from_callable(decide_leave_request, required_permission='process_leave_requests'))
+
+    # Cross-cutting — available to every role (scoped to the requesting user)
+    register_tool(Tool.from_callable(query_notifications))
+    register_tool(Tool.from_callable(mark_notification_read))

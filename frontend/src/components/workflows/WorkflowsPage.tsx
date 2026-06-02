@@ -46,6 +46,11 @@ const EMPTY_PAYLOAD: WorkflowPayload = {
   is_active: true,
 }
 
+const inputClass =
+  'w-full bg-[var(--input-background)] border border-[var(--border)] text-[var(--foreground)] rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all'
+
+const labelClass = 'block text-sm font-medium text-[var(--foreground)] mb-1'
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
@@ -53,7 +58,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
     <button
       onClick={onChange}
       disabled={disabled}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer focus:outline-none disabled:opacity-50 ${checked ? 'bg-emerald-500' : 'bg-gray-200'}`}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer focus:outline-none disabled:opacity-50 ${checked ? 'bg-emerald-500' : 'bg-[var(--switch-background)]'}`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
     </button>
@@ -62,7 +67,7 @@ function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (
 
 function StatusBadge({ active }: { active: boolean }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${active ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--muted)] text-[var(--muted-foreground)]'}`}>
       {active ? 'Active' : 'Inactive'}
     </span>
   )
@@ -70,7 +75,7 @@ function StatusBadge({ active }: { active: boolean }) {
 
 function SuccessBadge({ ok }: { ok: boolean }) {
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ok ? 'bg-emerald-50 text-emerald-700' : 'bg-[var(--destructive)]/10 text-[var(--destructive)]'}`}>
       {ok ? 'Success' : 'Failed'}
     </span>
   )
@@ -122,31 +127,31 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-[var(--card)] text-[var(--card-foreground)] rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-5 border-b border-[var(--border)] flex items-center justify-between">
           <h2 className="text-base font-semibold">{isEdit ? 'Edit Workflow' : 'New Workflow'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">✕</button>
+          <button onClick={onClose} className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">✕</button>
         </div>
 
         <div className="px-6 py-5 space-y-5">
           {/* Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <label className={labelClass}>Name</label>
             <input
               value={form.name}
               onChange={e => set('name', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputClass}
               placeholder="e.g. New Order Alert"
             />
           </div>
 
           {/* Trigger type */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Trigger</label>
+            <label className={labelClass}>Trigger</label>
             <select
               value={form.trigger_type}
               onChange={e => set('trigger_type', e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={inputClass}
             >
               <option value="">— select trigger —</option>
               {triggers.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -158,11 +163,11 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
             <div className="grid grid-cols-2 gap-3">
               {form.trigger_type === 'WEEKLY_AT_TIME' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Day of week</label>
+                  <label className={labelClass}>Day of week</label>
                   <select
                     value={(form.trigger_config.day_of_week as string) || ''}
                     onChange={e => set('trigger_config', { ...form.trigger_config, day_of_week: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={inputClass}
                   >
                     {['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(d => (
                       <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>
@@ -171,12 +176,12 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Time (HH:MM)</label>
+                <label className={labelClass}>Time (HH:MM)</label>
                 <input
                   type="time"
                   value={(form.trigger_config.time as string) || ''}
                   onChange={e => set('trigger_config', { ...form.trigger_config, time: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={inputClass}
                 />
               </div>
             </div>
@@ -184,12 +189,12 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
 
           {form.trigger_type === 'ORDER_EXCEEDS_THRESHOLD' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Threshold (RON)</label>
+              <label className={labelClass}>Threshold (RON)</label>
               <input
                 type="number"
                 value={(form.trigger_config.threshold as number) || ''}
                 onChange={e => set('trigger_config', { ...form.trigger_config, threshold: Number(e.target.value) })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass}
                 placeholder="10000"
               />
             </div>
@@ -197,12 +202,12 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
 
           {form.trigger_type === 'CONTRACT_EXPIRES' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Days ahead</label>
+              <label className={labelClass}>Days ahead</label>
               <input
                 type="number"
                 value={(form.trigger_config.days_ahead as number) || ''}
                 onChange={e => set('trigger_config', { ...form.trigger_config, days_ahead: Number(e.target.value) })}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass}
                 placeholder="30"
               />
             </div>
@@ -210,15 +215,15 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
 
           {/* Actions multi-select */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Actions</label>
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Actions</label>
             <div className="grid grid-cols-2 gap-2">
               {actions.map(a => (
-                <label key={a.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                <label key={a.value} className="flex items-center gap-2 text-sm cursor-pointer text-[var(--foreground)]">
                   <input
                     type="checkbox"
                     checked={form.actions.includes(a.value)}
                     onChange={() => toggleAction(a.value)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    className="rounded border-[var(--border)] accent-[var(--primary)]"
                   />
                   {a.label}
                 </label>
@@ -228,24 +233,24 @@ function WorkflowModal({ workflow, triggers, actions, onClose, onSaved }: ModalP
 
           {/* Active toggle */}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Active</span>
+            <span className="text-sm font-medium text-[var(--foreground)]">Active</span>
             <Toggle checked={form.is_active} onChange={() => set('is_active', !form.is_active)} />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-[var(--destructive)]">{error}</p>}
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-[var(--border)] flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={save}
             disabled={saving}
-            className="px-4 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm rounded-lg bg-[var(--primary)] text-[var(--primary-foreground)] hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create workflow'}
           </button>
@@ -274,23 +279,23 @@ function DeleteDialog({ workflow, onClose, onDeleted }: { workflow: Workflow; on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
+      <div className="bg-[var(--card)] text-[var(--card-foreground)] rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
         <h2 className="text-base font-semibold">Delete workflow?</h2>
-        <p className="text-sm text-gray-600">
-          Are you sure you want to delete <strong>{workflow.name}</strong>?
+        <p className="text-sm text-[var(--muted-foreground)]">
+          Are you sure you want to delete <strong className="text-[var(--foreground)]">{workflow.name}</strong>?
           {workflow.is_active && (
             <span className="block mt-1 text-amber-600">⚠ This workflow is currently active.</span>
           )}
         </p>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-[var(--destructive)]">{error}</p>}
         <div className="flex justify-end gap-3">
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors">
             Cancel
           </button>
           <button
             onClick={confirm}
             disabled={deleting}
-            className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm rounded-lg bg-[var(--destructive)] text-[var(--destructive-foreground)] hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {deleting ? 'Deleting…' : 'Delete'}
           </button>
@@ -306,23 +311,23 @@ function LogRow({ log }: { log: WorkflowLog }) {
   const [open, setOpen] = React.useState(false)
   return (
     <>
-      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setOpen(o => !o)}>
-        <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{fmtDate(log.triggered_at)}</td>
-        <td className="px-4 py-3 text-sm font-medium text-gray-900">{log.workflow_name}</td>
-        <td className="px-4 py-3 text-sm text-gray-500">{log.trigger_type.replace(/_/g, ' ')}</td>
+      <tr className="hover:bg-[var(--muted)]/50 cursor-pointer" onClick={() => setOpen(o => !o)}>
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)] whitespace-nowrap">{fmtDate(log.triggered_at)}</td>
+        <td className="px-4 py-3 text-sm font-medium text-[var(--card-foreground)]">{log.workflow_name}</td>
+        <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{log.trigger_type.replace(/_/g, ' ')}</td>
         <td className="px-4 py-3"><SuccessBadge ok={log.success} /></td>
-        <td className="px-4 py-3 text-gray-400"><ChevronDownIcon open={open} /></td>
+        <td className="px-4 py-3 text-[var(--muted-foreground)]"><ChevronDownIcon open={open} /></td>
       </tr>
       {open && (
         <tr>
           <td colSpan={5} className="px-4 pb-3">
-            <div className="rounded-lg bg-gray-50 border border-gray-100 divide-y divide-gray-100">
+            <div className="rounded-lg bg-[var(--muted)]/50 border border-[var(--border)] divide-y divide-[var(--border)]">
               {log.actions_log.map((a, i) => (
                 <div key={i} className="flex items-start gap-3 px-4 py-2.5">
-                  <span className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${a.success ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  <span className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${a.success ? 'bg-emerald-500' : 'bg-[var(--destructive)]'}`} />
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-gray-700">{a.action.replace(/_/g, ' ')}</p>
-                    <p className="text-xs text-gray-500 truncate">{a.message}</p>
+                    <p className="text-xs font-medium text-[var(--foreground)]">{a.action.replace(/_/g, ' ')}</p>
+                    <p className="text-xs text-[var(--muted-foreground)] truncate">{a.message}</p>
                   </div>
                 </div>
               ))}
@@ -409,17 +414,17 @@ export default function WorkflowsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
+      <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold">Automated Workflow Engine</h2>
-            <p className="text-sm text-black/60 mt-1">
+            <p className="text-sm text-[var(--muted-foreground)] mt-1">
               {activeCount} active · {workflows.length} total
             </p>
           </div>
           <button
             onClick={() => { setEditing(null); setModal('create') }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--primary)] text-[var(--primary-foreground)] text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <PlusIcon />
             New workflow
@@ -427,12 +432,12 @@ export default function WorkflowsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="mt-5 flex gap-1 border-b border-gray-100">
+        <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
           {(['workflows', 'logs'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t ? 'border-[var(--primary)] text-[var(--foreground)]' : 'border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]'}`}
             >
               {t === 'workflows' ? 'Workflows' : 'Execution Log'}
             </button>
@@ -442,28 +447,28 @@ export default function WorkflowsPage() {
 
       {/* Workflows tab */}
       {tab === 'workflows' && (
-        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5">
+        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl p-5">
           {loading ? (
-            <p className="text-sm text-black/60">Loading…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">Loading…</p>
           ) : workflows.length === 0 ? (
-            <p className="text-sm text-black/60">No workflows yet. Create one above.</p>
+            <p className="text-sm text-[var(--muted-foreground)]">No workflows yet. Create one above.</p>
           ) : (
             <div className="space-y-3">
               {workflows.map(w => (
                 <div
                   key={w.id}
-                  className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-4 transition-opacity ${w.is_active ? 'border-[var(--border)] bg-white' : 'border-gray-100 bg-gray-50 opacity-70'}`}
+                  className={`flex items-center justify-between gap-4 rounded-xl border px-5 py-4 transition-opacity ${w.is_active ? 'border-[var(--border)] bg-[var(--card)]' : 'border-[var(--border)] bg-[var(--muted)]/40 opacity-70'}`}
                 >
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${w.is_active ? 'bg-emerald-50' : 'bg-gray-100'}`}>
-                      <BoltIcon className={`w-5 h-5 ${w.is_active ? 'text-emerald-600' : 'text-gray-400'}`} />
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${w.is_active ? 'bg-emerald-50' : 'bg-[var(--muted)]'}`}>
+                      <BoltIcon className={`w-5 h-5 ${w.is_active ? 'text-emerald-600' : 'text-[var(--muted-foreground)]'}`} />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{w.name}</p>
-                      <p className="text-xs text-black/50 mt-0.5">{w.trigger_label}</p>
+                      <p className="text-sm font-semibold text-[var(--card-foreground)] truncate">{w.name}</p>
+                      <p className="text-xs text-[var(--muted-foreground)] mt-0.5">{w.trigger_label}</p>
                       <div className="flex flex-wrap gap-1 mt-1.5">
                         {w.action_labels.map(a => (
-                          <span key={a} className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">{a}</span>
+                          <span key={a} className="text-xs bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.5 rounded">{a}</span>
                         ))}
                       </div>
                     </div>
@@ -471,21 +476,21 @@ export default function WorkflowsPage() {
 
                   <div className="flex items-center gap-3 shrink-0">
                     {w.last_triggered_at && (
-                      <span className="text-xs text-gray-400 hidden sm:block">
+                      <span className="text-xs text-[var(--muted-foreground)] hidden sm:block">
                         Last: {fmtDate(w.last_triggered_at)}
                       </span>
                     )}
                     <StatusBadge active={w.is_active} />
                     <button
                       onClick={() => { setEditing(w); setModal('edit') }}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--muted)] transition-colors"
                       title="Edit"
                     >
                       <PencilIcon />
                     </button>
                     <button
                       onClick={() => setDeleting(w)}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10 transition-colors"
                       title="Delete"
                     >
                       <TrashIcon />
@@ -505,21 +510,21 @@ export default function WorkflowsPage() {
 
       {/* Logs tab */}
       {tab === 'logs' && (
-        <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+        <section className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-2xl overflow-hidden">
           {logs.length === 0 ? (
-            <p className="text-sm text-black/60 p-5">No execution logs yet.</p>
+            <p className="text-sm text-[var(--muted-foreground)] p-5">No execution logs yet.</p>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
+              <thead className="bg-[var(--muted)]/50 border-b border-[var(--border)]">
                 <tr>
                   {['Triggered at', 'Workflow', 'Trigger', 'Result', ''].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wide">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50">
+              <tbody className="divide-y divide-[var(--border)]">
                 {logs.map(l => <LogRow key={l.id} log={l} />)}
               </tbody>
             </table>

@@ -10,9 +10,41 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+# ── Email helper ─────────────────────────────────────────────────────────────
+
+def _email_configured() -> bool:
+    """True when an SMTP host is configured (so we should actually send)."""
+    return bool(getattr(settings, 'EMAIL_HOST', ''))
+
+
+def _send_email(subject: str, body: str, recipients: list[str]) -> str:
+    """Send an email to the given addresses via the configured backend.
+
+    Returns a human-readable status string for the workflow action log. Degrades
+    gracefully: when no recipient address is resolvable or SMTP is not
+    configured it records that instead of raising, so the workflow still
+    succeeds in dev environments without email set up.
+    """
+    clean = sorted({(r or '').strip() for r in recipients if (r or '').strip()})
+    if not clean:
+        return 'no recipient email address available'
+    if not _email_configured():
+        return f'email backend not configured — would email {len(clean)} recipient(s)'
+
+    from_email = (
+        getattr(settings, 'DEFAULT_FROM_EMAIL', '')
+        or getattr(settings, 'EMAIL_HOST_USER', '')
+        or 'no-reply@miez.local'
+    )
+    send_mail(subject, body, from_email, clean, fail_silently=False)
+    return f'emailed {len(clean)} recipient(s): {", ".join(clean)}'
 
 
 def execute_workflow(workflow, trigger_type: str, context: dict[str, Any]) -> dict:
@@ -81,38 +113,58 @@ def _notify_manager(workflow, context: dict) -> str:
     return f'Notified {managers.count()} manager(s)'
 
 
+# Always cc'd on CEO workflow emails for demo purposes.
+DEMO_CEO_EMAIL = 'petru.draghiceanu@gmail.com'
+
+
 def _email_ceo(workflow, context: dict) -> str:
     from api.models import Notification, User
-    ceos = User.objects.filter(role='CEO', is_active=True)
+    ceos = list(User.objects.filter(role='CEO', is_active=True))
     body = context.get('message', f'Workflow "{workflow.name}" was triggered.')
     link = context.get('link', '/workflows')
+    subject = context.get('subject', f'[MIEZ Workflow] {workflow.name}')
     for ceo in ceos:
         Notification.objects.create(recipient=ceo, title=f'[Workflow] {workflow.name}', body=body, link=link)
-    return f'Emailed {ceos.count()} CEO(s)'
+    recipients = [ceo.email for ceo in ceos] + [DEMO_CEO_EMAIL]
+    email_status = _send_email(subject, body, recipients)
+    return f'Notified {len(ceos)} CEO(s) in-app; {email_status}'
 
 
 def _email_supplier(workflow, context: dict) -> str:
-    supplier_name = context.get('supplier_name', 'unknown')
-    return f'Supplier notification queued for: {supplier_name}'
+    from api.models import Supplier
+    supplier = None
+    if context.get('supplier_id'):
+        supplier = Supplier.objects.filter(id=context['supplier_id']).first()
+    if supplier is None and context.get('supplier_name'):
+        supplier = Supplier.objects.filter(name__iexact=context['supplier_name']).first()
+
+    address = context.get('supplier_email') or (supplier.contact_email if supplier else '')
+    name = supplier.name if supplier else context.get('supplier_name', 'unknown supplier')
+    subject = context.get('subject', f'[MIEZ] {workflow.name}')
+    body = context.get('message', f'Automated message from workflow "{workflow.name}".')
+    email_status = _send_email(subject, body, [address])
+    return f'Supplier "{name}": {email_status}'
 
 
 def _send_confirmation_email(workflow, context: dict) -> str:
     from api.models import Notification, User
-    recipient_id = context.get('user_id')
     body = context.get('message', f'Confirmation from workflow "{workflow.name}".')
-    if recipient_id:
-        try:
-            user = User.objects.get(id=recipient_id)
-            Notification.objects.create(
-                recipient=user,
-                title=f'Confirmation: {workflow.name}',
-                body=body,
-                link=context.get('link', '/'),
-            )
-            return f'Confirmation sent to {user.username}'
-        except User.DoesNotExist:
-            pass
-    return 'No recipient — confirmation logged'
+    link = context.get('link', '/')
+    subject = context.get('subject', f'Confirmation: {workflow.name}')
+
+    recipients: list[str] = []
+    target = context.get('recipient_email') or 'unknown'
+    if context.get('recipient_email'):
+        recipients.append(context['recipient_email'])
+
+    user = User.objects.filter(id=context['user_id']).first() if context.get('user_id') else None
+    if user:
+        Notification.objects.create(recipient=user, title=f'Confirmation: {workflow.name}', body=body, link=link)
+        recipients.append(user.email)
+        target = user.username
+
+    email_status = _send_email(subject, body, recipients)
+    return f'Confirmation for {target}: {email_status}'
 
 
 def _update_dashboard(workflow, context: dict) -> str:
