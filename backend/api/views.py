@@ -1031,6 +1031,67 @@ class ContractDetailView(APIView):
         contract = get_object_or_404(Contract.objects.select_related('employee', 'department'), id=id)
         return Response(ContractListView._serialize_contract(contract, today), status=status.HTTP_200_OK)
 
+    def patch(self, request, id):
+        if request.user.role not in [User.Role.CEO, User.Role.HR]:
+            return Response({"detail": "Only CEO and HR can edit contracts."}, status=status.HTTP_403_FORBIDDEN)
+
+        contract = get_object_or_404(Contract.objects.select_related('employee', 'department'), id=id)
+        update_fields = []
+
+        if 'type' in request.data:
+            type_value = (request.data.get('type') or '').strip().upper()
+            if type_value not in Contract.Type.values:
+                return Response({"detail": "Invalid contract type."}, status=status.HTTP_400_BAD_REQUEST)
+            contract.type = type_value
+            update_fields.append('type')
+
+        if 'start_date' in request.data:
+            try:
+                contract.start_date = date.fromisoformat(request.data['start_date'])
+            except (ValueError, TypeError):
+                return Response({"detail": "Invalid start_date. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+            update_fields.append('start_date')
+
+        if 'end_date' in request.data:
+            end_raw = request.data.get('end_date')
+            if end_raw in (None, ''):
+                contract.end_date = None
+            else:
+                try:
+                    contract.end_date = date.fromisoformat(end_raw)
+                except (ValueError, TypeError):
+                    return Response({"detail": "Invalid end_date. Use YYYY-MM-DD or null."}, status=status.HTTP_400_BAD_REQUEST)
+            update_fields.append('end_date')
+
+        if 'salary_ron' in request.data:
+            try:
+                salary = Decimal(str(request.data.get('salary_ron')))
+            except (InvalidOperation, TypeError):
+                return Response({"detail": "salary_ron must be a number."}, status=status.HTTP_400_BAD_REQUEST)
+            if salary < 0:
+                return Response({"detail": "salary_ron cannot be negative."}, status=status.HTTP_400_BAD_REQUEST)
+            contract.salary_ron = salary
+            update_fields.append('salary_ron')
+
+        if 'department' in request.data:
+            dept_raw = request.data.get('department')
+            if dept_raw in (None, ''):
+                contract.department = None
+            else:
+                department = get_object_or_404(Department, id=dept_raw)
+                contract.department = department
+            update_fields.append('department')
+
+        if contract.end_date is not None and contract.end_date < contract.start_date:
+            return Response({"detail": "end_date cannot be before start_date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if update_fields:
+            contract.save(update_fields=update_fields + ['updated_at'])
+
+        today = timezone.localdate()
+        contract = Contract.objects.select_related('employee', 'department').get(id=contract.id)
+        return Response(ContractListView._serialize_contract(contract, today), status=status.HTTP_200_OK)
+
 
 class PayrollListView(APIView):
     permission_classes = [IsAuthenticated]

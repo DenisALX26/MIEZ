@@ -231,7 +231,7 @@ function App() {
             <Route
               path="/hr/contracts"
               element={
-                <ProtectedRoute requiredRole="HR">
+                <ProtectedRoute requiredRoles={['CEO', 'HR']}>
                   <ContractsPage />
                 </ProtectedRoute>
               }
@@ -239,7 +239,7 @@ function App() {
             <Route
               path="/hr/contracts/:id"
               element={
-                <ProtectedRoute requiredRole="HR">
+                <ProtectedRoute requiredRoles={['CEO', 'HR']}>
                   <ContractDetailPage />
                 </ProtectedRoute>
               }

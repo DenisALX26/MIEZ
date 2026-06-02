@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { FiArrowLeft } from 'react-icons/fi'
+import { FiArrowLeft, FiEdit2, FiX } from 'react-icons/fi'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 
 type ContractStatus = 'ACTIVE' | 'EXPIRING' | 'EXPIRED' | 'PENDING'
 type ContractType = 'EMPLOYMENT' | 'CONTRACTOR'
@@ -16,6 +17,11 @@ type ContractDetail = {
   end_date: string | null
   salary_ron: string
   status: ContractStatus
+}
+
+type DepartmentOption = {
+  id: number
+  name: string
 }
 
 const STATUS_LABELS: Record<ContractStatus, string> = {
@@ -46,12 +52,160 @@ const formatDate = (value: string | null) => {
   })
 }
 
+const inputClass =
+  'w-full rounded-xl border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-sm text-[var(--foreground)] outline-none transition-all focus:border-[#D1353B] focus:ring-2 focus:ring-[#D1353B]/20'
+const labelClass = 'mb-1 block text-sm font-medium text-[var(--foreground)]'
+
+type EditForm = {
+  type: ContractType
+  start_date: string
+  end_date: string
+  salary_ron: string
+  department: string // department id as string, '' = unassigned
+}
+
+function EditContractModal({
+  contract,
+  departments,
+  onClose,
+  onSaved,
+}: {
+  contract: ContractDetail
+  departments: DepartmentOption[]
+  onClose: () => void
+  onSaved: (c: ContractDetail) => void
+}) {
+  const matchedDept = departments.find(d => d.name === contract.department)
+  const [form, setForm] = useState<EditForm>({
+    type: contract.type,
+    start_date: contract.start_date,
+    end_date: contract.end_date ?? '',
+    salary_ron: contract.salary_ron,
+    department: matchedDept ? String(matchedDept.id) : '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const set = (key: keyof EditForm, val: string) => setForm(prev => ({ ...prev, [key]: val }))
+
+  const save = async () => {
+    setError('')
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/contracts/${contract.id}/`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: form.type,
+          start_date: form.start_date,
+          end_date: form.end_date || null,
+          salary_ron: form.salary_ron,
+          department: form.department === '' ? null : Number(form.department),
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to save contract.')
+      }
+      onSaved(data as ContractDetail)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save contract.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--card)] text-[var(--card-foreground)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-5">
+          <div>
+            <h2 className="text-base font-semibold">Edit contract</h2>
+            <p className="text-sm text-[var(--muted-foreground)]">{contract.contract_number} · {contract.employee_name}</p>
+          </div>
+          <button onClick={onClose} className="text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]">
+            <FiX className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-6 py-5">
+          <div>
+            <label className={labelClass}>Contract type</label>
+            <select value={form.type} onChange={e => set('type', e.target.value)} className={inputClass}>
+              <option value="EMPLOYMENT">Employment</option>
+              <option value="CONTRACTOR">Contractor</option>
+            </select>
+          </div>
+
+          <div>
+            <label className={labelClass}>Department</label>
+            <select value={form.department} onChange={e => set('department', e.target.value)} className={inputClass}>
+              <option value="">Unassigned</option>
+              {departments.map(d => (
+                <option key={d.id} value={String(d.id)}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Start date</label>
+              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>End date</label>
+              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} className={inputClass} />
+              <p className="mt-1 text-xs text-[var(--muted-foreground)]">Leave empty for an open-ended contract.</p>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>Salary (RON)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.salary_ron}
+              onChange={e => set('salary_ron', e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
+          {error && <p className="text-sm text-[var(--destructive)]">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="rounded-lg bg-[#D1353B] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ContractDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { user } = useAuth()
   const [contract, setContract] = useState<ContractDetail | null>(null)
+  const [departments, setDepartments] = useState<DepartmentOption[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [editing, setEditing] = useState(false)
+
+  const canEdit = user?.role === 'CEO' || user?.role === 'HR'
 
   useEffect(() => {
     const loadContract = async () => {
@@ -85,6 +239,22 @@ export default function ContractDetailPage() {
 
     loadContract()
   }, [id])
+
+  useEffect(() => {
+    if (!canEdit) return
+    const loadDepartments = async () => {
+      try {
+        const response = await fetch('/api/departments/', { credentials: 'include' })
+        if (response.ok) {
+          const data = (await response.json()) as DepartmentOption[]
+          setDepartments(data)
+        }
+      } catch (err) {
+        console.error('Failed to load departments', err)
+      }
+    }
+    loadDepartments()
+  }, [canEdit])
 
   const statusClass = useMemo(() => {
     if (!contract) {
@@ -137,9 +307,21 @@ export default function ContractDetailPage() {
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">Employee contract details</p>
           </div>
 
-          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass}`}>
-            {STATUS_LABELS[contract.status] ?? contract.status}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${statusClass}`}>
+              {STATUS_LABELS[contract.status] ?? contract.status}
+            </span>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-[#D1353B] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+              >
+                <FiEdit2 className="h-4 w-4" />
+                Edit
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -169,6 +351,18 @@ export default function ContractDetailPage() {
           </article>
         </div>
       </div>
+
+      {editing && (
+        <EditContractModal
+          contract={contract}
+          departments={departments}
+          onClose={() => setEditing(false)}
+          onSaved={(updated) => {
+            setContract(updated)
+            setEditing(false)
+          }}
+        />
+      )}
     </section>
   )
 }
