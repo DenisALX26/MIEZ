@@ -72,8 +72,12 @@ class Command(BaseCommand):
         self.stdout.write('Stock movements…')
         self._stock_movements(products, suppliers, users)
 
+        from django.db.models.signals import post_save
+        from api.signals import create_invoice_for_new_order
+        post_save.disconnect(create_invoice_for_new_order, sender=Order)
         self.stdout.write('Orders & order items…')
         orders = self._orders(customers, users, products)
+        post_save.connect(create_invoice_for_new_order, sender=Order)
 
         self.stdout.write('Invoices…')
         self._invoices(orders, users)
